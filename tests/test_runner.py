@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pypdf import PdfReader
 
-from core.models import Horizon, ResearchRequest
+from core.models import Horizon, ResearchRequest, SourceRecord
 from services.research_runner import ResearchRunner
 from research.demo_provider import DemoResearchProvider
 
@@ -23,6 +23,23 @@ class _OperationalLimitationProvider:
         )
 
 
+class _ManySourcesProvider:
+    def run(self, request, workspace=None):
+        result = DemoResearchProvider().run(request, workspace)
+        return replace(
+            result,
+            sources=tuple(
+                SourceRecord(
+                    f"Source {index}",
+                    f"https://example.com/source-{index}",
+                    result.as_of,
+                    f"Evidence area {index}",
+                )
+                for index in range(1, 9)
+            ),
+        )
+
+
 class ResearchRunnerTests(unittest.TestCase):
     def test_prepare_and_finalize_demo_report(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -34,8 +51,11 @@ class ResearchRunnerTests(unittest.TestCase):
             session_path = prepared.session.root
             self.assertTrue(prepared.preview_path.is_file())
             reader = PdfReader(prepared.preview_path)
-            self.assertEqual(len(reader.pages), 2)
+            self.assertEqual(len(reader.pages), 4)
             report_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            first_page = reader.pages[0].extract_text() or ""
+            second_page = reader.pages[1].extract_text() or ""
+            final_page = reader.pages[-1].extract_text() or ""
             self.assertIn("OVERALL RATING", report_text)
             self.assertIn("TECHNICAL SETUP", report_text)
             self.assertIn("FUNDAMENTAL OUTLOOK", report_text)
@@ -44,6 +64,13 @@ class ResearchRunnerTests(unittest.TestCase):
             self.assertIn("Technical Action Plan", report_text)
             self.assertIn("TECHNICAL STOP", report_text)
             self.assertIn("OPTIONS SCENARIO", report_text)
+            self.assertIn("YTD Total Return", first_page)
+            self.assertIn("WHAT THIS CHART SHOWS", first_page)
+            self.assertIn("Technical Action Plan", second_page)
+            self.assertIn("Technical Price Structure", second_page)
+            self.assertIn("Sources and Disclosure", final_page)
+            self.assertIn("Disclosure:", final_page)
+            self.assertNotIn("Sources and Disclosure", "\n".join(page.extract_text() or "" for page in reader.pages[:-1]))
             self.assertNotIn("Possible Investment Approaches", report_text)
             self.assertNotIn("Interpretation:", report_text)
             self.assertNotIn("LEAD\n", report_text)
@@ -83,6 +110,29 @@ class ResearchRunnerTests(unittest.TestCase):
                 )
             )
             self.assertEqual(prepared.suggested_filename, "AXON_Deep_Technical_Analysis.pdf")
+            reader = PdfReader(prepared.preview_path)
+            self.assertIn("Sources and Disclosure", reader.pages[-1].extract_text() or "")
+            self.assertNotIn(
+                "Sources and Disclosure",
+                "\n".join(page.extract_text() or "" for page in reader.pages[:-1]),
+            )
+            runner.cancel(prepared)
+
+    def test_explicit_lead_chart_replaces_default_ytd_chart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = ResearchRunner(session_root=Path(folder))
+            prepared = runner.prepare(
+                ResearchRequest(
+                    "AXON",
+                    Horizon.ALL,
+                    question="Show a Fibonacci chart and explain the setup.",
+                    overview_chart="fibonacci",
+                )
+            )
+            first_page = PdfReader(prepared.preview_path).pages[0].extract_text() or ""
+            self.assertIn("Fibonacci Structure", first_page)
+            self.assertNotIn("YTD Total Return", first_page)
+            self.assertIn("WHAT THIS CHART SHOWS", first_page)
             runner.cancel(prepared)
 
     def test_comparison_uses_two_ticker_filename_and_dedicated_sources_page(self):
@@ -120,6 +170,20 @@ class ResearchRunnerTests(unittest.TestCase):
             self.assertNotIn("No AI research provider", report_text)
             self.assertNotIn("YCharts add-in", report_text)
             self.assertNotIn("#NAME?", report_text)
+            runner.cancel(prepared)
+
+    def test_full_source_list_is_confined_to_the_final_page(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = ResearchRunner(provider=_ManySourcesProvider(), session_root=Path(folder))
+            prepared = runner.prepare(ResearchRequest("AXON", Horizon.ALL))
+            reader = PdfReader(prepared.preview_path)
+            final_page = reader.pages[-1].extract_text() or ""
+            earlier_pages = "\n".join(page.extract_text() or "" for page in reader.pages[:-1])
+            self.assertIn("Sources and Disclosure", final_page)
+            self.assertIn("Source 1", final_page)
+            self.assertIn("Source 8", final_page)
+            self.assertNotIn("Source 1", earlier_pages)
+            self.assertNotIn("Disclosure:", earlier_pages)
             runner.cancel(prepared)
 
 
