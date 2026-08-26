@@ -11,13 +11,16 @@ The runnable application includes:
 - Gottfried & Somberg Wealth Management branded PDF generation;
 - embedded PDF preview, versioned export, and temporary-session cleanup;
 - live security resolution, market history, fundamentals, news metadata, and deterministic technical indicators;
-- annotated technical charts with trend, support, resistance, and volume;
+- a compact two-page, chart-led report with trend, support, resistance, and volume;
+- an Evidence Review audit showing the exact YCharts Excel result cells and formulas;
 - secure Windows certificate-store support for live market connections;
 - configurable OpenAI web research, local Ollama synthesis, deterministic fallback, and explicit demo mode.
 
 Live mode links directly to YCharts, TradingView, SEC EDGAR, and the underlying market-data page. Authenticated YCharts values are never guessed when an account session cannot be read. Demo mode remains labeled throughout the UI and PDF and never claims that live research occurred.
 
 On Windows, live mode also attempts to query the installed YCharts Excel Add-In through a temporary workbook. Excel/YCharts credentials remain inside the existing add-in session. Unavailable formulas or add-in failures are disclosed in the Evidence Review and final report rather than silently replaced.
+
+The YCharts workbook uses columns A:G and calculates live results in F2:F9. Excel formula errors such as `#NAME?` are rejected and disclosed; they can never be formatted as market values or ratings.
 
 ## Provider setup
 
