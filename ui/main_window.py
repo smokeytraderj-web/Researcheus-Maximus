@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
 from core.models import Horizon, ResearchRequest
 from core.research_prompt import append_revision_instructions, parse_research_prompt
 from research.demo_provider import DemoResearchProvider
@@ -295,6 +296,7 @@ class MainWindow(QMainWindow):
             self.modification_request.clear()
         self.prepared = prepared
         r = prepared.result
+        interpretation = assessment_interpretation(r.technical.rating, r.fundamental.rating)
         signals = "".join(f"<li>{item}</li>" for item in r.technical.signals)
         fundamentals = "".join(f"<li>{item}</li>" for item in r.fundamental.signals)
         limitations = "".join(f"<li>{item}</li>" for item in r.limitations)
@@ -317,10 +319,11 @@ class MainWindow(QMainWindow):
             <p><b>Exchange:</b> {r.identity.exchange} &nbsp; <b>Currency:</b> {r.identity.currency}<br>
             <b>Horizon:</b> {r.horizon.value} &nbsp; <b>As of:</b> {r.as_of}<br>
             <b>Illustrative current price:</b> ${r.current_price:,.2f}</p>
-            <hr><h3>Preliminary ratings</h3>
-            <p><b>Technical:</b> {r.technical.rating.value}<br>
-            <b>Fundamental:</b> {r.fundamental.rating.value}<br>
-            <b>Lead:</b> {r.lead_rating.value} ({r.confidence.value} confidence)</p>
+            <hr><h3>Preliminary recommendation</h3>
+            <p><b>Overall rating:</b> {r.lead_rating.value} ({r.confidence.value} confidence)<br>
+            <b>Technical setup:</b> {technical_setup(r.technical.rating)}<br>
+            <b>Fundamental outlook:</b> {fundamental_outlook(r.fundamental.rating)}</p>
+            <p><b>Interpretation:</b> {interpretation}</p>
             <h3>Technical signals</h3><ul>{signals}</ul>
             <h3>Fundamental signals</h3><ul>{fundamentals}</ul>
             <h3>Sentiment</h3><p>{r.sentiment}</p>
