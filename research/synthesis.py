@@ -116,11 +116,23 @@ def ollama_synthesize(company: str, ticker: str, horizon: Horizon, market: dict,
     return _normalize(json.loads(content), f"Local Ollama {selected}", retrieved_at, ("Local Ollama synthesis does not perform independent web search; it uses the retrieved market and news evidence supplied by the app.",))
 
 
-def deterministic_synthesis(info: dict, news: list[dict], retrieved_at: str) -> SynthesisResult:
+def deterministic_synthesis(
+    info: dict,
+    news: list[dict],
+    retrieved_at: str,
+    current_price: float | None = None,
+    external_metrics: dict | None = None,
+) -> SynthesisResult:
+    external_metrics = external_metrics or {}
     growth = info.get("revenueGrowth")
     earnings_growth = info.get("earningsGrowth")
     forward_pe = info.get("forwardPE")
     debt_equity = info.get("debtToEquity")
+    consensus = external_metrics.get("YCharts consensus rating") or info.get("recommendationKey")
+    target = external_metrics.get("YCharts price target") or info.get("targetMeanPrice")
+    target_upside = external_metrics.get("YCharts price target upside")
+    if not isinstance(target_upside, (int, float)) and isinstance(target, (int, float)) and current_price:
+        target_upside = target / current_price - 1
     score = 0
     if isinstance(growth, (int, float)):
         score += 2 if growth > 0.15 else 1 if growth > 0 else -1
@@ -130,6 +142,13 @@ def deterministic_synthesis(info: dict, news: list[dict], retrieved_at: str) -> 
         score += 1 if 0 < forward_pe < 25 else -1 if forward_pe > 45 else 0
     if isinstance(debt_equity, (int, float)) and debt_equity > 200:
         score -= 1
+    normalized_consensus = str(consensus or "").lower().replace("_", " ")
+    if any(term in normalized_consensus for term in ("strong buy", "buy", "outperform", "overweight")):
+        score += 1
+    elif any(term in normalized_consensus for term in ("sell", "underperform", "underweight")):
+        score -= 1
+    if isinstance(target_upside, (int, float)):
+        score += 1 if target_upside >= 0.10 else -1 if target_upside <= -0.10 else 0
     rating = Rating.BUY if score >= 4 else Rating.ADD if score >= 2 else Rating.HOLD if score >= 0 else Rating.REDUCE
     def show(value, percent=False):
         if not isinstance(value, (int, float)):
@@ -139,14 +158,13 @@ def deterministic_synthesis(info: dict, news: list[dict], retrieved_at: str) -> 
         f"Reported/provider revenue growth: {show(growth, True)}.",
         f"Reported/provider earnings growth: {show(earnings_growth, True)}.",
         f"Forward P/E: {show(forward_pe)}; debt/equity: {show(debt_equity)}.",
-        f"{len(news)} recent news items were available from the market-data provider.",
+        f"Street consensus: {str(consensus or 'unavailable').replace('_', ' ').title()}; mean target: {show(target)}; implied upside: {show(target_upside, True)}.",
     )
     return SynthesisResult(
-        SpecialistFinding(rating, "A deterministic fundamental screen was completed from available provider fields; deeper narrative synthesis requires OpenAI or Ollama.", signals),
+        SpecialistFinding(rating, "The fundamental screen combines growth, valuation, leverage, and available analyst-consensus evidence. It is a reduced-data screen when no research model is configured.", signals),
         "Sentiment was not scored because no configured language provider completed narrative analysis.",
         ("Provider fundamentals may be incomplete or use differing fiscal definitions.", "Current filings and social narratives were not independently synthesized."),
         ("Review the latest earnings release and company guidance.",),
         ("Material earnings revisions or guidance changes.", "A break in the prevailing technical structure."),
         (), "Deterministic fallback", ("No AI research provider was available; fundamental and sentiment coverage is reduced.",)
     )
-
