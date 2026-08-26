@@ -1,10 +1,20 @@
+import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from core.models import Horizon
-from research.technical import analyze_history, strategies, technical_finding
+from core.models import Horizon, Rating, SpecialistFinding
+from research.technical import (
+    analyze_history,
+    incorporate_relative_performance,
+    render_momentum_chart,
+    render_relative_performance_chart,
+    render_risk_chart,
+    strategies,
+    technical_finding,
+)
 
 
 class TechnicalAnalysisTests(unittest.TestCase):
@@ -46,6 +56,34 @@ class TechnicalAnalysisTests(unittest.TestCase):
         first = strategies(snapshot, Horizon.LONG)[0]
         self.assertEqual(first.name, "Trend reclaim / staged entry")
         self.assertIn("Wait for a close back", first.action_zone)
+
+    def test_relative_outperformance_strengthens_the_technical_rating(self):
+        primary = self._history()
+        benchmark = self._history()
+        benchmark["Close"] = np.linspace(100, 104, len(benchmark))
+        finding = SpecialistFinding(Rating.HOLD, "Base technical view.", ("Base signal.",))
+        revised, metrics, insight = incorporate_relative_performance(finding, primary, {"SPY": benchmark})
+        self.assertEqual(revised.rating, Rating.ADD)
+        self.assertEqual(metrics[0][0], "3-month return vs. SPY")
+        self.assertIn("moved the technical rating", insight)
+
+    def test_deep_analysis_charts_render(self):
+        primary = self._history()
+        benchmark = self._history()
+        benchmark["Close"] = np.linspace(100, 145, len(benchmark))
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            outputs = (
+                render_momentum_chart(primary, "AXON", root / "momentum.png"),
+                render_relative_performance_chart(
+                    {"AXON": primary, "SPY": benchmark},
+                    root / "relative.png",
+                ),
+                render_risk_chart(primary, "AXON", root / "risk.png"),
+            )
+            for output in outputs:
+                self.assertTrue(output.is_file())
+                self.assertGreater(output.stat().st_size, 10_000)
 
 
 if __name__ == "__main__":
