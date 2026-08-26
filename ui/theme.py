@@ -10,7 +10,7 @@ QLabel#Subtitle { color: #657386; font-size: 12px; }
 QLabel#Section { color: #14263D; font-size: 15px; font-weight: 700; }
 QLabel#SettingsSummary { color: #657386; font-size: 11px; padding: 5px 2px; }
 QFrame#Card { background: #FFFFFF; border: 1px solid #DCE1E6; border-radius: 10px; }
-QLineEdit, QComboBox, QDoubleSpinBox {
+QLineEdit, QComboBox, QDoubleSpinBox, QPlainTextEdit {
     background: #FFFFFF;
     border: 1px solid #C9D0D8;
     border-radius: 6px;
@@ -21,10 +21,15 @@ QLineEdit, QComboBox, QDoubleSpinBox {
 QComboBox::drop-down, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
     min-width: 24px;
 }
-QLineEdit#ResearchQuery {
-    min-height: 42px;
+QPlainTextEdit#ResearchQuery {
+    min-height: 104px;
     font-size: 16px;
-    padding: 6px 12px;
+    padding: 10px 12px;
+}
+QPlainTextEdit#ModificationRequest {
+    min-height: 66px;
+    font-size: 13px;
+    padding: 8px 10px;
 }
 QPushButton { background: #14263D; color: #FFFFFF; border: 0; border-radius: 6px; padding: 10px 18px; font-weight: 700; }
 QPushButton:hover { background: #203B5D; }
