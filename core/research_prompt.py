@@ -15,11 +15,19 @@ _TICKER_STOPWORDS = {
     "HOLD",
     "I",
     "IS",
+    "ATR",
+    "EMA",
+    "ETF",
+    "MACD",
     "PLEASE",
     "RESEARCH",
+    "RSI",
     "SELL",
     "SHOULD",
+    "SMA",
     "THE",
+    "USD",
+    "VS",
     "WHAT",
     "YOU",
 }
@@ -33,14 +41,14 @@ def parse_research_prompt(value: str) -> tuple[str, str]:
 
     lines = [line.strip() for line in prompt.splitlines() if line.strip()]
     first_line = lines[0]
-    if len(lines) > 1:
-        return first_line.lstrip("$"), prompt
-
-    for separator in (" — ", " – ", " | ", ": "):
+    for separator in (" — ", " – ", " - ", " | ", ": "):
         if separator in first_line:
             candidate = first_line.split(separator, 1)[0].strip().lstrip("$")
             if candidate:
                 return candidate, prompt
+
+    if len(lines) > 1:
+        return first_line.lstrip("$"), prompt
 
     company = re.search(
         r"\b(?:research|analyze|buy|sell|hold|add)\s+"
@@ -69,3 +77,25 @@ def append_revision_instructions(original: str, revision: str) -> str:
         return clean_original
     prefix = f"{clean_original}\n\n" if clean_original else ""
     return f"{prefix}Requested modifications to the revised report:\n{clean_revision}"
+
+
+def parse_deep_analysis_prompt(value: str) -> tuple[str, str, tuple[str, ...], tuple[str, ...]]:
+    """Parse a technical-analysis brief, comparisons, and supported chart requests."""
+    query, prompt = parse_research_prompt(value)
+    if not prompt:
+        return "", "", (), ()
+
+    primary = query.upper().lstrip("$")
+    symbols = []
+    for match in _TICKER.finditer(prompt):
+        symbol = match.group(1).upper()
+        if symbol in _TICKER_STOPWORDS or symbol == primary or symbol in symbols:
+            continue
+        symbols.append(symbol)
+    comparisons = tuple(symbols[:3]) or ("SPY",)
+
+    lowered = prompt.lower()
+    charts = ["price_trend", "momentum", "relative_performance"]
+    if any(term in lowered for term in ("drawdown", "volatility", "risk chart", "risk profile")):
+        charts.append("risk")
+    return query, prompt, comparisons, tuple(charts)
