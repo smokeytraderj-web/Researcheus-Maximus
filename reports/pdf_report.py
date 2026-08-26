@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from html import escape
 from pathlib import Path
+import re
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
@@ -22,12 +23,14 @@ GOLD = colors.HexColor("#B08D57")
 INK = colors.HexColor("#263648")
 MUTED = colors.HexColor("#657386")
 PALE = colors.HexColor("#F3F5F7")
+WARM = colors.HexColor("#F8F6F1")
 LINE = colors.HexColor("#D7DDE3")
 FONT = "ResearcheusSans"
 FONT_BOLD = "ResearcheusSans-Bold"
+DISPLAY = "ResearcheusDisplay-Bold"
 
 
-def _register_fonts() -> tuple[str, str]:
+def _register_fonts() -> tuple[str, str, str]:
     """Embed a predictable TrueType font so PDF viewers render clean spacing."""
     try:
         import matplotlib
@@ -37,36 +40,43 @@ def _register_fonts() -> tuple[str, str]:
             pdfmetrics.registerFont(TTFont(FONT, str(font_root / "DejaVuSans.ttf")))
             pdfmetrics.registerFont(TTFont(FONT_BOLD, str(font_root / "DejaVuSans-Bold.ttf")))
             pdfmetrics.registerFontFamily(FONT, normal=FONT, bold=FONT_BOLD)
-        return FONT, FONT_BOLD
+        if DISPLAY not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont(DISPLAY, str(font_root / "DejaVuSerif-Bold.ttf")))
+        return FONT, FONT_BOLD, DISPLAY
     except Exception:
-        return "Helvetica", "Helvetica-Bold"
+        return "Helvetica", "Helvetica-Bold", "Times-Bold"
 
 
 def _styles():
-    regular, bold = _register_fonts()
+    regular, bold, display = _register_fonts()
     base = getSampleStyleSheet()
     return {
         "brand": ParagraphStyle("Brand", parent=base["Normal"], fontName=bold, fontSize=7.2, textColor=GOLD, leading=9),
+        "banner_title": ParagraphStyle("BannerTitle", parent=base["Title"], fontName=display, fontSize=20.5, leading=23.5, textColor=colors.white, alignment=TA_LEFT, spaceBefore=5, spaceAfter=3),
+        "banner_subtitle": ParagraphStyle("BannerSubtitle", parent=base["Normal"], fontName=regular, fontSize=7.7, leading=10, textColor=colors.white),
         "request_label": ParagraphStyle("RequestLabel", parent=base["Normal"], fontName=bold, fontSize=7.0, textColor=GOLD, leading=9, spaceBefore=2, spaceAfter=2),
         "request_response": ParagraphStyle("RequestResponse", parent=base["BodyText"], fontName=regular, fontSize=8.5, leading=11.2, textColor=INK, spaceAfter=5),
-        "title": ParagraphStyle("Title", parent=base["Title"], fontName=bold, fontSize=20, leading=23, textColor=NAVY, alignment=TA_LEFT, spaceAfter=3),
+        "title": ParagraphStyle("Title", parent=base["Title"], fontName=display, fontSize=20.5, leading=23.5, textColor=NAVY, alignment=TA_LEFT, spaceAfter=3),
         "subtitle": ParagraphStyle("Subtitle", parent=base["Normal"], fontName=regular, fontSize=7.7, leading=10, textColor=MUTED),
-        "section": ParagraphStyle("Section", parent=base["Heading2"], fontName=bold, fontSize=11, leading=13, textColor=NAVY, spaceBefore=7, spaceAfter=4),
+        "section": ParagraphStyle("Section", parent=base["Heading2"], fontName=display, fontSize=11.5, leading=14, textColor=NAVY, spaceBefore=9, spaceAfter=5),
         "body": ParagraphStyle("Body", parent=base["BodyText"], fontName=regular, fontSize=7.8, leading=10.4, textColor=INK, spaceAfter=3),
         "conclusion": ParagraphStyle("Conclusion", parent=base["BodyText"], fontName=regular, fontSize=9.2, leading=12.2, textColor=INK, spaceAfter=5),
         "compact": ParagraphStyle("Compact", parent=base["BodyText"], fontName=regular, fontSize=6.9, leading=9, textColor=INK),
         "small": ParagraphStyle("Small", parent=base["BodyText"], fontName=regular, fontSize=6.2, leading=7.7, textColor=MUTED),
         "table_header": ParagraphStyle("TableHeader", parent=base["BodyText"], fontName=bold, fontSize=6.2, leading=7.7, textColor=colors.white),
         "tiny": ParagraphStyle("Tiny", parent=base["BodyText"], fontName=regular, fontSize=5.5, leading=6.8, textColor=MUTED),
-        "rating": ParagraphStyle("Rating", parent=base["Normal"], fontName=bold, fontSize=13.5, leading=16, textColor=NAVY, alignment=TA_CENTER),
+        "rating": ParagraphStyle("Rating", parent=base["Normal"], fontName=display, fontSize=14, leading=16.5, textColor=NAVY, alignment=TA_CENTER),
         "action_value": ParagraphStyle("ActionValue", parent=base["Normal"], fontName=bold, fontSize=7.7, leading=9.4, textColor=NAVY, alignment=TA_LEFT),
         "value": ParagraphStyle("Value", parent=base["Normal"], fontName=bold, fontSize=7.2, leading=9, textColor=NAVY, alignment=TA_RIGHT),
+        "chart_bullet": ParagraphStyle("ChartBullet", parent=base["BodyText"], fontName=regular, fontSize=7.4, leading=10, textColor=INK, leftIndent=2, spaceAfter=2),
     }
 
 
 def _footer(canvas, document) -> None:
-    regular, _bold = _register_fonts()
+    regular, _bold, _display = _register_fonts()
     canvas.saveState()
+    canvas.setFillColor(WARM)
+    canvas.rect(0, 0, letter[0], letter[1], fill=1, stroke=0)
     canvas.setStrokeColor(GOLD)
     canvas.setLineWidth(0.6)
     canvas.line(0.62 * inch, 0.48 * inch, 7.88 * inch, 0.48 * inch)
@@ -98,9 +108,75 @@ def _overall_conclusion_text(value: str) -> str:
     return cleaned
 
 
+def _first_sentence(value: str) -> str:
+    protected = value.strip()
+    abbreviations = ("Inc.", "Corp.", "Co.", "Ltd.", "L.P.", "S.A.", "U.S.")
+    for abbreviation in abbreviations:
+        protected = protected.replace(abbreviation, abbreviation.replace(".", "<DOT>"))
+    parts = re.split(r"(?<=[.!?])\s+", protected, maxsplit=1)
+    first = parts[0].replace("<DOT>", ".") if parts else protected.replace("<DOT>", ".")
+    return first.strip()
+
+
+def _report_banner(title: str, subtitle: str, styles) -> Table:
+    content = [
+        Paragraph("GOTTFRIED &amp; SOMBERG WEALTH MANAGEMENT", styles["brand"]),
+        Paragraph(_safe(title), styles["banner_title"]),
+        Paragraph(subtitle, styles["banner_subtitle"]),
+    ]
+    banner = Table([[content]], colWidths=[7.25 * inch], hAlign="LEFT")
+    banner.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), NAVY),
+                ("LINEBELOW", (0, 0), (-1, -1), 1.5, GOLD),
+                ("LEFTPADDING", (0, 0), (-1, -1), 14),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+                ("TOPPADDING", (0, 0), (-1, -1), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+            ]
+        )
+    )
+    return banner
+
+
 def _bullet_text(items: tuple[str, ...], style, limit: int | None = None) -> list[Paragraph]:
     selected = items if limit is None else items[:limit]
     return [Paragraph(f"- {_safe(item)}", style) for item in selected]
+
+
+def _insight_bullets(insight: str) -> tuple[str, ...]:
+    return tuple(
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?])\s+", insight.strip())
+        if sentence.strip()
+    )
+
+
+def _chart_takeaway_box(items: tuple[str, ...], styles, heading: str = "WHAT THIS CHART SHOWS") -> Table | None:
+    clean = tuple(item.strip() for item in items if item and item.strip())
+    if not clean:
+        return None
+    rows = [[Paragraph(heading, styles["request_label"])]]
+    rows.extend([[Paragraph(f"- {_safe(item)}", styles["chart_bullet"])]] for item in clean[:4])
+    table = Table(rows, colWidths=[7.15 * inch], hAlign="LEFT")
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.35, LINE),
+                ("LINEBEFORE", (0, 0), (0, -1), 2.2, GOLD),
+                ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, 0), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 2),
+                ("TOPPADDING", (0, 1), (-1, -1), 1),
+                ("BOTTOMPADDING", (0, 1), (-1, -2), 1),
+                ("BOTTOMPADDING", (0, -1), (-1, -1), 5),
+            ]
+        )
+    )
+    return table
 
 
 def _rating_box(result: ResearchResult, styles, *, price_label: str = "CURRENT PRICE") -> Table:
@@ -268,6 +344,27 @@ def _comparison_performance_summary(result: ResearchResult, styles) -> Table | N
         )
     )
     return table
+
+
+def _comparison_chart_takeaways(result: ResearchResult) -> tuple[str, ...]:
+    comparison = result.comparison
+    assert comparison is not None
+    bullets = list(comparison.rationale[:2])
+    if (
+        comparison.primary_chart_return is not None
+        and comparison.secondary_chart_return is not None
+    ):
+        difference = comparison.primary_chart_return - comparison.secondary_chart_return
+        leader = result.identity.ticker if difference >= 0 else comparison.secondary_identity.ticker
+        bullets.insert(
+            0,
+            f"{leader} led the other security by {abs(difference):.1%} over the visible chart period.",
+        )
+    if comparison.benchmark_ticker and comparison.benchmark_return is not None:
+        bullets.append(
+            f"{comparison.benchmark_ticker} is the common benchmark; the table above shows each security's excess return over the same dates."
+        )
+    return tuple(bullets[:4])
 
 
 def _comparison_technical_cards(result: ResearchResult, styles) -> Table:
@@ -461,7 +558,7 @@ def _key_metric_note(result: ResearchResult, styles) -> Paragraph | None:
                 f"<b>What this means:</b> Revenue grew {revenue_growth:.1%}, but earnings changed {earnings_growth:.1%}. "
                 "Sales are expanding, but that growth has not yet translated into higher profit; margins, costs, and one-time items need closer review."
             ),
-            styles["small"],
+            styles["compact"],
         )
     return None
 
@@ -609,7 +706,7 @@ def _technical_action_plan_story(result: ResearchResult, styles) -> list:
     story.append(
         Paragraph(
             f"<b>Why these levels:</b> {_safe(' '.join(plan.rationale[:3]))}",
-            styles["small"],
+            styles["compact"],
         )
     )
     if plan.options_strategy:
@@ -649,7 +746,7 @@ def _research_watchlist(result: ResearchResult, styles) -> Table:
         ("Catalysts", result.catalysts),
         ("Rating changes if", result.change_conditions),
     ):
-        columns.append([Paragraph(f"<b>{title}</b>", styles["compact"]), *_bullet_text(items, styles["small"], 2)])
+        columns.append([Paragraph(f"<b>{title}</b>", styles["compact"]), *_bullet_text(items, styles["compact"], 2)])
     table = Table([columns], colWidths=[2.383 * inch] * 3)
     table.setStyle(
         TableStyle(
@@ -708,6 +805,44 @@ def _client_visible_limitations(result: ResearchResult) -> tuple[str, ...]:
     )
 
 
+def _sources_and_disclosure_story(result: ResearchResult, styles, *, comparison: bool = False) -> list:
+    visible_limitations = _client_visible_limitations(result)
+    options_disclosure = (
+        " Options involve leverage and are not suitable for every investor; an option buyer can lose the entire premium, and an option seller can be assigned. Any options scenario requires separate suitability, approval, and live-chain review."
+        if result.technical_plan is not None and result.technical_plan.options_strategy
+        else ""
+    )
+    comparison_note = (
+        " The comparison is limited to like-for-like available evidence and may omit unavailable factors."
+        if comparison
+        else ""
+    )
+    story = [
+        PageBreak(),
+        Paragraph("Sources and Disclosure", styles["section"]),
+        Paragraph(
+            "Source records below support the market history, security facts, benchmarks, and research evidence used throughout this report.",
+            styles["body"],
+        ),
+        _source_table(result, styles),
+    ]
+    if visible_limitations:
+        story += [
+            Paragraph("Report Notes", styles["section"]),
+            *_bullet_text(visible_limitations[:4], styles["small"]),
+        ]
+    story.append(
+        Paragraph(
+            "<b>Disclosure:</b> This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing involves risk, including possible loss of principal."
+            + comparison_note
+            + options_disclosure
+            + " Firm compliance review is required before client distribution.",
+            styles["tiny"],
+        )
+    )
+    return story
+
+
 def _chartbook_story(result: ResearchResult, styles) -> list:
     story = []
     for index, chart in enumerate(result.chartbook):
@@ -720,13 +855,12 @@ def _chartbook_story(result: ResearchResult, styles) -> list:
         trailing_single = len(result.chartbook) % 2 == 1 and index == len(result.chartbook) - 1
         image._restrictSize(7.15 * inch, (2.35 if trailing_single else 2.95) * inch)
         story.append(image)
-        story.append(Paragraph(f"<b>Decision insight:</b> {_safe(chart.insight)}", styles["compact"]))
-        story.append(
-            Paragraph(
-                "Source: attributed live price histories; calculations and chart construction by Researcheus Maximus.",
-                styles["small"],
-            )
+        takeaway = _chart_takeaway_box(
+            chart.insights or _insight_bullets(chart.insight),
+            styles,
         )
+        if takeaway is not None:
+            story.append(takeaway)
         story.append(Spacer(1, 0.05 * inch))
     return story
 
@@ -828,14 +962,16 @@ def _historical_trade_story(result: ResearchResult, styles) -> list:
             image = Image(case.chart_path)
             image._restrictSize(7.15 * inch, 4.1 * inch)
             story.append(image)
-        story += [
-            Paragraph(f"<b>Why the entry qualified:</b> {_safe(case.rationale)}", styles["compact"]),
-            Paragraph(f"<b>Why the case ended:</b> {_safe(case.exit_reason)}", styles["compact"]),
-            Paragraph(
-                "Source: attributed real daily market history. Entry, stop, and exit annotations were calculated by Researcheus Maximus; use the TradingView source link for independent chart review.",
-                styles["small"],
+        takeaway = _chart_takeaway_box(
+            (
+                f"Entry: {case.rationale}",
+                f"Exit: {case.exit_reason}",
+                f"Result: {case.return_pct:+.1%} from the hypothetical entry to exit.",
             ),
-        ]
+            styles,
+        )
+        if takeaway is not None:
+            story.append(takeaway)
     story.append(PageBreak())
     return story
 
@@ -874,13 +1010,7 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         if comparison
         else f"{_safe(result.analysis_mode if request.deep_analysis else result.horizon.value + ' research')} | {range_text + ' | ' if range_text else ''}{_safe(result.identity.exchange)} | {_safe(result.identity.currency)} | Produced {_safe(as_of)}"
     )
-    story = [
-        Paragraph("GOTTFRIED &amp; SOMBERG WEALTH MANAGEMENT", styles["brand"]),
-        Spacer(1, 0.05 * inch),
-        Paragraph(_safe(report_title), styles["title"]),
-        Paragraph(report_subtitle, styles["subtitle"]),
-        Spacer(1, 0.11 * inch),
-    ]
+    story = [_report_banner(report_title, report_subtitle, styles), Spacer(1, 0.11 * inch)]
     if result.demo_mode:
         warning = Table([[Paragraph("DEMO MODE - Synthetic values for workflow validation. Not live investment research.", styles["body"])]], colWidths=[7.25 * inch])
         warning.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFF3D8")), ("BOX", (0, 0), (-1, -1), 0.7, GOLD), ("LEFTPADDING", (0, 0), (-1, -1), 8), ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5)]))
@@ -906,21 +1036,16 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         if result.chart_path and Path(result.chart_path).is_file():
             comparison_chart = Image(result.chart_path)
             comparison_chart._restrictSize(7.2 * inch, 4.35 * inch)
+            comparison_takeaways = _chart_takeaway_box(
+                _comparison_chart_takeaways(result),
+                styles,
+            )
             story += [
                 Spacer(1, 0.07 * inch),
                 comparison_chart,
-                Paragraph(
-                    (
-                        "Source: attributed live price histories; series normalized to 100 on their first common trading date. "
-                        + (
-                            f"Sector benchmark: {_safe(comparison.benchmark_label)} ({_safe(comparison.benchmark_ticker)})."
-                            if comparison.benchmark_ticker
-                            else ""
-                        )
-                    ),
-                    styles["small"],
-                ),
             ]
+            if comparison_takeaways is not None:
+                story.append(comparison_takeaways)
         story += [
             PageBreak(),
             Paragraph("Side-by-Side Evidence", styles["section"]),
@@ -935,24 +1060,8 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
                 "The highlighted preference is a comparison of the evidence available for both securities at the stated time. It is not an absolute recommendation. Portfolio role, concentration, taxes, liquidity needs, and risk capacity can change which security is more appropriate.",
                 styles["body"],
             ),
-            PageBreak(),
-            Paragraph("Sources and Disclosure", styles["section"]),
-            Paragraph(
-                "Source links below support the market history, security facts, benchmarks, and research evidence used in this comparison.",
-                styles["body"],
-            ),
-            Paragraph("Sources", styles["section"]),
-            _source_table(result, styles),
         ]
-        visible_limitations = _client_visible_limitations(result)
-        if visible_limitations:
-            story.append(Paragraph(f"<b>Limitations:</b> {_safe(' | '.join(visible_limitations[:4]))}", styles["tiny"]))
-        story.append(
-            Paragraph(
-                "<b>Disclosure:</b> This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. The comparison is limited to like-for-like available evidence and may omit unavailable factors. Investing involves risk, including possible loss of principal. Firm compliance review is required before client distribution.",
-                styles["tiny"],
-            )
-        )
+        story += _sources_and_disclosure_story(result, styles, comparison=True)
         doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
         return destination
 
@@ -967,51 +1076,56 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         ]
     story += [
         Paragraph(
-            f"<b>Overall Conclusion:</b> {_safe(_overall_conclusion_text(result.executive_summary))}",
+            f"<b>Overall Conclusion:</b> {_safe(_first_sentence(_overall_conclusion_text(result.executive_summary)))}",
             styles["conclusion"],
         ),
     ]
+    if result.overview_chart and Path(result.overview_chart.path).is_file():
+        story.append(Paragraph(_safe(result.overview_chart.title), styles["section"]))
+        overview_image = Image(result.overview_chart.path)
+        overview_image._restrictSize(7.15 * inch, 3.15 * inch)
+        story.append(overview_image)
+        overview_takeaways = _chart_takeaway_box(
+            result.overview_chart.insights or _insight_bullets(result.overview_chart.insight),
+            styles,
+        )
+        if overview_takeaways is not None:
+            story.append(overview_takeaways)
+    story.append(PageBreak())
+
     action_plan_story = _technical_action_plan_story(result, styles)
     if action_plan_story:
         story += [
             Paragraph("Technical Action Plan", styles["section"]),
-            Paragraph(
-                "Technically derived planning levels, not automatic trade instructions. Entry, stop, and target levels must be reassessed if price structure changes before execution.",
-                styles["small"],
-            ),
             *action_plan_story,
         ]
     portfolio_fit_box = _portfolio_fit_box(result, styles)
     if portfolio_fit_box is not None:
         story += [Paragraph("Portfolio Role", styles["section"]), portfolio_fit_box]
-    if result.chart_path and Path(result.chart_path).is_file():
+    overview_uses_primary_chart = bool(
+        result.overview_chart
+        and result.chart_path
+        and Path(result.overview_chart.path) == Path(result.chart_path)
+    )
+    if result.chart_path and Path(result.chart_path).is_file() and not overview_uses_primary_chart:
+        story.append(Paragraph("Technical Price Structure", styles["section"]))
         primary_chart = Image(result.chart_path)
-        primary_chart._restrictSize(7.2 * inch, (3.35 if result.technical_plan is not None else 4.75) * inch)
-        story += [
-            Spacer(1, (0.16 if portfolio_fit_box is not None else 0.06) * inch),
-            primary_chart,
-            *(
-                [Paragraph(f"<b>Decision insight:</b> {_safe(result.technical.summary)}", styles["compact"])]
-                if request.deep_analysis
-                else []
-            ),
-            Paragraph(
-                (
-                    "Source: synthetic demo history; indicators and annotations shown for workflow validation only."
-                    if result.demo_mode
-                    else "Source: attributed live price history; indicators and annotations calculated by Researcheus Maximus."
-                ),
-                styles["small"],
-            ),
-        ]
+        primary_chart._restrictSize(7.15 * inch, 3.35 * inch)
+        story.append(primary_chart)
+        technical_takeaways = _chart_takeaway_box(
+            (result.technical.summary, *result.technical.signals[:2]),
+            styles,
+        )
+        if technical_takeaways is not None:
+            story.append(technical_takeaways)
     if request.deep_analysis and result.chartbook:
         story += _chartbook_story(result, styles)
-        if len(result.chartbook) % 2 == 0 and not request.historical_trade_examples:
+        if not request.historical_trade_examples:
             story.append(PageBreak())
-    elif not request.historical_trade_examples:
-        story.append(PageBreak())
     if request.historical_trade_examples:
         story += _historical_trade_story(result, styles)
+    elif not request.deep_analysis or not result.chartbook:
+        story.append(PageBreak())
     story.append(
         KeepTogether(
             [
@@ -1021,7 +1135,7 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         )
     )
     if result.sentiment:
-        story.append(Paragraph(f"<b>Sentiment:</b> {_safe(result.sentiment)}", styles["small"]))
+        story.append(Paragraph(f"<b>Sentiment:</b> {_safe(result.sentiment)}", styles["body"]))
     story += [Paragraph("Key Metrics", styles["section"]), _metric_grid(result, styles)]
     metric_note = _key_metric_note(result, styles)
     if metric_note is not None:
@@ -1037,23 +1151,7 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         strategy_table = _strategy_cards(result, styles)
         if strategy_table is not None:
             story.append(strategy_table)
-    story += [Paragraph("Research Watchlist", styles["section"]), _research_watchlist(result, styles), Paragraph("Sources", styles["section"]), _source_table(result, styles)]
-    visible_limitations = _client_visible_limitations(result)
-    if visible_limitations:
-        limitations = " | ".join(visible_limitations[:3])
-        story.append(Paragraph(f"<b>Limitations:</b> {_safe(limitations)}", styles["tiny"]))
-    options_disclosure = (
-        " Options involve leverage and are not suitable for every investor; an option buyer can lose the entire premium, and an option seller can be assigned. Any options scenario requires separate suitability, approval, and live-chain review."
-        if result.technical_plan is not None and result.technical_plan.options_strategy
-        else ""
-    )
-    story.append(
-        Paragraph(
-            "<b>Disclosure:</b> This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing involves risk, including possible loss of principal."
-            + options_disclosure
-            + " Firm compliance review is required before client distribution.",
-            styles["tiny"],
-        )
-    )
+    story += [Paragraph("Research Watchlist", styles["section"]), _research_watchlist(result, styles)]
+    story += _sources_and_disclosure_story(result, styles)
     doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
     return destination
