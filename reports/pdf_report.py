@@ -18,13 +18,13 @@ from reportlab.platypus import Image, KeepTogether, PageBreak, Paragraph, Simple
 from core.assessments import fundamental_outlook, technical_setup
 from core.models import ResearchRequest, ResearchResult
 
-NAVY = colors.HexColor("#14263D")
-GOLD = colors.HexColor("#B08D57")
-INK = colors.HexColor("#263648")
-MUTED = colors.HexColor("#657386")
-PALE = colors.HexColor("#F3F5F7")
-WARM = colors.HexColor("#F8F6F1")
-LINE = colors.HexColor("#D7DDE3")
+NAVY = colors.HexColor("#1B2A4A")
+GOLD = colors.HexColor("#BFA054")
+INK = colors.HexColor("#1B2A4A")
+MUTED = colors.HexColor("#5E697A")
+PALE = colors.HexColor("#F5F7FA")
+WARM = colors.white
+LINE = colors.HexColor("#D8DDE6")
 FONT = "ResearcheusSans"
 FONT_BOLD = "ResearcheusSans-Bold"
 DISPLAY = "ResearcheusDisplay-Bold"
@@ -55,32 +55,40 @@ def _styles():
         "banner_title": ParagraphStyle("BannerTitle", parent=base["Title"], fontName=display, fontSize=20.5, leading=23.5, textColor=colors.white, alignment=TA_LEFT, spaceBefore=5, spaceAfter=3),
         "banner_subtitle": ParagraphStyle("BannerSubtitle", parent=base["Normal"], fontName=regular, fontSize=7.7, leading=10, textColor=colors.white),
         "request_label": ParagraphStyle("RequestLabel", parent=base["Normal"], fontName=bold, fontSize=7.0, textColor=GOLD, leading=9, spaceBefore=2, spaceAfter=2),
-        "request_response": ParagraphStyle("RequestResponse", parent=base["BodyText"], fontName=regular, fontSize=8.5, leading=11.2, textColor=INK, spaceAfter=5),
+        "request_response": ParagraphStyle("RequestResponse", parent=base["BodyText"], fontName=regular, fontSize=9.2, leading=12.5, textColor=INK, spaceAfter=6),
         "title": ParagraphStyle("Title", parent=base["Title"], fontName=display, fontSize=20.5, leading=23.5, textColor=NAVY, alignment=TA_LEFT, spaceAfter=3),
         "subtitle": ParagraphStyle("Subtitle", parent=base["Normal"], fontName=regular, fontSize=7.7, leading=10, textColor=MUTED),
-        "section": ParagraphStyle("Section", parent=base["Heading2"], fontName=display, fontSize=11.5, leading=14, textColor=NAVY, spaceBefore=9, spaceAfter=5),
-        "body": ParagraphStyle("Body", parent=base["BodyText"], fontName=regular, fontSize=7.8, leading=10.4, textColor=INK, spaceAfter=3),
-        "conclusion": ParagraphStyle("Conclusion", parent=base["BodyText"], fontName=regular, fontSize=9.2, leading=12.2, textColor=INK, spaceAfter=5),
-        "compact": ParagraphStyle("Compact", parent=base["BodyText"], fontName=regular, fontSize=6.9, leading=9, textColor=INK),
-        "small": ParagraphStyle("Small", parent=base["BodyText"], fontName=regular, fontSize=6.2, leading=7.7, textColor=MUTED),
-        "table_header": ParagraphStyle("TableHeader", parent=base["BodyText"], fontName=bold, fontSize=6.2, leading=7.7, textColor=colors.white),
-        "tiny": ParagraphStyle("Tiny", parent=base["BodyText"], fontName=regular, fontSize=5.5, leading=6.8, textColor=MUTED),
-        "rating": ParagraphStyle("Rating", parent=base["Normal"], fontName=display, fontSize=14, leading=16.5, textColor=NAVY, alignment=TA_CENTER),
-        "action_value": ParagraphStyle("ActionValue", parent=base["Normal"], fontName=bold, fontSize=7.7, leading=9.4, textColor=NAVY, alignment=TA_LEFT),
-        "value": ParagraphStyle("Value", parent=base["Normal"], fontName=bold, fontSize=7.2, leading=9, textColor=NAVY, alignment=TA_RIGHT),
-        "chart_bullet": ParagraphStyle("ChartBullet", parent=base["BodyText"], fontName=regular, fontSize=7.4, leading=10, textColor=INK, leftIndent=2, spaceAfter=2),
+        "page_title": ParagraphStyle("PageTitle", parent=base["Heading1"], fontName=display, fontSize=18.5, leading=22, textColor=NAVY),
+        "page_meta": ParagraphStyle("PageMeta", parent=base["Normal"], fontName=regular, fontSize=7.3, leading=9, textColor=NAVY, alignment=TA_RIGHT),
+        "section": ParagraphStyle("Section", parent=base["Heading2"], fontName=display, fontSize=13.5, leading=16.5, textColor=NAVY, spaceBefore=10, spaceAfter=6),
+        "subsection": ParagraphStyle("Subsection", parent=base["Heading3"], fontName=bold, fontSize=8.2, leading=10, textColor=GOLD, spaceBefore=3, spaceAfter=3),
+        "body": ParagraphStyle("Body", parent=base["BodyText"], fontName=regular, fontSize=8.8, leading=12, textColor=INK, spaceAfter=4),
+        "conclusion": ParagraphStyle("Conclusion", parent=base["BodyText"], fontName=regular, fontSize=10.1, leading=13.8, textColor=INK, spaceAfter=7),
+        "compact": ParagraphStyle("Compact", parent=base["BodyText"], fontName=regular, fontSize=7.8, leading=10.5, textColor=INK),
+        "small": ParagraphStyle("Small", parent=base["BodyText"], fontName=regular, fontSize=6.9, leading=8.8, textColor=MUTED),
+        "table_header": ParagraphStyle("TableHeader", parent=base["BodyText"], fontName=bold, fontSize=7.0, leading=8.6, textColor=colors.white),
+        "tiny": ParagraphStyle("Tiny", parent=base["BodyText"], fontName=regular, fontSize=6.1, leading=7.8, textColor=MUTED),
+        "rating": ParagraphStyle("Rating", parent=base["Normal"], fontName=display, fontSize=15.5, leading=18, textColor=NAVY, alignment=TA_CENTER),
+        "action_label": ParagraphStyle("ActionLabel", parent=base["Normal"], fontName=bold, fontSize=7.0, leading=8.5, textColor=GOLD),
+        "action_big": ParagraphStyle("ActionBig", parent=base["Normal"], fontName=display, fontSize=12.5, leading=15, textColor=NAVY),
+        "action_detail": ParagraphStyle("ActionDetail", parent=base["BodyText"], fontName=regular, fontSize=7.7, leading=10.3, textColor=INK),
+        "action_value": ParagraphStyle("ActionValue", parent=base["Normal"], fontName=bold, fontSize=8.8, leading=10.5, textColor=NAVY, alignment=TA_LEFT),
+        "value": ParagraphStyle("Value", parent=base["Normal"], fontName=bold, fontSize=8.0, leading=9.8, textColor=NAVY, alignment=TA_RIGHT),
+        "metric_label": ParagraphStyle("MetricLabel", parent=base["BodyText"], fontName=regular, fontSize=7.5, leading=9.5, textColor=INK),
+        "metric_value": ParagraphStyle("MetricValue", parent=base["BodyText"], fontName=bold, fontSize=7.9, leading=9.7, textColor=NAVY, alignment=TA_RIGHT),
+        "chart_note": ParagraphStyle("ChartNote", parent=base["BodyText"], fontName=regular, fontSize=7.5, leading=10, textColor=MUTED, italic=True, spaceBefore=3, spaceAfter=4),
     }
 
 
 def _footer(canvas, document) -> None:
     regular, _bold, _display = _register_fonts()
     canvas.saveState()
-    canvas.setFillColor(WARM)
+    canvas.setFillColor(colors.white)
     canvas.rect(0, 0, letter[0], letter[1], fill=1, stroke=0)
     canvas.setStrokeColor(GOLD)
     canvas.setLineWidth(0.6)
     canvas.line(0.62 * inch, 0.48 * inch, 7.88 * inch, 0.48 * inch)
-    canvas.setFillColor(MUTED)
+    canvas.setFillColor(NAVY)
     canvas.setFont(regular, 6.2)
     canvas.drawString(0.62 * inch, 0.3 * inch, "Gottfried & Somberg Wealth Management")
     canvas.drawRightString(7.88 * inch, 0.3 * inch, f"Page {document.page}")
@@ -89,6 +97,10 @@ def _footer(canvas, document) -> None:
 
 def _safe(value: object) -> str:
     return escape(str(value), quote=True)
+
+
+def _as_of_label(result: ResearchResult) -> str:
+    return f"As of {result.as_of[:10]}"
 
 
 def _overall_conclusion_text(value: str) -> str:
@@ -140,6 +152,27 @@ def _report_banner(title: str, subtitle: str, styles) -> Table:
     return banner
 
 
+def _content_header(title: str, meta: str, styles) -> list:
+    header = Table(
+        [[Paragraph(_safe(title), styles["page_title"]), Paragraph(_safe(meta), styles["page_meta"])]],
+        colWidths=[5.3 * inch, 1.95 * inch],
+        hAlign="LEFT",
+    )
+    header.setStyle(
+        TableStyle(
+            [
+                ("LINEBELOW", (0, 0), (-1, -1), 1.4, GOLD),
+                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+        )
+    )
+    return [header, Spacer(1, 0.10 * inch)]
+
+
 def _bullet_text(items: tuple[str, ...], style, limit: int | None = None) -> list[Paragraph]:
     selected = items if limit is None else items[:limit]
     return [Paragraph(f"- {_safe(item)}", style) for item in selected]
@@ -153,30 +186,11 @@ def _insight_bullets(insight: str) -> tuple[str, ...]:
     )
 
 
-def _chart_takeaway_box(items: tuple[str, ...], styles, heading: str = "WHAT THIS CHART SHOWS") -> Table | None:
+def _chart_note(items: tuple[str, ...], styles) -> Paragraph | None:
     clean = tuple(item.strip() for item in items if item and item.strip())
     if not clean:
         return None
-    rows = [[Paragraph(heading, styles["request_label"])]]
-    rows.extend([[Paragraph(f"- {_safe(item)}", styles["chart_bullet"])]] for item in clean[:4])
-    table = Table(rows, colWidths=[7.15 * inch], hAlign="LEFT")
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-                ("BOX", (0, 0), (-1, -1), 0.35, LINE),
-                ("LINEBEFORE", (0, 0), (0, -1), 2.2, GOLD),
-                ("LEFTPADDING", (0, 0), (-1, -1), 9),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
-                ("TOPPADDING", (0, 0), (-1, 0), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 2),
-                ("TOPPADDING", (0, 1), (-1, -1), 1),
-                ("BOTTOMPADDING", (0, 1), (-1, -2), 1),
-                ("BOTTOMPADDING", (0, -1), (-1, -1), 5),
-            ]
-        )
-    )
-    return table
+    return Paragraph(f"<b>Decision note:</b> {_safe(clean[0])}", styles["chart_note"])
 
 
 def _rating_box(result: ResearchResult, styles, *, price_label: str = "CURRENT PRICE") -> Table:
@@ -200,15 +214,16 @@ def _rating_box(result: ResearchResult, styles, *, price_label: str = "CURRENT P
     box.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, -1), PALE),
-                ("BOX", (0, 0), (-1, -1), 0.8, NAVY),
-                ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.55, LINE),
+                ("LINEABOVE", (0, 0), (-1, 0), 2.0, GOLD),
+                ("INNERGRID", (0, 0), (-1, -1), 0.25, LINE),
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("TOPPADDING", (0, 0), (-1, 0), 5),
                 ("BOTTOMPADDING", (0, 0), (-1, 0), 3),
-                ("TOPPADDING", (0, 1), (-1, 1), 7),
-                ("BOTTOMPADDING", (0, 1), (-1, 1), 7),
+                ("TOPPADDING", (0, 1), (-1, 1), 9),
+                ("BOTTOMPADDING", (0, 1), (-1, 1), 9),
             ]
         )
     )
@@ -540,6 +555,141 @@ def _metric_grid(result: ResearchResult, styles) -> Table:
     return table
 
 
+_METRIC_GROUPS = (
+    (
+        "Position and Risk",
+        (
+            "User purchase price",
+            "Gain/loss from purchase price",
+            "User quantity",
+            "Illustrative current position value",
+            "Planned entry zone",
+            "Technical stop / invalidation",
+            "First / second target",
+            "Estimated reward / risk",
+        ),
+    ),
+    (
+        "Trend and Momentum",
+        (
+            "Analysis-range return",
+            "Three-month return",
+            "20-day moving average",
+            "50-day moving average",
+            "200-day moving average",
+            "RSI (14)",
+            "MACD / signal",
+            "ATR (14)",
+            "Volume vs. 20-day avg.",
+            "60-day support / resistance",
+            "6-month Fibonacci swing range",
+            "Fibonacci 38.2% / 50% / 61.8%",
+        ),
+    ),
+    (
+        "Company and Valuation",
+        (
+            "Current price",
+            "Range-end price",
+            "Security type",
+            "Market capitalization",
+            "Trailing / forward P/E",
+            "Revenue growth",
+            "Earnings growth",
+            "Analyst mean target",
+            "Analyst target implied upside",
+            "Street consensus (Yahoo)",
+            "YCharts consensus rating",
+            "YCharts price target",
+            "YCharts price target upside",
+        ),
+    ),
+    (
+        "Fund Profile",
+        (
+            "Fund strategy",
+            "Fund family",
+            "Expense ratio",
+            "Distribution yield",
+            "Fund net assets",
+            "Annual holdings turnover",
+            "Reported asset allocation",
+            "Fund duration",
+            "Fund maturity",
+            "Fund credit quality",
+        ),
+    ),
+)
+
+
+def _metric_group_table(title: str, metrics: list[tuple[str, str]], styles) -> Table:
+    rows: list[list] = [[Paragraph(_safe(title.upper()), styles["table_header"]), "", "", ""]]
+    for index in range(0, len(metrics), 2):
+        left = metrics[index]
+        right = metrics[index + 1] if index + 1 < len(metrics) else ("", "")
+        rows.append(
+            [
+                Paragraph(_safe(left[0]), styles["metric_label"]),
+                Paragraph(_safe(left[1]), styles["metric_value"]),
+                Paragraph(_safe(right[0]), styles["metric_label"]),
+                Paragraph(_safe(right[1]), styles["metric_value"]),
+            ]
+        )
+    table = Table(rows, colWidths=[2.0 * inch, 1.58 * inch, 2.0 * inch, 1.57 * inch], hAlign="LEFT")
+    table.setStyle(
+        TableStyle(
+            [
+                ("SPAN", (0, 0), (-1, 0)),
+                ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, PALE]),
+                ("LINEBELOW", (0, 1), (-1, -2), 0.25, LINE),
+                ("BOX", (0, 0), (-1, -1), 0.4, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, 0), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                ("TOPPADDING", (0, 1), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 1), (-1, -1), 5),
+            ]
+        )
+    )
+    return table
+
+
+def _organized_metric_story(result: ResearchResult, styles) -> list:
+    def has_data(value: str) -> bool:
+        remainder = value.lower().replace("unavailable", "").replace("/", "").strip()
+        return bool(remainder)
+
+    available = {label: value for label, value in result.key_metrics if has_data(value)}
+    available.setdefault("Current price", f"${result.current_price:,.2f}")
+    if result.technical_plan is not None:
+        plan = result.technical_plan
+        available.setdefault("Planned entry zone", f"${plan.entry_low:,.2f}-${plan.entry_high:,.2f}")
+        available.setdefault(
+            "Technical stop / invalidation",
+            f"${plan.stop_level:,.2f} ({plan.stop_pct:.1%} below entry midpoint)",
+        )
+        available.setdefault(
+            "First / second target",
+            f"${plan.first_target:,.2f} / ${plan.second_target:,.2f}",
+        )
+        available.setdefault("Estimated reward / risk", f"{plan.reward_risk:.2f}x to first target")
+    used: set[str] = set()
+    story: list = []
+    for title, labels in _METRIC_GROUPS:
+        metrics = [(label, available[label]) for label in labels if label in available]
+        if not metrics:
+            continue
+        used.update(label for label, _value in metrics)
+        story += [_metric_group_table(title, metrics, styles), Spacer(1, 0.10 * inch)]
+    extras = [(label, value) for label, value in available.items() if label not in used]
+    if extras:
+        story += [_metric_group_table("Additional Research Data", extras, styles), Spacer(1, 0.10 * inch)]
+    return story
+
+
 def _key_metric_note(result: ResearchResult, styles) -> Paragraph | None:
     metrics = dict(result.key_metrics)
 
@@ -565,27 +715,30 @@ def _key_metric_note(result: ResearchResult, styles) -> Paragraph | None:
 
 def _analysis_cards(result: ResearchResult, styles) -> Table:
     technical = [
-        Paragraph(f"<b>Technical Setup - {_safe(technical_setup(result.technical.rating))}</b>", styles["body"]),
-        Paragraph(_safe(result.technical.summary), styles["compact"]),
+        Paragraph("TECHNICAL SETUP", styles["subsection"]),
+        Paragraph(_safe(technical_setup(result.technical.rating)), styles["action_big"]),
+        Paragraph(_safe(result.technical.summary), styles["body"]),
         *_bullet_text(result.technical.signals, styles["compact"], 3),
     ]
     fundamental = [
-        Paragraph(f"<b>Fundamental Outlook - {_safe(fundamental_outlook(result.fundamental.rating))}</b>", styles["body"]),
-        Paragraph(_safe(result.fundamental.summary), styles["compact"]),
+        Paragraph("FUNDAMENTAL OUTLOOK", styles["subsection"]),
+        Paragraph(_safe(fundamental_outlook(result.fundamental.rating)), styles["action_big"]),
+        Paragraph(_safe(result.fundamental.summary), styles["body"]),
         *_bullet_text(result.fundamental.signals, styles["compact"], 3),
     ]
-    table = Table([[technical, fundamental]], colWidths=[3.575 * inch, 3.575 * inch], hAlign="LEFT")
+    table = Table([[technical], [fundamental]], colWidths=[7.15 * inch], hAlign="LEFT")
     table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, -1), PALE),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
                 ("BOX", (0, 0), (-1, -1), 0.45, LINE),
-                ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
+                ("LINEABOVE", (0, 0), (-1, 0), 1.7, GOLD),
+                ("LINEABOVE", (0, 1), (-1, 1), 1.0, GOLD),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 7),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
             ]
         )
     )
@@ -633,105 +786,79 @@ def _technical_action_plan_story(result: ResearchResult, styles) -> list:
     entry_zone = f"${plan.entry_low:,.2f}-${plan.entry_high:,.2f}"
     stop = f"${plan.stop_level:,.2f}"
     targets = f"${plan.first_target:,.2f} / ${plan.second_target:,.2f}"
-    summary = Table(
-        [
+    cards = Table(
+        [[
             [
-                Paragraph("STANCE", styles["small"]),
-                Paragraph("MARKET", styles["small"]),
-                Paragraph("PREFERRED ORDER", styles["small"]),
-                Paragraph("ENTRY ZONE", styles["small"]),
+                Paragraph("POSITION IDEA", styles["action_label"]),
+                Paragraph(_safe(plan.stance), styles["action_big"]),
+                Paragraph(
+                    f"{_safe(plan.order_type)}<br/><b>Entry:</b> {_safe(entry_zone)}<br/><b>Market:</b> {_safe(plan.market_condition)}",
+                    styles["action_detail"],
+                ),
             ],
             [
-                Paragraph(_safe(plan.stance), styles["action_value"]),
-                Paragraph(_safe(plan.market_condition), styles["action_value"]),
-                Paragraph(_safe(plan.order_type), styles["action_value"]),
-                Paragraph(_safe(entry_zone), styles["action_value"]),
+                Paragraph("STOP-LOSS IDEA", styles["action_label"]),
+                Paragraph(_safe(stop), styles["action_big"]),
+                Paragraph(
+                    f"{plan.stop_pct:.1%} below entry midpoint<br/><b>Idea fails if:</b> {_safe(plan.invalidation)}",
+                    styles["action_detail"],
+                ),
             ],
             [
-                Paragraph("TECHNICAL STOP", styles["small"]),
-                Paragraph("STOP DISTANCE", styles["small"]),
-                Paragraph("TARGET 1 / TARGET 2", styles["small"]),
-                Paragraph("REWARD / RISK", styles["small"]),
+                Paragraph("TARGETS", styles["action_label"]),
+                Paragraph(_safe(targets), styles["action_big"]),
+                Paragraph(
+                    f"{plan.reward_risk:.2f}x to Target 1<br/><b>Confirm with:</b> {_safe(plan.confirmation)}",
+                    styles["action_detail"],
+                ),
             ],
-            [
-                Paragraph(_safe(stop), styles["action_value"]),
-                Paragraph(f"{plan.stop_pct:.1%} from entry", styles["action_value"]),
-                Paragraph(_safe(targets), styles["action_value"]),
-                Paragraph(f"{plan.reward_risk:.2f}x to Target 1", styles["action_value"]),
-            ],
-        ],
-        colWidths=[1.7875 * inch] * 4,
+        ]],
+        colWidths=[2.33 * inch, 2.33 * inch, 2.49 * inch],
         hAlign="LEFT",
     )
-    summary.setStyle(
+    cards.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, -1), PALE),
-                ("BACKGROUND", (0, 0), (-1, 0), colors.white),
-                ("BACKGROUND", (0, 2), (-1, 2), colors.white),
-                ("BOX", (0, 0), (-1, -1), 0.6, NAVY),
-                ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.45, LINE),
+                ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
+                ("LINEABOVE", (0, 0), (-1, 0), 2.0, GOLD),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
             ]
         )
     )
-    decision_rules = Table(
-        [
-            [
-                Paragraph(f"<b>Confirmation:</b> {_safe(plan.confirmation)}", styles["compact"]),
-                Paragraph(f"<b>Invalidation:</b> {_safe(plan.invalidation)}", styles["compact"]),
-            ]
-        ],
-        colWidths=[3.575 * inch, 3.575 * inch],
-        hAlign="LEFT",
-    )
-    decision_rules.setStyle(
-        TableStyle(
-            [
-                ("BOX", (0, 0), (-1, -1), 0.4, LINE),
-                ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 7),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]
-        )
-    )
-    story = [summary, decision_rules]
-    story.append(
-        Paragraph(
-            f"<b>Why these levels:</b> {_safe(' '.join(plan.rationale[:3]))}",
-            styles["compact"],
-        )
-    )
+    story = [cards, Spacer(1, 0.08 * inch)]
+    story.append(Paragraph(f"<b>Why these levels:</b> {_safe(' '.join(plan.rationale[:3]))}", styles["body"]))
     if plan.options_strategy:
         options = Table(
             [
                 [
+                    Paragraph("OPTIONS STRATEGY EXAMPLE", styles["table_header"]),
                     Paragraph(
-                        f"<b>OPTIONS SCENARIO - {_safe(plan.options_strategy)}</b><br/>"
-                        f"{_safe(plan.options_structure)}<br/><b>Specific risk:</b> {_safe(plan.options_risk)}",
-                        styles["compact"],
+                        f"<b>{_safe(plan.options_strategy)}</b><br/>{_safe(plan.options_structure)}"
+                        f"<br/><b>Risk:</b> {_safe(plan.options_risk)}",
+                        styles["body"],
                     )
                 ]
             ],
-            colWidths=[7.15 * inch],
+            colWidths=[1.55 * inch, 5.6 * inch],
             hAlign="LEFT",
         )
         options.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFF7E8")),
-                    ("BOX", (0, 0), (-1, -1), 0.5, GOLD),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 7),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-                    ("TOPPADDING", (0, 0), (-1, -1), 5),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                    ("BACKGROUND", (0, 0), (0, 0), NAVY),
+                    ("BACKGROUND", (1, 0), (1, 0), PALE),
+                    ("BOX", (0, 0), (-1, -1), 0.45, LINE),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                    ("TOPPADDING", (0, 0), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
                 ]
             )
         )
@@ -746,19 +873,20 @@ def _research_watchlist(result: ResearchResult, styles) -> Table:
         ("Catalysts", result.catalysts),
         ("Rating changes if", result.change_conditions),
     ):
-        columns.append([Paragraph(f"<b>{title}</b>", styles["compact"]), *_bullet_text(items, styles["compact"], 2)])
+        columns.append([Paragraph(title.upper(), styles["subsection"]), *_bullet_text(items, styles["compact"], 2)])
     table = Table([columns], colWidths=[2.383 * inch] * 3)
     table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, -1), PALE),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
                 ("BOX", (0, 0), (-1, -1), 0.4, LINE),
                 ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
+                ("LINEABOVE", (0, 0), (-1, 0), 1.4, GOLD),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
             ]
         )
     )
@@ -819,7 +947,7 @@ def _sources_and_disclosure_story(result: ResearchResult, styles, *, comparison:
     )
     story = [
         PageBreak(),
-        Paragraph("Sources and Disclosure", styles["section"]),
+        *_content_header("Sources and Disclosure", _as_of_label(result), styles),
         Paragraph(
             "Source records below support the market history, security facts, benchmarks, and research evidence used throughout this report.",
             styles["body"],
@@ -849,18 +977,18 @@ def _chartbook_story(result: ResearchResult, styles) -> list:
         if index % 2 == 0:
             story.append(PageBreak())
             heading = "Deep Technical Chartbook" if index == 0 else "Deep Technical Chartbook - Continued"
-            story.append(Paragraph(heading, styles["section"]))
+            story.extend(_content_header(heading, _as_of_label(result), styles))
         story.append(Paragraph(_safe(chart.title), styles["section"]))
         image = Image(chart.path)
         trailing_single = len(result.chartbook) % 2 == 1 and index == len(result.chartbook) - 1
         image._restrictSize(7.15 * inch, (2.35 if trailing_single else 2.95) * inch)
         story.append(image)
-        takeaway = _chart_takeaway_box(
+        note = _chart_note(
             chart.insights or _insight_bullets(chart.insight),
             styles,
         )
-        if takeaway is not None:
-            story.append(takeaway)
+        if note is not None:
+            story.append(note)
         story.append(Spacer(1, 0.05 * inch))
     return story
 
@@ -905,7 +1033,7 @@ def _portfolio_fit_box(result: ResearchResult, styles) -> Table | None:
 
 
 def _historical_trade_story(result: ResearchResult, styles) -> list:
-    story = [PageBreak(), Paragraph("Historical Trade Case Studies", styles["section"])]
+    story = [PageBreak(), *_content_header("Historical Trade Case Studies", _as_of_label(result), styles)]
     story.append(
         Paragraph(
             "Hypothetical, rules-based examples using real daily market history. These are not executed trades, reconstructed TradingView orders, or proof that the same rule will work in the future. The signal is evaluated after the close and the entry is the next session, which prevents look-ahead bias.",
@@ -919,7 +1047,6 @@ def _historical_trade_story(result: ResearchResult, styles) -> list:
                 styles["body"],
             )
         )
-        story.append(PageBreak())
         return story
     for index, case in enumerate(result.historical_trade_cases, start=1):
         if index > 1:
@@ -962,7 +1089,7 @@ def _historical_trade_story(result: ResearchResult, styles) -> list:
             image = Image(case.chart_path)
             image._restrictSize(7.15 * inch, 4.1 * inch)
             story.append(image)
-        takeaway = _chart_takeaway_box(
+        note = _chart_note(
             (
                 f"Entry: {case.rationale}",
                 f"Exit: {case.exit_reason}",
@@ -970,9 +1097,8 @@ def _historical_trade_story(result: ResearchResult, styles) -> list:
             ),
             styles,
         )
-        if takeaway is not None:
-            story.append(takeaway)
-    story.append(PageBreak())
+        if note is not None:
+            story.append(note)
     return story
 
 
@@ -992,6 +1118,7 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         pageCompression=1,
     )
     as_of = result.as_of.replace("T", " ")
+    page_meta = _as_of_label(result)
     custom_range = bool(request.custom_start and request.custom_end)
     historical_range = bool(custom_range and request.custom_end < result.as_of[:10])
     range_text = (
@@ -1036,21 +1163,16 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         if result.chart_path and Path(result.chart_path).is_file():
             comparison_chart = Image(result.chart_path)
             comparison_chart._restrictSize(7.2 * inch, 4.35 * inch)
-            comparison_takeaways = _chart_takeaway_box(
-                _comparison_chart_takeaways(result),
-                styles,
-            )
             story += [
                 Spacer(1, 0.07 * inch),
                 comparison_chart,
             ]
-            if comparison_takeaways is not None:
-                story.append(comparison_takeaways)
         story += [
             PageBreak(),
-            Paragraph("Side-by-Side Evidence", styles["section"]),
+            *_content_header("Side-by-Side Evidence", page_meta, styles),
             _comparison_metric_table(result, styles),
             PageBreak(),
+            *_content_header("Security Profiles", page_meta, styles),
             Paragraph("Technical Setups", styles["section"]),
             _comparison_technical_cards(result, styles),
             Paragraph("Company Snapshots", styles["section"]),
@@ -1067,7 +1189,7 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
 
     story += [
         _rating_box(result, styles, price_label="RANGE-END PRICE" if custom_range else "CURRENT PRICE"),
-        Paragraph("Investment View", styles["section"]),
+        Paragraph("Investment Summary", styles["section"]),
     ]
     if result.request_response:
         story += [
@@ -1083,22 +1205,24 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
     if result.overview_chart and Path(result.overview_chart.path).is_file():
         story.append(Paragraph(_safe(result.overview_chart.title), styles["section"]))
         overview_image = Image(result.overview_chart.path)
-        overview_image._restrictSize(7.15 * inch, 3.15 * inch)
+        overview_image._restrictSize(7.15 * inch, 4.0 * inch)
         story.append(overview_image)
-        overview_takeaways = _chart_takeaway_box(
-            result.overview_chart.insights or _insight_bullets(result.overview_chart.insight),
-            styles,
-        )
-        if overview_takeaways is not None:
-            story.append(overview_takeaways)
-    story.append(PageBreak())
+    story += [PageBreak(), *_content_header("Position and Risk Plan", page_meta, styles)]
 
     action_plan_story = _technical_action_plan_story(result, styles)
     if action_plan_story:
+        story += [Paragraph("Technical Action Plan", styles["section"]), *action_plan_story]
+    else:
         story += [
-            Paragraph("Technical Action Plan", styles["section"]),
-            *action_plan_story,
+            Paragraph("Possible Investment Approaches", styles["section"]),
+            Paragraph(
+                "These are conditional ideas, not automatic instructions. Each approach states what price behavior to wait for and when the idea would no longer make sense.",
+                styles["body"],
+            ),
         ]
+        strategy_table = _strategy_cards(result, styles)
+        if strategy_table is not None:
+            story.append(strategy_table)
     portfolio_fit_box = _portfolio_fit_box(result, styles)
     if portfolio_fit_box is not None:
         story += [Paragraph("Portfolio Role", styles["section"]), portfolio_fit_box]
@@ -1110,48 +1234,29 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
     if result.chart_path and Path(result.chart_path).is_file() and not overview_uses_primary_chart:
         story.append(Paragraph("Technical Price Structure", styles["section"]))
         primary_chart = Image(result.chart_path)
-        primary_chart._restrictSize(7.15 * inch, 3.35 * inch)
+        primary_chart._restrictSize(7.15 * inch, 3.25 * inch)
         story.append(primary_chart)
-        technical_takeaways = _chart_takeaway_box(
-            (result.technical.summary, *result.technical.signals[:2]),
-            styles,
-        )
-        if technical_takeaways is not None:
-            story.append(technical_takeaways)
     if request.deep_analysis and result.chartbook:
         story += _chartbook_story(result, styles)
-        if not request.historical_trade_examples:
-            story.append(PageBreak())
     if request.historical_trade_examples:
         story += _historical_trade_story(result, styles)
-    elif not request.deep_analysis or not result.chartbook:
-        story.append(PageBreak())
+    story += [PageBreak(), *_content_header("Research Evidence", page_meta, styles)]
+    story.append(KeepTogether([Paragraph("Analysis and Decision Framework", styles["section"]), _analysis_cards(result, styles)]))
+    if result.sentiment:
+        story += [Paragraph("Sentiment and Narrative", styles["section"]), Paragraph(_safe(result.sentiment), styles["body"])]
+    story += [Paragraph("Research Watchlist", styles["section"]), _research_watchlist(result, styles)]
+
+    story += [PageBreak(), *_content_header("Key Data and Levels", page_meta, styles)]
     story.append(
-        KeepTogether(
-            [
-                Paragraph("Analysis and Decision Framework", styles["section"]),
-                _analysis_cards(result, styles),
-            ]
+        Paragraph(
+            "The figures below are organized by decision use so entry levels, technical evidence, and company data can be reviewed independently.",
+            styles["body"],
         )
     )
-    if result.sentiment:
-        story.append(Paragraph(f"<b>Sentiment:</b> {_safe(result.sentiment)}", styles["body"]))
-    story += [Paragraph("Key Metrics", styles["section"]), _metric_grid(result, styles)]
+    story += _organized_metric_story(result, styles)
     metric_note = _key_metric_note(result, styles)
     if metric_note is not None:
         story.append(metric_note)
-    if result.technical_plan is None:
-        story += [
-            Paragraph("Possible Investment Approaches", styles["section"]),
-            Paragraph(
-                "These are conditional ideas, not automatic instructions. Each approach states what price behavior to wait for and when the idea would no longer make sense.",
-                styles["small"],
-            ),
-        ]
-        strategy_table = _strategy_cards(result, styles)
-        if strategy_table is not None:
-            story.append(strategy_table)
-    story += [Paragraph("Research Watchlist", styles["section"]), _research_watchlist(result, styles)]
     story += _sources_and_disclosure_story(result, styles)
     doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
     return destination
