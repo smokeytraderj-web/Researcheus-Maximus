@@ -7,9 +7,19 @@ from pathlib import Path
 from urllib.parse import quote
 
 from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
-from core.models import Confidence, Horizon, Rating, ResearchRequest, ResearchResult, SecurityIdentity, SourceRecord
+from core.models import ChartRecord, Confidence, Horizon, Rating, ResearchRequest, ResearchResult, SecurityIdentity, SourceRecord
 from research.synthesis import deterministic_synthesis, ollama_synthesize, openai_synthesize
-from research.technical import analyze_history, render_chart, strategies, technical_finding
+from research.technical import (
+    analyze_history,
+    incorporate_relative_performance,
+    render_chart,
+    render_momentum_chart,
+    render_relative_performance_chart,
+    render_risk_chart,
+    risk_chart_insight,
+    strategies,
+    technical_finding,
+)
 from research.ycharts_excel import retrieve_ycharts_metrics
 from security.certificates import verified_market_session
 
@@ -47,14 +57,22 @@ def _tradingview_exchange(exchange: str) -> str:
     return value or "NASDAQ"
 
 
-def _combine_ratings(technical: Rating, fundamental: Rating, horizon: Horizon) -> tuple[Rating, int, int]:
+def _combine_ratings(
+    technical: Rating,
+    fundamental: Rating,
+    horizon: Horizon,
+    deep_analysis: bool = False,
+) -> tuple[Rating, int, int]:
     """Return one horizon-weighted lead rating and transparent component weights."""
-    technical_weight, fundamental_weight = {
-        Horizon.SHORT: (80, 20),
-        Horizon.MEDIUM: (50, 50),
-        Horizon.LONG: (20, 80),
-        Horizon.ALL: (50, 50),
-    }[horizon]
+    if deep_analysis:
+        technical_weight, fundamental_weight = (70, 30)
+    else:
+        technical_weight, fundamental_weight = {
+            Horizon.SHORT: (80, 20),
+            Horizon.MEDIUM: (50, 50),
+            Horizon.LONG: (20, 80),
+            Horizon.ALL: (50, 50),
+        }[horizon]
     ratings = list(Rating)
     weighted_index = (
         ratings.index(technical) * technical_weight + ratings.index(fundamental) * fundamental_weight
@@ -274,6 +292,32 @@ class LiveResearchProvider:
                 ) from exc
             raise RuntimeError(f"Live price history for {symbol} could not be retrieved.{correction} Details: {detail}") from exc
         snapshot = analyze_history(history)
+        comparison_histories = {}
+        comparison_failures = []
+        if request.deep_analysis:
+            for comparison_symbol in request.comparison_symbols:
+                cleaned_comparison = comparison_symbol.strip().upper()
+                if not cleaned_comparison or cleaned_comparison == symbol:
+                    continue
+                try:
+                    comparison_ticker = yf.Ticker(cleaned_comparison, session=self._market_session)
+                    comparison_histories[cleaned_comparison] = self._history(
+                        yf,
+                        comparison_ticker,
+                        cleaned_comparison,
+                        self._market_session,
+                    )
+                except Exception:
+                    comparison_failures.append(f"{cleaned_comparison}: live comparison history was unavailable")
+        technical = technical_finding(snapshot)
+        relative_metrics = ()
+        relative_insight = ""
+        if request.deep_analysis and comparison_histories:
+            technical, relative_metrics, relative_insight = incorporate_relative_performance(
+                technical,
+                history,
+                comparison_histories,
+            )
         try:
             info = ticker.get_info() or {}
         except Exception:
@@ -318,7 +362,9 @@ class LiveResearchProvider:
             "debt_to_equity": info.get("debtToEquity"),
             "analyst_target_mean": info.get("targetMeanPrice"),
             "analyst_recommendation": info.get("recommendationKey"),
-            "technical": dict(snapshot.as_metrics()),
+            "technical": dict(snapshot.as_metrics() + relative_metrics),
+            "analysis_mode": "Deep Technical Analysis" if request.deep_analysis else "Standard Research",
+            "comparison_symbols": tuple(comparison_histories),
             "user_context": {
                 "purchase_price": request.purchase_price,
                 "quantity": request.quantity,
@@ -355,16 +401,55 @@ class LiveResearchProvider:
                     raise
         if synthesis is None:
             synthesis = deterministic_synthesis(info, news, now, snapshot.price, dict(ycharts_values))
-        technical = technical_finding(snapshot)
-        lead, technical_weight, fundamental_weight = _combine_ratings(technical.rating, synthesis.fundamental.rating, request.horizon)
+        lead, technical_weight, fundamental_weight = _combine_ratings(
+            technical.rating,
+            synthesis.fundamental.rating,
+            request.horizon,
+            request.deep_analysis,
+        )
         limitations = list(synthesis.limitations)
         limitations.extend(ycharts_errors)
+        if comparison_failures:
+            limitations.append("Comparison data unavailable: " + " | ".join(comparison_failures))
         if errors and self.synthesis_provider.lower() == "automatic":
             limitations.append("Automatic provider fallback: " + " | ".join(errors))
         confidence = Confidence.LOW if synthesis.provider_label == "Deterministic fallback" else Confidence.MEDIUM
         chart_path = ""
+        chartbook = []
         if workspace is not None:
             chart_path = str(render_chart(history, symbol, snapshot, workspace / "technical-chart.png"))
+            if request.deep_analysis:
+                if "momentum" in request.requested_charts:
+                    momentum_path = render_momentum_chart(history, symbol, workspace / "momentum-chart.png")
+                    momentum_direction = "positive" if snapshot.macd > snapshot.macd_signal else "negative"
+                    chartbook.append(
+                        ChartRecord(
+                            "Momentum - RSI and MACD",
+                            str(momentum_path),
+                            f"RSI is {snapshot.rsi14:.1f}; MACD momentum is {momentum_direction} ({snapshot.macd:.2f} versus {snapshot.macd_signal:.2f}).",
+                        )
+                    )
+                if "relative_performance" in request.requested_charts and comparison_histories:
+                    relative_path = render_relative_performance_chart(
+                        {symbol: history, **comparison_histories},
+                        workspace / "relative-performance-chart.png",
+                    )
+                    chartbook.append(
+                        ChartRecord(
+                            "Relative Performance",
+                            str(relative_path),
+                            relative_insight or "Normalized performance comparison across common trading dates.",
+                        )
+                    )
+                if "risk" in request.requested_charts:
+                    risk_path = render_risk_chart(history, symbol, workspace / "risk-chart.png")
+                    chartbook.append(
+                        ChartRecord(
+                            "Drawdown and Volatility",
+                            str(risk_path),
+                            risk_chart_insight(history, symbol),
+                        )
+                    )
         history_source = str(history.attrs.get("market_data_source") or "Yahoo Finance market data")
         history_url = str(history.attrs.get("market_data_url") or f"https://finance.yahoo.com/quote/{quote(symbol)}")
         sources = [
@@ -374,6 +459,20 @@ class LiveResearchProvider:
             SourceRecord("YCharts", f"https://ycharts.com/companies/{quote(symbol)}", now, "Authenticated supplemental review link; no YCharts values were silently inferred"),
             SourceRecord("SEC EDGAR", f"https://www.sec.gov/edgar/search/#/q={quote(symbol)}", now, "Official filing research link"),
         ]
+        for comparison_symbol, comparison_history in comparison_histories.items():
+            comparison_source = str(comparison_history.attrs.get("market_data_source") or "Yahoo Finance market data")
+            comparison_url = str(
+                comparison_history.attrs.get("market_data_url")
+                or f"https://finance.yahoo.com/quote/{quote(comparison_symbol)}"
+            )
+            sources.append(
+                SourceRecord(
+                    f"{comparison_source} - {comparison_symbol}",
+                    comparison_url,
+                    now,
+                    "Comparison history used for normalized relative performance and relative-strength analysis",
+                )
+            )
         if metadata_fallback_used:
             sources.insert(1, SourceRecord("Nasdaq company information", f"https://www.nasdaq.com/market-activity/stocks/{quote(symbol.lower())}", now, "Company identity and exchange metadata"))
         sources.extend(synthesis.sources)
@@ -410,7 +509,7 @@ class LiveResearchProvider:
             ("Analyst mean target", _metric(info.get("targetMeanPrice"), money=True)),
             ("Analyst target implied upside", _metric(analyst_upside, percent=True)),
             ("Street consensus (Yahoo)", str(info.get("recommendationKey") or "Unavailable").replace("_", " ").title()),
-        ) + ycharts_metrics + snapshot.as_metrics()
+        ) + ycharts_metrics + snapshot.as_metrics() + relative_metrics
         interpretation = assessment_interpretation(technical.rating, synthesis.fundamental.rating)
         executive = (
             f"{company} receives a {lead.value} rating for the {request.horizon.value.lower()} horizon. "
@@ -423,7 +522,10 @@ class LiveResearchProvider:
             SecurityIdentity(company, symbol, exchange, currency), request.horizon, now, snapshot.price,
             technical, synthesis.fundamental, synthesis.sentiment, lead, confidence, executive,
             key_metrics, strategies(snapshot, request.horizon), synthesis.risks, synthesis.catalysts,
-            synthesis.change_conditions, tuple(sources), synthesis.provider_label, tuple(limitations), chart_path, False, tuple(ycharts_audit)
+            synthesis.change_conditions, tuple(sources), synthesis.provider_label, tuple(limitations), chart_path, False,
+            tuple(ycharts_audit),
+            "Deep Technical Analysis" if request.deep_analysis else "Standard Research",
+            tuple(chartbook),
         )
         result.validate()
         return result
