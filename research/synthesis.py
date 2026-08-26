@@ -57,6 +57,8 @@ Research {company} ({ticker}) for a {horizon.value} decision. Separate reported 
 
 The user's full research brief and any requested report modifications appear in user_context.question below. Address those instructions directly in the fundamental summary, signals, risks, catalysts, and change conditions while preserving factual accuracy and the required schema.
 
+When analysis_mode is Deep Technical Analysis, keep the fundamental section focused on catalysts, event risk, valuation, and business evidence that could confirm or invalidate the technical setup. Use the supplied relative-performance fields as calculated evidence; do not invent or visually infer chart values.
+
 Deterministic market/fundamental snapshot from the application:
 {json.dumps(market, default=str, indent=2)[:18000]}
 
