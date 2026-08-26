@@ -42,6 +42,7 @@ from core.research_prompt import (
     parse_comparison_prompt,
     parse_custom_range,
     parse_deep_analysis_prompt,
+    parse_overview_chart_request,
     parse_portfolio_allocation,
     parse_research_prompt,
 )
@@ -554,6 +555,7 @@ class MainWindow(QMainWindow):
                 custom_start=custom_start,
                 custom_end=custom_end,
                 decision_intent=classify_research_intent(brief),
+                overview_chart=parse_overview_chart_request(brief),
             )
         if deep:
             security_query, brief, comparisons, charts = parse_deep_analysis_prompt(self.deep_query.toPlainText())
@@ -568,6 +570,7 @@ class MainWindow(QMainWindow):
                 custom_start=custom_start,
                 custom_end=custom_end,
                 decision_intent=classify_research_intent(brief),
+                overview_chart=parse_overview_chart_request(brief),
             )
         security_query, research_brief = parse_research_prompt(self.query.toPlainText())
         custom_start, custom_end = parse_custom_range(research_brief)
@@ -590,6 +593,7 @@ class MainWindow(QMainWindow):
             decision_intent=classify_research_intent(research_brief),
             portfolio_allocation=parse_portfolio_allocation(research_brief),
             historical_trade_examples=historical_trades,
+            overview_chart=parse_overview_chart_request(research_brief),
         )
 
     def _start_research(self, *, deep: bool = False, comparison: bool = False) -> None:
@@ -861,6 +865,10 @@ class MainWindow(QMainWindow):
             custom_start=custom_start or self.prepared.request.custom_start,
             custom_end=custom_end or self.prepared.request.custom_end,
             decision_intent=classify_research_intent(revised_question),
+            overview_chart=(
+                parse_overview_chart_request(revised_question)
+                or self.prepared.request.overview_chart
+            ),
         )
         if revised_request.deep_analysis:
             _query, _brief, comparisons, charts = parse_deep_analysis_prompt(revised_question)
