@@ -19,7 +19,9 @@ def _windows_certificates() -> tuple[str, ...]:
 
     certificates: list[str] = []
     seen: set[bytes] = set()
-    for store in ("ROOT", "CA"):
+    # Only Windows Trusted Root Certification Authorities become libcurl
+    # trust anchors; intermediate certificates must not be promoted to roots.
+    for store in ("ROOT",):
         try:
             records = ssl.enum_certificates(store)
         except OSError:
@@ -78,4 +80,3 @@ def verified_market_session(cache_dir: Path | None = None):
         raise RuntimeError("Live market support is missing. Re-run pip install -r requirements.txt.") from exc
     bundle = configure_certificate_trust(cache_dir)
     return requests.Session(impersonate="chrome", verify=str(bundle), trust_env=True)
-
