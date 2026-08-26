@@ -38,6 +38,12 @@ class ResearchPromptTests(unittest.TestCase):
         query, _ = parse_research_prompt("Should I add AXON after earnings?")
         self.assertEqual(query, "AXON")
 
+    def test_fund_summary_request_preserves_the_complete_instruction(self):
+        prompt = "Give me a report on ACYN and tell me a little about the fund in a summary to start the report."
+        query, brief = parse_research_prompt(prompt)
+        self.assertEqual(query, "ACYN")
+        self.assertEqual(brief, prompt)
+
     def test_company_is_extracted_from_conversational_prompt(self):
         query, _ = parse_research_prompt("Should I buy Walmart?")
         self.assertEqual(query, "Walmart")
