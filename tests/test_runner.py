@@ -148,6 +148,22 @@ class ResearchRunnerTests(unittest.TestCase):
             self.assertNotIn("WHAT THIS CHART SHOWS", first_page)
             runner.cancel(prepared)
 
+    def test_explicit_stop_loss_chart_leads_with_structural_evidence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = ResearchRunner(session_root=Path(folder))
+            prepared = runner.prepare(
+                ResearchRequest(
+                    "AXON",
+                    Horizon.ALL,
+                    question="Show a stop-loss chart and explain the evidence.",
+                    overview_chart="stop_loss",
+                )
+            )
+            first_page = PdfReader(prepared.preview_path).pages[0].extract_text() or ""
+            self.assertIn("Stop-Loss Evidence", first_page)
+            self.assertNotIn("YTD Total Return", first_page)
+            runner.cancel(prepared)
+
     def test_comparison_uses_two_ticker_filename_and_dedicated_sources_page(self):
         with tempfile.TemporaryDirectory() as folder:
             runner = ResearchRunner(session_root=Path(folder))
