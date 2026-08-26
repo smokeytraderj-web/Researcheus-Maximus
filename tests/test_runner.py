@@ -62,6 +62,7 @@ class ResearchRunnerTests(unittest.TestCase):
             self.assertIn("TECHNICAL SETUP", report_text)
             self.assertIn("FUNDAMENTAL OUTLOOK", report_text)
             self.assertIn("RESPONSE TO YOUR REQUEST", report_text)
+            self.assertIn("Your question: Give me a report on AXON.", first_page)
             self.assertIn("Overall Conclusion:", report_text)
             self.assertIn("Technical Action Plan", report_text)
             self.assertIn("Technical stop / invalidation", report_text)
