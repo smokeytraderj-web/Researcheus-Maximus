@@ -48,6 +48,7 @@ class ResearchRequest:
     decision_intent: str = "research"
     portfolio_allocation: tuple[int, int] = ()
     historical_trade_examples: bool = False
+    overview_chart: str = ""
 
     def validate(self) -> None:
         if not self.query.strip():
@@ -58,6 +59,8 @@ class ResearchRequest:
             raise ValueError("Quantity must be greater than zero.")
         if len(self.comparison_symbols) > 3:
             raise ValueError("Deep analysis supports up to three comparison symbols.")
+        if self.overview_chart not in {"", "relative_performance", "price_trend", "fibonacci", "momentum"}:
+            raise ValueError("The requested overview chart is not supported.")
         if self.portfolio_allocation:
             if len(self.portfolio_allocation) != 2 or sum(self.portfolio_allocation) != 100:
                 raise ValueError("Portfolio allocation must contain equity and fixed-income percentages totaling 100%.")
@@ -136,6 +139,7 @@ class ChartRecord:
     title: str
     path: str
     insight: str
+    insights: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +215,7 @@ class ResearchResult:
     historical_trade_cases: tuple[HistoricalTradeCase, ...] = ()
     portfolio_fit: PortfolioFitAssessment | None = None
     technical_plan: TechnicalActionPlan | None = None
+    overview_chart: ChartRecord | None = None
 
     def validate(self) -> None:
         if self.current_price <= 0:
