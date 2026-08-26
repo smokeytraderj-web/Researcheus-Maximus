@@ -76,7 +76,7 @@ class ResearchRunnerTests(unittest.TestCase):
             self.assertEqual(prepared.suggested_filename, "AXON_Deep_Technical_Analysis.pdf")
             runner.cancel(prepared)
 
-    def test_comparison_uses_two_ticker_filename_and_three_page_report(self):
+    def test_comparison_uses_two_ticker_filename_and_dedicated_sources_page(self):
         with tempfile.TemporaryDirectory() as folder:
             runner = ResearchRunner(session_root=Path(folder))
             prepared = runner.prepare(
@@ -90,10 +90,12 @@ class ResearchRunnerTests(unittest.TestCase):
             )
             self.assertEqual(prepared.suggested_filename, "AVGO_vs_NVDA_Security_Comparison.pdf")
             reader = PdfReader(prepared.preview_path)
-            self.assertEqual(len(reader.pages), 3)
+            self.assertEqual(len(reader.pages), 4)
             report_text = "\n".join(page.extract_text() or "" for page in reader.pages)
             self.assertIn("CURRENT EVIDENCE PREFERENCE", report_text)
             self.assertIn("Side-by-Side Evidence", report_text)
+            self.assertIn("Sources and Disclosure", reader.pages[-1].extract_text() or "")
+            self.assertNotIn("Confidence:", report_text)
             runner.cancel(prepared)
 
     def test_client_pdf_omits_operational_provider_and_excel_errors(self):
