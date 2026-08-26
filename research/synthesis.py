@@ -55,6 +55,8 @@ def _prompt(company: str, ticker: str, horizon: Horizon, market: dict, news: lis
     return f"""Act as a rigorous fundamental equity analyst and sentiment researcher for Gottfried & Somberg Wealth Management.
 Research {company} ({ticker}) for a {horizon.value} decision. Separate reported facts, consensus estimates, commentary, and social sentiment. Prioritize SEC/company investor relations, then reputable financial sources. For social sentiment, examine public X, Reddit, and Stocktwits when accessible; treat it as noisy supporting evidence and ignore promotion or repetition. Never invent missing values. Use current sources and return only the required JSON.
 
+The user's full research brief and any requested report modifications appear in user_context.question below. Address those instructions directly in the fundamental summary, signals, risks, catalysts, and change conditions while preserving factual accuracy and the required schema.
+
 Deterministic market/fundamental snapshot from the application:
 {json.dumps(market, default=str, indent=2)[:18000]}
 
