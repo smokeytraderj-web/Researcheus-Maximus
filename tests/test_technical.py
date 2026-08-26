@@ -17,9 +17,11 @@ from research.technical import (
     render_momentum_chart,
     render_relative_performance_chart,
     render_risk_chart,
+    render_stop_loss_evidence_chart,
     render_total_return_chart,
     render_trade_case_chart,
     strategies,
+    stop_loss_decision_insights,
     technical_action_plan,
     technical_finding,
     total_return_chart_insights,
@@ -113,8 +115,32 @@ class TechnicalAnalysisTests(unittest.TestCase):
         self.assertGreater(plan.first_target, (plan.entry_low + plan.entry_high) / 2)
         self.assertGreater(plan.stop_pct, 0)
         self.assertIn("calculated rather than fixed at 7%", plan.rationale[1])
-        self.assertIn("call spread", plan.options_strategy.lower())
-        self.assertIn("entire debit", plan.options_risk.lower())
+        if plan.reward_risk < 1.5:
+            self.assertIn("No order", plan.order_type)
+            self.assertEqual(plan.options_strategy, "")
+        else:
+            self.assertIn("call spread", plan.options_strategy.lower())
+            self.assertIn("entire debit", plan.options_risk.lower())
+
+    def test_stop_loss_evidence_explains_structure_volatility_and_payoff(self):
+        history = self._history()
+        snapshot = analyze_history(history)
+        plan = technical_action_plan(snapshot, Rating.BUY, "EQUITY")
+        insights = stop_loss_decision_insights(snapshot, plan)
+        self.assertEqual(len(insights), 4)
+        self.assertIn("Structure:", insights[0])
+        self.assertIn("ATR", insights[1])
+        self.assertIn("reward/risk", insights[2])
+        with tempfile.TemporaryDirectory() as folder:
+            output = render_stop_loss_evidence_chart(
+                history,
+                "AXON",
+                snapshot,
+                plan,
+                Path(folder) / "stop-evidence.png",
+            )
+            self.assertTrue(output.is_file())
+            self.assertGreater(output.stat().st_size, 10_000)
 
     def test_choppy_action_plan_uses_patient_limit_and_cash_secured_put(self):
         history = self._history()
@@ -125,9 +151,13 @@ class TechnicalAnalysisTests(unittest.TestCase):
         snapshot = analyze_history(history)
         plan = technical_action_plan(snapshot, Rating.HOLD, "ETF")
         self.assertIn(plan.market_condition, {"Choppy / range-bound", "Volatile and mixed"})
-        self.assertIn("patient", plan.order_type.lower())
-        self.assertIn("cash-secured put", plan.options_strategy.lower())
-        self.assertIn("assignment", plan.options_risk.lower())
+        if plan.reward_risk < 1.5:
+            self.assertIn("No order", plan.order_type)
+            self.assertEqual(plan.options_strategy, "")
+        else:
+            self.assertIn("patient", plan.order_type.lower())
+            self.assertIn("cash-secured put", plan.options_strategy.lower())
+            self.assertIn("assignment", plan.options_risk.lower())
 
     def test_bearish_action_plan_requires_reclaim_and_avoids_new_calls(self):
         history = self._history()
@@ -214,6 +244,13 @@ class TechnicalAnalysisTests(unittest.TestCase):
                     root / "relative.png",
                 ),
                 render_risk_chart(primary, "AXON", root / "risk.png"),
+                render_stop_loss_evidence_chart(
+                    primary,
+                    "AXON",
+                    analyze_history(primary),
+                    technical_action_plan(analyze_history(primary), Rating.BUY, "EQUITY"),
+                    root / "stop-loss.png",
+                ),
             )
             for output in outputs:
                 self.assertTrue(output.is_file())
