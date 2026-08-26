@@ -110,6 +110,10 @@ def append_revision_instructions(original: str, revision: str) -> str:
 def classify_research_intent(value: str) -> str:
     """Classify the decision being asked without changing the user's wording."""
     lowered = value.lower()
+    if parse_portfolio_allocation(value):
+        return "portfolio_fit"
+    if is_historical_trade_request(value):
+        return "historical_trade_examples"
     if any(term in lowered for term in ("should i sell", "time to sell", "exit", "reduce my position")):
         return "sell"
     if any(term in lowered for term in ("should i buy", "good opportunity to buy", "good entry", "worth buying")):
@@ -119,6 +123,28 @@ def classify_research_intent(value: str) -> str:
     if any(term in lowered for term in ("full analysis", "complete analysis", "deep dive", "everything about")):
         return "full_analysis"
     return "research"
+
+
+def parse_portfolio_allocation(value: str) -> tuple[int, int]:
+    """Extract a conventional equity/fixed-income allocation such as 70/30."""
+    match = re.search(r"\b(\d{1,3})\s*(?:/|-)\s*(\d{1,3})\b", value)
+    if not match:
+        return ()
+    equity, fixed_income = int(match.group(1)), int(match.group(2))
+    if equity < 0 or fixed_income < 0 or equity + fixed_income != 100:
+        return ()
+    return equity, fixed_income
+
+
+def is_historical_trade_request(value: str) -> bool:
+    """Recognize requests for dated, hypothetical historical trade examples."""
+    lowered = value.lower()
+    trade_terms = ("entered a trade", "entry examples", "trade examples", "would have bought", "paper trade")
+    history_terms = ("past year", "last year", "historical", "in the past", "backtest")
+    has_trade_language = any(term in lowered for term in trade_terms) or (
+        "stop loss" in lowered and any(term in lowered for term in ("trade", "entry", "bought", "buy"))
+    )
+    return has_trade_language and any(term in lowered for term in history_terms)
 
 
 def _month_date(value: str, *, end_of_month: bool) -> dt.date | None:
@@ -139,6 +165,12 @@ def parse_custom_range(value: str, *, today: dt.date | None = None) -> tuple[str
     if not prompt:
         return "", ""
     today = today or dt.date.today()
+    if re.search(r"\b(?:past|last|previous)\s+(?:one\s+)?year\b", prompt, flags=re.IGNORECASE):
+        try:
+            start = today.replace(year=today.year - 1)
+        except ValueError:
+            start = today.replace(year=today.year - 1, day=28)
+        return start.isoformat(), today.isoformat()
     iso = re.search(
         r"(?:from|between|range\s*:?)?\s*(\d{4}-\d{2}-\d{2})\s+(?:to|through|until|and)\s+(\d{4}-\d{2}-\d{2}|today|now)",
         prompt,
@@ -194,6 +226,8 @@ def parse_deep_analysis_prompt(value: str) -> tuple[str, str, tuple[str, ...], t
     charts = ["price_trend", "momentum", "relative_performance"]
     if any(term in lowered for term in ("drawdown", "volatility", "risk chart", "risk profile")):
         charts.append("risk")
+    if is_historical_trade_request(prompt):
+        charts.append("historical_trades")
     return query, prompt, comparisons, tuple(charts)
 
 
