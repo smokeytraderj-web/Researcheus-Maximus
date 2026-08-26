@@ -143,6 +143,11 @@ class TechnicalAnalysisTests(unittest.TestCase):
         plan = technical_action_plan(snapshot, Rating.ADD, "MUTUALFUND")
         self.assertEqual(plan.options_strategy, "")
 
+    def test_unknown_security_type_does_not_invent_options(self):
+        snapshot = analyze_history(self._history())
+        plan = technical_action_plan(snapshot, Rating.BUY, "")
+        self.assertEqual(plan.options_strategy, "")
+
     def test_action_plan_annotations_render_on_primary_chart(self):
         history = self._history()
         snapshot = analyze_history(history)
