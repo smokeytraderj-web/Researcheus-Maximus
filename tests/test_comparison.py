@@ -83,6 +83,29 @@ class ComparisonAssessmentTests(unittest.TestCase):
         )
         self.assertEqual(assessment.preferred_ticker, "No clear edge")
 
+    def test_sector_benchmark_returns_are_explained_in_scorecard(self):
+        finding = SpecialistFinding(Rating.HOLD, "Balanced.", ())
+        assessment = build_comparison_assessment(
+            SecurityIdentity("Alpha", "AAA", "NYSE", "USD"),
+            100,
+            {"sector": "Technology", "industry": "Semiconductors", "marketCap": 10_000_000_000},
+            _snapshot(100, 0.12, 0),
+            finding,
+            SecurityIdentity("Beta", "BBB", "NYSE", "USD"),
+            100,
+            {"sector": "Technology", "industry": "Semiconductors", "marketCap": 8_000_000_000},
+            _snapshot(100, 0.08, 0),
+            finding,
+            "SOXX",
+            "iShares Semiconductor ETF",
+            0.10,
+            0.25,
+            0.14,
+        )
+        self.assertEqual(assessment.benchmark_ticker, "SOXX")
+        self.assertTrue(any(row[0] == "Chart-period total return" for row in assessment.metrics))
+        self.assertTrue(any(row[0] == "Excess return vs. SOXX" for row in assessment.metrics))
+
 
 if __name__ == "__main__":
     unittest.main()

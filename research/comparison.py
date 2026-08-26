@@ -38,6 +38,24 @@ def _target_upside(info: dict, price: float) -> float | None:
     return target / price - 1 if target is not None and target > 0 and price > 0 else None
 
 
+def _free_cash_flow_yield(info: dict) -> float | None:
+    free_cash_flow = _number(info, "freeCashflow")
+    market_cap = _number(info, "marketCap")
+    if free_cash_flow is None or market_cap is None or market_cap <= 0:
+        return None
+    return free_cash_flow / market_cap
+
+
+def _sector_industry(info: dict) -> str:
+    sector = str(info.get("sector") or "Unavailable")
+    industry = str(info.get("industry") or "Unavailable")
+    if sector == "Unavailable" and industry == "Unavailable":
+        return "Unavailable"
+    if industry == "Unavailable" or industry.lower() == sector.lower():
+        return sector
+    return f"{sector} / {industry}"
+
+
 def _fibonacci_context(snapshot: TechnicalSnapshot) -> str:
     if snapshot.price >= snapshot.fib_38_2:
         position = "Above 38.2%"
@@ -64,6 +82,11 @@ def build_comparison_assessment(
     secondary_info: dict,
     secondary_snapshot: TechnicalSnapshot,
     secondary_technical: SpecialistFinding,
+    benchmark_ticker: str = "",
+    benchmark_label: str = "",
+    benchmark_return: float | None = None,
+    primary_chart_return: float | None = None,
+    secondary_chart_return: float | None = None,
 ) -> ComparisonAssessment:
     """Compare only like-for-like available evidence and disclose every scoring edge."""
     rows: list[tuple[str, str, str, str]] = []
@@ -78,6 +101,12 @@ def build_comparison_assessment(
         else "Current price"
     )
     rows.append((price_label, _money(primary_price), _money(secondary_price), "Reference only"))
+    rows.append(("Sector / industry", _sector_industry(primary_info), _sector_industry(secondary_info), "Business context"))
+
+    primary_market_cap = _number(primary_info, "marketCap")
+    secondary_market_cap = _number(secondary_info, "marketCap")
+    if primary_market_cap is not None and secondary_market_cap is not None:
+        rows.append(("Market capitalization", _money(primary_market_cap), _money(secondary_market_cap), "Scale context"))
 
     ratings = list(Rating)
     primary_rating_index = ratings.index(primary_technical.rating)
@@ -98,6 +127,14 @@ def build_comparison_assessment(
             technical_setup(primary_technical.rating),
             technical_setup(secondary_technical.rating),
             edge,
+        )
+    )
+    rows.append(
+        (
+            "RSI (14)",
+            f"{primary_snapshot.rsi14:.1f}",
+            f"{secondary_snapshot.rsi14:.1f}",
+            "Momentum context",
         )
     )
     rows.append(
@@ -147,8 +184,60 @@ def build_comparison_assessment(
         secondary_snapshot.analysis_return if secondary_snapshot.analysis_return is not None else secondary_snapshot.return_3m,
         _percent,
         higher_is_better=True,
-        reason="stronger three-month performance",
+        reason=f"stronger {primary_snapshot.performance_label.lower()} performance",
         minimum_gap=0.15,
+    )
+    if primary_chart_return is not None and secondary_chart_return is not None:
+        chart_edge = (
+            primary_identity.ticker
+            if primary_chart_return > secondary_chart_return
+            else secondary_identity.ticker
+            if secondary_chart_return > primary_chart_return
+            else "Comparable"
+        )
+        rows.append(
+            (
+                "Chart-period total return",
+                _percent(primary_chart_return),
+                _percent(secondary_chart_return),
+                chart_edge,
+            )
+        )
+        if benchmark_ticker and benchmark_return is not None:
+            primary_excess = primary_chart_return - benchmark_return
+            secondary_excess = secondary_chart_return - benchmark_return
+            excess_edge = (
+                primary_identity.ticker
+                if primary_excess > secondary_excess
+                else secondary_identity.ticker
+                if secondary_excess > primary_excess
+                else "Comparable"
+            )
+            rows.append(
+                (
+                    f"Excess return vs. {benchmark_ticker}",
+                    _percent(primary_excess),
+                    _percent(secondary_excess),
+                    excess_edge,
+                )
+            )
+    add_metric(
+        "Recent volatility (ATR / price)",
+        primary_snapshot.atr14 / primary_price if primary_price > 0 else None,
+        secondary_snapshot.atr14 / secondary_price if secondary_price > 0 else None,
+        _percent,
+        higher_is_better=False,
+        reason="lower recent price volatility",
+        minimum_gap=0.10,
+    )
+    add_metric(
+        "Trailing P/E",
+        _number(primary_info, "trailingPE"),
+        _number(secondary_info, "trailingPE"),
+        _multiple,
+        higher_is_better=False,
+        reason="lower trailing earnings multiple",
+        require_positive=True,
     )
     add_metric(
         "Forward P/E",
@@ -166,6 +255,24 @@ def build_comparison_assessment(
         _multiple,
         higher_is_better=False,
         reason="lower sales multiple",
+        require_positive=True,
+    )
+    add_metric(
+        "Price / book",
+        _number(primary_info, "priceToBook"),
+        _number(secondary_info, "priceToBook"),
+        _multiple,
+        higher_is_better=False,
+        reason="lower book-value multiple",
+        require_positive=True,
+    )
+    add_metric(
+        "Enterprise value / EBITDA",
+        _number(primary_info, "enterpriseToEbitda"),
+        _number(secondary_info, "enterpriseToEbitda"),
+        _multiple,
+        higher_is_better=False,
+        reason="lower enterprise-value multiple",
         require_positive=True,
     )
     add_metric(
@@ -195,6 +302,46 @@ def build_comparison_assessment(
         reason="higher profit margin",
         minimum_gap=0.10,
     )
+    add_metric(
+        "Operating margin",
+        _number(primary_info, "operatingMargins"),
+        _number(secondary_info, "operatingMargins"),
+        _percent,
+        higher_is_better=True,
+        reason="higher operating margin",
+        minimum_gap=0.10,
+    )
+    add_metric(
+        "Return on equity",
+        _number(primary_info, "returnOnEquity"),
+        _number(secondary_info, "returnOnEquity"),
+        _percent,
+        higher_is_better=True,
+        reason="higher return on equity",
+        minimum_gap=0.10,
+    )
+    add_metric(
+        "Free cash flow yield",
+        _free_cash_flow_yield(primary_info),
+        _free_cash_flow_yield(secondary_info),
+        _percent,
+        higher_is_better=True,
+        reason="higher free-cash-flow yield",
+        minimum_gap=0.10,
+    )
+    add_metric(
+        "Debt / equity",
+        _number(primary_info, "debtToEquity"),
+        _number(secondary_info, "debtToEquity"),
+        lambda value: f"{value:.1f}%",
+        higher_is_better=False,
+        reason="lower reported leverage",
+        minimum_gap=0.10,
+    )
+    primary_beta = _number(primary_info, "beta")
+    secondary_beta = _number(secondary_info, "beta")
+    if primary_beta is not None and secondary_beta is not None:
+        rows.append(("Beta", f"{primary_beta:.2f}", f"{secondary_beta:.2f}", "Risk context"))
     add_metric(
         "Analyst target upside",
         _target_upside(primary_info, primary_price),
@@ -260,4 +407,9 @@ def build_comparison_assessment(
         verdict,
         tuple(rationale),
         tuple(rows),
+        benchmark_ticker,
+        benchmark_label,
+        benchmark_return,
+        primary_chart_return,
+        secondary_chart_return,
     )

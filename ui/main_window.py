@@ -8,7 +8,7 @@ from pathlib import Path
 import traceback
 
 from PySide6.QtCore import QSettings, QThread, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QCursor, QDesktopServices
 from PySide6.QtWidgets import (
     QComboBox,
     QCheckBox,
@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QStackedWidget,
     QTextBrowser,
+    QToolTip,
     QVBoxLayout,
     QWidget,
 )
@@ -44,6 +45,85 @@ from core.research_prompt import (
 from research.demo_provider import DemoResearchProvider
 from research.live_provider import LiveResearchProvider
 from services.research_runner import PreparedResearch, ResearchRunner
+
+
+_METRIC_EXPLANATIONS = {
+    "price": "The latest available market price, or the final price in a historical custom range.",
+    "market_cap": "Market capitalization is the company's share price multiplied by shares outstanding. It is a measure of company size, not whether the stock is cheap.",
+    "growth": "Revenue growth shows sales change; earnings growth shows profit change. Positive sales growth with negative earnings growth means costs or margins weakened.",
+    "target_upside": "The percentage difference between the current price and the available average analyst target. It is an opinion-based reference, not a guaranteed return.",
+    "ycharts_target": "The analyst price target supplied through YCharts. Zero or invalid placeholder values are removed from the report.",
+    "return": "The stock's percentage price change over the stated period. It does not include every possible tax, fee, or dividend adjustment.",
+    "moving_average": "A moving average smooths daily prices. Trading above it generally signals a stronger trend; below it signals a weaker trend.",
+    "rsi": "RSI measures recent momentum from 0 to 100. Above 70 can indicate an extended move; below 30 can indicate an oversold move. It is not a buy or sell signal by itself.",
+    "atr": "ATR estimates the stock's typical daily price movement. A larger ATR means wider normal swings and usually requires wider risk limits.",
+    "fibonacci": "Fibonacci retracement levels mark potential support or resistance within the selected price swing. They are decision zones, not precise predictions.",
+    "valuation": "Valuation multiples compare price with earnings, sales, book value, or cash flow. Lower can be cheaper, but may also reflect weaker business quality or growth.",
+    "margin": "Margins show how much revenue remains after costs. Higher or improving margins generally indicate stronger operating efficiency.",
+    "leverage": "Debt-to-equity compares reported debt with shareholder equity. Higher values generally mean greater financial leverage and balance-sheet risk.",
+    "beta": "Beta estimates how strongly a stock has moved relative to the broader market. Above 1 has historically meant larger market-related swings.",
+    "technical": "The technical setup summarizes trend, momentum, volatility, volume, support, resistance, and Fibonacci evidence. It supports the Overall Rating but is not a second recommendation.",
+    "benchmark": "Benchmark-relative performance shows how much the stock gained or lost beyond the selected sector or market ETF over the same dates.",
+    "general": "This is one supporting data point. Read it together with the trend, fundamentals, valuation, risks, and the report's Overall Rating.",
+}
+
+
+def _metric_help_key(label: str) -> str:
+    lowered = label.lower()
+    rules = (
+        (("current price", "range-end price"), "price"),
+        (("market capitalization",), "market_cap"),
+        (("revenue growth", "earnings growth"), "growth"),
+        (("ycharts price target",), "ycharts_target"),
+        (("target implied upside", "target upside"), "target_upside"),
+        (("return vs.", "excess return", "benchmark"), "benchmark"),
+        (("return",), "return"),
+        (("moving average", "sma"), "moving_average"),
+        (("rsi",), "rsi"),
+        (("atr", "volatility"), "atr"),
+        (("fibonacci",), "fibonacci"),
+        (("p/e", "price / sales", "price / book", "enterprise value", "cash flow yield"), "valuation"),
+        (("margin", "return on equity"), "margin"),
+        (("debt", "leverage"), "leverage"),
+        (("beta",), "beta"),
+        (("technical setup",), "technical"),
+    )
+    for phrases, key in rules:
+        if any(phrase in lowered for phrase in phrases):
+            return key
+    return "general"
+
+
+def _metric_link(label: str) -> str:
+    key = _metric_help_key(label)
+    return f"<a href='metric://{key}' style='color:#14263D; text-decoration:none'>{escape(label)}</a>"
+
+
+class MetricBrowser(QTextBrowser):
+    """Evidence browser with a minimal plain-English metric glossary."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setOpenLinks(False)
+        self.anchorClicked.connect(self._handle_anchor)
+
+    def _show_metric(self, key: str, position) -> None:
+        QToolTip.showText(position, _METRIC_EXPLANATIONS.get(key, _METRIC_EXPLANATIONS["general"]), self)
+
+    def _handle_anchor(self, url: QUrl) -> None:
+        if url.scheme() == "metric":
+            self._show_metric(url.host() or url.path().lstrip("/"), QCursor.pos())
+        else:
+            QDesktopServices.openUrl(url)
+
+    def contextMenuEvent(self, event) -> None:
+        anchor = self.anchorAt(event.pos())
+        url = QUrl(anchor)
+        if url.scheme() == "metric":
+            self._show_metric(url.host() or url.path().lstrip("/"), event.globalPos())
+            event.accept()
+            return
+        super().contextMenuEvent(event)
 
 
 class ResearchWorker(QThread):
@@ -359,8 +439,7 @@ class MainWindow(QMainWindow):
 
     def _build_review(self) -> QWidget:
         page, outer = self._page_shell("Evidence Review", "Confirm the resolved security and preliminary analysis before creating the PDF.")
-        self.review_browser = QTextBrowser()
-        self.review_browser.setOpenExternalLinks(True)
+        self.review_browser = MetricBrowser()
         outer.addWidget(self.review_browser, 1)
         actions = QHBoxLayout()
         back = QPushButton("Back", objectName="Secondary")
@@ -555,12 +634,27 @@ class MainWindow(QMainWindow):
                     <tr><th>Result cell</th><th>Exact formula</th><th>Status</th></tr>{ycharts_rows}
                 </table>
             """
+        key_metric_rows = "".join(
+            f"<tr><td>{_metric_link(label)}</td><td><b>{escape(value)}</b></td></tr>"
+            for label, value in r.key_metrics
+            if value and "unavailable" not in value.lower()
+        )
+        key_metrics = f"""
+            <h3>Key metrics</h3>
+            <p style='font-size:10px;color:#657386'>Right-click a metric name for a short explanation.</p>
+            <table cellspacing='0' cellpadding='5' border='1'>{key_metric_rows}</table>
+        """ if key_metric_rows else ""
         chartbook_items = "".join(
             f"<li><b>{escape(chart.title)}</b> - {escape(chart.insight)}</li>" for chart in r.chartbook
         )
         deep_analysis = ""
         if r.chartbook:
-            comparisons = ", ".join(prepared.request.comparison_symbols)
+            analyzed_comparisons = tuple(
+                label.split("vs. ", 1)[1]
+                for label, _value in r.key_metrics
+                if " return vs. " in label
+            )
+            comparisons = ", ".join(analyzed_comparisons or prepared.request.comparison_symbols)
             deep_analysis = f"""
                 <h3>Deep technical chartbook</h3>
                 <p><b>Comparisons:</b> {escape(comparisons)}<br>
@@ -577,7 +671,7 @@ class MainWindow(QMainWindow):
             )
             preference_label = "Range-end evidence preference" if custom_range else "Current evidence preference"
             metric_rows = "".join(
-                f"<tr><td>{escape(label)}</td><td>{escape(primary)}</td><td>{escape(secondary)}</td><td><b>{escape(edge)}</b></td></tr>"
+                f"<tr><td>{_metric_link(label)}</td><td>{escape(primary)}</td><td>{escape(secondary)}</td><td><b>{escape(edge)}</b></td></tr>"
                 for label, primary, secondary, edge in comparison.metrics
             )
             rationale = "".join(f"<li>{escape(item)}</li>" for item in comparison.rationale)
@@ -594,6 +688,7 @@ class MainWindow(QMainWindow):
                 <p><b>Technical setup:</b> {escape(r.identity.ticker)} - {escape(primary_setup)} &nbsp; | &nbsp;
                 {escape(comparison.secondary_identity.ticker)} - {escape(secondary_setup)}</p>
                 <h3>Side-by-side evidence</h3>
+                <p style='font-size:10px;color:#657386'>Right-click a metric name for a short explanation.</p>
                 <table cellspacing='0' cellpadding='6' border='1'>
                     <tr><th>Metric</th><th>{escape(r.identity.ticker)}</th><th>{escape(comparison.secondary_identity.ticker)}</th><th>Current edge</th></tr>
                     {metric_rows}
@@ -620,6 +715,7 @@ class MainWindow(QMainWindow):
             <p><b>Interpretation:</b> {interpretation}</p>
             <h3>Technical signals</h3><ul>{signals}</ul>
             {deep_analysis}
+            {key_metrics}
             <h3>Fundamental signals</h3><ul>{fundamentals}</ul>
             <h3>Sentiment</h3><p>{r.sentiment}</p>
             <h3>Research provider</h3><p>{r.provider_label}</p>

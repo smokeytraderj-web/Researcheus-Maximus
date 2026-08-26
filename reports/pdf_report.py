@@ -53,6 +53,7 @@ def _styles():
         "body": ParagraphStyle("Body", parent=base["BodyText"], fontName=regular, fontSize=7.8, leading=10.4, textColor=INK, spaceAfter=3),
         "compact": ParagraphStyle("Compact", parent=base["BodyText"], fontName=regular, fontSize=6.9, leading=9, textColor=INK),
         "small": ParagraphStyle("Small", parent=base["BodyText"], fontName=regular, fontSize=6.2, leading=7.7, textColor=MUTED),
+        "table_header": ParagraphStyle("TableHeader", parent=base["BodyText"], fontName=bold, fontSize=6.2, leading=7.7, textColor=colors.white),
         "tiny": ParagraphStyle("Tiny", parent=base["BodyText"], fontName=regular, fontSize=5.5, leading=6.8, textColor=MUTED),
         "rating": ParagraphStyle("Rating", parent=base["Normal"], fontName=bold, fontSize=13.5, leading=16, textColor=NAVY, alignment=TA_CENTER),
         "value": ParagraphStyle("Value", parent=base["Normal"], fontName=bold, fontSize=7.2, leading=9, textColor=NAVY, alignment=TA_RIGHT),
@@ -160,10 +161,10 @@ def _comparison_metric_table(result: ResearchResult, styles) -> Table:
     comparison = result.comparison
     assert comparison is not None
     rows = [[
-        Paragraph("METRIC", styles["small"]),
-        Paragraph(_safe(result.identity.ticker), styles["small"]),
-        Paragraph(_safe(comparison.secondary_identity.ticker), styles["small"]),
-        Paragraph("CURRENT EDGE", styles["small"]),
+        Paragraph("METRIC", styles["table_header"]),
+        Paragraph(_safe(result.identity.ticker), styles["table_header"]),
+        Paragraph(_safe(comparison.secondary_identity.ticker), styles["table_header"]),
+        Paragraph("EVIDENCE EDGE", styles["table_header"]),
     ]]
     rows.extend(
         [
@@ -181,13 +182,67 @@ def _comparison_metric_table(result: ResearchResult, styles) -> Table:
                 ("BACKGROUND", (0, 0), (-1, 0), NAVY),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("BACKGROUND", (0, 1), (-1, -1), colors.white),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, PALE]),
                 ("BOX", (0, 0), (-1, -1), 0.5, LINE),
                 ("INNERGRID", (0, 0), (-1, -1), 0.25, LINE),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 6),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 4.5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4.5),
+                ("TOPPADDING", (0, 0), (-1, 0), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                ("TOPPADDING", (0, 1), (-1, -1), 4.2),
+                ("BOTTOMPADDING", (0, 1), (-1, -1), 4.2),
+            ]
+        )
+    )
+    return table
+
+
+def _comparison_performance_summary(result: ResearchResult, styles) -> Table | None:
+    comparison = result.comparison
+    assert comparison is not None
+    if (
+        not comparison.benchmark_ticker
+        or comparison.benchmark_return is None
+        or comparison.primary_chart_return is None
+        or comparison.secondary_chart_return is None
+    ):
+        return None
+    rows = [
+        [
+            Paragraph("VISIBLE CHART PERIOD", styles["table_header"]),
+            Paragraph("TOTAL RETURN", styles["table_header"]),
+            Paragraph(f"EXCESS VS. {comparison.benchmark_ticker}", styles["table_header"]),
+        ],
+        [
+            Paragraph(_safe(result.identity.ticker), styles["body"]),
+            Paragraph(f"{comparison.primary_chart_return:+.1%}", styles["value"]),
+            Paragraph(f"{comparison.primary_chart_return - comparison.benchmark_return:+.1%}", styles["value"]),
+        ],
+        [
+            Paragraph(_safe(comparison.secondary_identity.ticker), styles["body"]),
+            Paragraph(f"{comparison.secondary_chart_return:+.1%}", styles["value"]),
+            Paragraph(f"{comparison.secondary_chart_return - comparison.benchmark_return:+.1%}", styles["value"]),
+        ],
+        [
+            Paragraph(_safe(comparison.benchmark_ticker), styles["body"]),
+            Paragraph(f"{comparison.benchmark_return:+.1%}", styles["value"]),
+            Paragraph("Benchmark", styles["compact"]),
+        ],
+    ]
+    table = Table(rows, colWidths=[2.7 * inch, 2.1 * inch, 2.45 * inch])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, PALE]),
+                ("BOX", (0, 0), (-1, -1), 0.5, LINE),
+                ("INNERGRID", (0, 0), (-1, -1), 0.25, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ]
         )
     )
@@ -230,6 +285,57 @@ def _comparison_technical_cards(result: ResearchResult, styles) -> Table:
     return table
 
 
+def _comparison_fundamental_cards(result: ResearchResult, styles) -> Table:
+    comparison = result.comparison
+    assert comparison is not None
+    metrics = {label: (primary, secondary) for label, primary, secondary, _edge in comparison.metrics}
+
+    def value(label: str, index: int) -> str:
+        pair = metrics.get(label, ("Unavailable", "Unavailable"))
+        return pair[index]
+
+    cards = []
+    for index, identity in enumerate((result.identity, comparison.secondary_identity)):
+        cards.append(
+            [
+                Paragraph(f"<b>{_safe(identity.company_name)} ({_safe(identity.ticker)})</b>", styles["body"]),
+                Paragraph(f"<b>Business:</b> {_safe(value('Sector / industry', index))}", styles["compact"]),
+                Paragraph(
+                    f"<b>Valuation:</b> Forward P/E {_safe(value('Forward P/E', index))}; price/sales {_safe(value('Price / sales', index))}",
+                    styles["compact"],
+                ),
+                Paragraph(
+                    f"<b>Growth:</b> Revenue {_safe(value('Revenue growth', index))}; earnings {_safe(value('Earnings growth', index))}",
+                    styles["compact"],
+                ),
+                Paragraph(
+                    f"<b>Profitability:</b> Operating margin {_safe(value('Operating margin', index))}; free-cash-flow yield {_safe(value('Free cash flow yield', index))}",
+                    styles["compact"],
+                ),
+                Paragraph(
+                    f"<b>Risk context:</b> Debt/equity {_safe(value('Debt / equity', index))}; beta {_safe(value('Beta', index))}",
+                    styles["compact"],
+                ),
+            ]
+        )
+    table = Table([cards], colWidths=[3.575 * inch, 3.575 * inch])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.45, LINE),
+                ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+        )
+    )
+    return table
+
+
 _METRIC_PRIORITY = (
     "User purchase price",
     "Gain/loss from purchase price",
@@ -238,7 +344,8 @@ _METRIC_PRIORITY = (
     "Range-end price",
     "Market capitalization",
     "Trailing / forward P/E",
-    "Revenue / earnings growth",
+    "Revenue growth",
+    "Earnings growth",
     "Analyst mean target",
     "Analyst target implied upside",
     "Street consensus (Yahoo)",
@@ -300,6 +407,29 @@ def _metric_grid(result: ResearchResult, styles) -> Table:
     return table
 
 
+def _key_metric_note(result: ResearchResult, styles) -> Paragraph | None:
+    metrics = dict(result.key_metrics)
+
+    def percent(label: str) -> float | None:
+        value = str(metrics.get(label, "")).replace("%", "").replace(",", "").strip()
+        try:
+            return float(value) / 100
+        except ValueError:
+            return None
+
+    revenue_growth = percent("Revenue growth")
+    earnings_growth = percent("Earnings growth")
+    if revenue_growth is not None and earnings_growth is not None and revenue_growth > 0 > earnings_growth:
+        return Paragraph(
+            (
+                f"<b>What this means:</b> Revenue grew {revenue_growth:.1%}, but earnings changed {earnings_growth:.1%}. "
+                "Sales are expanding, but that growth has not yet translated into higher profit; margins, costs, and one-time items need closer review."
+            ),
+            styles["small"],
+        )
+    return None
+
+
 def _analysis_cards(result: ResearchResult, styles) -> Table:
     technical = [
         Paragraph(f"<b>Technical Setup - {_safe(technical_setup(result.technical.rating))}</b>", styles["body"]),
@@ -337,10 +467,10 @@ def _strategy_cards(result: ResearchResult, styles) -> Table | None:
         cells.append(
             [
                 Paragraph(f"<b>{_safe(strategy.name)}</b>", styles["body"]),
-                Paragraph(f"<b>Action:</b> {_safe(strategy.action_zone)}", styles["compact"]),
-                Paragraph(f"<b>Confirm:</b> {_safe(strategy.confirmation)}", styles["compact"]),
-                Paragraph(f"<b>Invalidate:</b> {_safe(strategy.invalidation)}", styles["compact"]),
-                Paragraph(f"<b>Risk:</b> {_safe(strategy.risk)}", styles["compact"]),
+                Paragraph(f"<b>Possible entry:</b> {_safe(strategy.action_zone)}", styles["compact"]),
+                Paragraph(f"<b>What to wait for:</b> {_safe(strategy.confirmation)}", styles["compact"]),
+                Paragraph(f"<b>When the idea fails:</b> {_safe(strategy.invalidation)}", styles["compact"]),
+                Paragraph(f"<b>Main risk:</b> {_safe(strategy.risk)}", styles["compact"]),
             ]
         )
     if len(cells) == 1:
@@ -506,6 +636,9 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         ]
         if request.question:
             story.append(Paragraph(f"<b>Research question:</b> {_safe(request.question)}", styles["small"]))
+        performance_summary = _comparison_performance_summary(result, styles)
+        if performance_summary is not None:
+            story += [Paragraph("Performance Difference", styles["section"]), performance_summary]
         if result.chart_path and Path(result.chart_path).is_file():
             comparison_chart = Image(result.chart_path)
             comparison_chart._restrictSize(7.2 * inch, 4.35 * inch)
@@ -513,7 +646,14 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
                 Spacer(1, 0.07 * inch),
                 comparison_chart,
                 Paragraph(
-                    "Source: attributed live price histories; series normalized to 100 on their first common trading date.",
+                    (
+                        "Source: attributed live price histories; series normalized to 100 on their first common trading date. "
+                        + (
+                            f"Sector benchmark: {_safe(comparison.benchmark_label)} ({_safe(comparison.benchmark_ticker)})."
+                            if comparison.benchmark_ticker
+                            else ""
+                        )
+                    ),
                     styles["small"],
                 ),
             ]
@@ -521,8 +661,11 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
             PageBreak(),
             Paragraph("Side-by-Side Evidence", styles["section"]),
             _comparison_metric_table(result, styles),
+            PageBreak(),
             Paragraph("Technical Setups", styles["section"]),
             _comparison_technical_cards(result, styles),
+            Paragraph("Company Snapshots", styles["section"]),
+            _comparison_fundamental_cards(result, styles),
             Paragraph("How to Use This Preference", styles["section"]),
             Paragraph(
                 "The highlighted preference is a comparison of the evidence available for both securities at the stated time. It is not an absolute recommendation. Portfolio role, concentration, taxes, liquidity needs, and risk capacity can change which security is more appropriate.",
@@ -572,7 +715,17 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
     )
     if result.sentiment:
         story.append(Paragraph(f"<b>Sentiment:</b> {_safe(result.sentiment)}", styles["small"]))
-    story += [Paragraph("Key Metrics", styles["section"]), _metric_grid(result, styles), Paragraph("Potential Investment Strategies", styles["section"])]
+    story += [Paragraph("Key Metrics", styles["section"]), _metric_grid(result, styles)]
+    metric_note = _key_metric_note(result, styles)
+    if metric_note is not None:
+        story.append(metric_note)
+    story += [
+        Paragraph("Possible Investment Approaches", styles["section"]),
+        Paragraph(
+            "These are conditional ideas, not automatic instructions. Each approach states what price behavior to wait for and when the idea would no longer make sense.",
+            styles["small"],
+        ),
+    ]
     strategy_table = _strategy_cards(result, styles)
     if strategy_table is not None:
         story.append(strategy_table)

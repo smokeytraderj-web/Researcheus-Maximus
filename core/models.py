@@ -122,6 +122,11 @@ class ComparisonAssessment:
     verdict: str
     rationale: tuple[str, ...]
     metrics: tuple[tuple[str, str, str, str], ...]
+    benchmark_ticker: str = ""
+    benchmark_label: str = ""
+    benchmark_return: float | None = None
+    primary_chart_return: float | None = None
+    secondary_chart_return: float | None = None
 
 
 @dataclass(frozen=True, slots=True)

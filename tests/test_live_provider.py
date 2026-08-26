@@ -7,9 +7,11 @@ from core.models import Horizon, Rating, ResearchRequest
 from research.live_provider import (
     LiveResearchProvider,
     _combine_ratings,
+    _comparison_benchmark,
     _direct_chart_history,
     _direct_decision_answer,
     _nasdaq_history,
+    _usable_ycharts_metric,
 )
 
 
@@ -84,6 +86,28 @@ def _history(rows=260):
 
 
 class HistoryFallbackTests(unittest.TestCase):
+    def test_comparison_benchmark_prefers_industry_then_sector(self):
+        self.assertEqual(
+            _comparison_benchmark(
+                {"sector": "Technology", "industry": "Semiconductors"},
+                {"sector": "Technology", "industry": "Semiconductor Equipment"},
+            )[0],
+            "SOXX",
+        )
+        self.assertEqual(
+            _comparison_benchmark({"sector": "Industrials"}, {"sector": "Industrials"})[0],
+            "XLI",
+        )
+        self.assertEqual(
+            _comparison_benchmark({"sector": "Technology"}, {"sector": "Healthcare"})[0],
+            "SPY",
+        )
+
+    def test_zero_ycharts_target_is_not_usable_evidence(self):
+        self.assertFalse(_usable_ycharts_metric("YCharts price target", 0))
+        self.assertTrue(_usable_ycharts_metric("YCharts price target", 245.0))
+        self.assertTrue(_usable_ycharts_metric("YCharts price target upside", -0.08))
+
     def test_uses_second_ticker_history_attempt(self):
         result = LiveResearchProvider._history(_YF(pd.DataFrame()), _Ticker([pd.DataFrame(), _history()]), "AXON")
         self.assertEqual(len(result), 260)

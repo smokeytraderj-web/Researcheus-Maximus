@@ -272,28 +272,28 @@ def strategies(snapshot: TechnicalSnapshot, horizon: Horizon) -> tuple[Strategy,
     buffer = max(snapshot.atr14 * 0.5, snapshot.price * 0.005)
     if snapshot.price < snapshot.sma20:
         first = Strategy(
-            "Trend reclaim / staged entry",
-            f"Wait for a close back through ${snapshot.sma20 - buffer:,.2f}-${snapshot.sma20 + buffer:,.2f}; monitor Fibonacci support at ${snapshot.fib_50:,.2f} and ${snapshot.fib_61_8:,.2f}",
-            "The zone is reclaimed on a closing basis and MACD momentum turns higher",
-            f"Sustained close below ${snapshot.support - buffer:,.2f}",
-            "Buying before trend repair can add exposure while downside momentum remains active",
+            "Wait for the trend to improve",
+            f"Consider a gradual entry only after price moves back above about ${snapshot.sma20:,.2f}",
+            "Price closes above that level and momentum begins improving",
+            f"Price closes below about ${snapshot.support - buffer:,.2f}",
+            "The stock may continue falling before the trend actually turns",
         )
     else:
         first = Strategy(
-            "Pullback entry or add",
-            f"Monitor ${snapshot.sma20 - buffer:,.2f}-${snapshot.sma20 + buffer:,.2f} around the 20-day trend, with Fibonacci support at ${snapshot.fib_50:,.2f} and ${snapshot.fib_61_8:,.2f}",
-            "The zone holds on a closing basis and momentum turns higher",
-            f"Sustained close below ${min(snapshot.support, snapshot.sma50) - buffer:,.2f}",
-            "Trend support can fail during event-driven or broad-market selling",
+            "Buy gradually on a pullback",
+            f"Watch roughly ${snapshot.sma20 - buffer:,.2f}-${snapshot.sma20 + buffer:,.2f}, near the short-term trend",
+            "Price stops falling in that area and begins moving higher",
+            f"Price closes below about ${min(snapshot.support, snapshot.sma50) - buffer:,.2f}",
+            "A market decline or company news could push price through support",
         )
     return (
         first,
         Strategy(
-            "Breakout confirmation",
-            f"Above ${snapshot.resistance + buffer:,.2f} after a confirmed range breakout",
-            "Closing breakout with above-average volume and positive relative momentum",
-            f"Close back below ${snapshot.resistance - buffer:,.2f}",
-            "False breakout, gap reversal, or weak volume confirmation",
+            "Buy after a clear breakout",
+            f"Consider an entry after price closes above about ${snapshot.resistance + buffer:,.2f}",
+            "Price stays above the breakout level and trading volume is stronger than normal",
+            f"Price falls back below about ${snapshot.resistance - buffer:,.2f}",
+            "The breakout may fail and quickly reverse",
         ),
     )
 
@@ -314,23 +314,15 @@ def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot
     ax.plot(frame.index, sma50, color="#4E7298", linewidth=1.2, label="SMA 50")
     if sma200.notna().any():
         ax.plot(frame.index, sma200, color="#8B929A", linewidth=1.1, label="SMA 200")
-    ax.axhline(snapshot.support, color="#B65050", linestyle="--", linewidth=0.9, label="60d support")
-    ax.axhline(snapshot.resistance, color="#4A8A68", linestyle="--", linewidth=0.9, label="60d resistance")
-    for level, label, color in (
-        (snapshot.fib_38_2, "Fib 38.2%", "#8E6BB8"),
-        (snapshot.fib_50, "Fib 50%", "#7D7D7D"),
-        (snapshot.fib_61_8, "Fib 61.8%", "#B06F57"),
-    ):
-        ax.axhline(level, color=color, linestyle=":", linewidth=0.9, label=label)
     ax.set_title(
-        f"{ticker} - Price, Trend, Fibonacci, Support and Resistance",
+        f"{ticker} - Price Trend and Moving Averages",
         loc="left",
         color="#14263D",
         fontweight="bold",
     )
     ax.set_ylabel("Price (USD)")
     ax.grid(alpha=0.18)
-    ax.legend(ncol=4, fontsize=7.2, frameon=False, loc="upper left")
+    ax.legend(ncol=4, fontsize=8, frameon=False, loc="upper left")
     volume = frame["Volume"].fillna(0).astype(float)
     colors_v = np.where(close.diff().fillna(0) >= 0, "#6E9D85", "#C77A7A")
     vol.bar(frame.index, volume, color=colors_v, width=1.0, alpha=0.75)
@@ -338,6 +330,46 @@ def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot
     vol.grid(axis="y", alpha=0.15)
     vol.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=9))
     vol.xaxis.set_major_formatter(mdates.ConciseDateFormatter(vol.xaxis.get_major_locator()))
+    fig.tight_layout()
+    fig.savefig(destination, dpi=170, bbox_inches="tight")
+    plt.close(fig)
+    return destination
+
+
+def render_fibonacci_chart(
+    history: pd.DataFrame,
+    ticker: str,
+    snapshot: TechnicalSnapshot,
+    destination: Path,
+) -> Path:
+    """Render Fibonacci structure separately so the primary trend chart stays legible."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    frame = history.dropna(subset=["Close"]).copy()
+    if not history.attrs.get("custom_range"):
+        frame = frame.tail(260)
+    close = frame["Close"].astype(float)
+    fig, ax = plt.subplots(figsize=(10.5, 4.8))
+    fig.patch.set_facecolor("white")
+    ax.plot(frame.index, close, color="#14263D", linewidth=1.9, label="Close")
+    for level, label, color in (
+        (snapshot.fib_swing_high, "Swing high", "#4A8A68"),
+        (snapshot.fib_38_2, "38.2%", "#8E6BB8"),
+        (snapshot.fib_50, "50.0%", "#7D7D7D"),
+        (snapshot.fib_61_8, "61.8%", "#B06F57"),
+        (snapshot.fib_swing_low, "Swing low", "#B65050"),
+    ):
+        ax.axhline(level, color=color, linestyle="--" if "Swing" in label else ":", linewidth=1.0, label=f"{label}  ${level:,.2f}")
+    ax.set_title(
+        f"{ticker} - {snapshot.fibonacci_range_label} Fibonacci Structure",
+        loc="left",
+        color="#14263D",
+        fontweight="bold",
+    )
+    ax.set_ylabel("Price (USD)")
+    ax.grid(alpha=0.18)
+    ax.legend(ncol=3, fontsize=8, frameon=False, loc="upper left")
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=9))
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
     fig.tight_layout()
     fig.savefig(destination, dpi=170, bbox_inches="tight")
     plt.close(fig)
@@ -385,6 +417,7 @@ def render_momentum_chart(history: pd.DataFrame, ticker: str, destination: Path)
 def render_relative_performance_chart(
     histories: dict[str, pd.DataFrame],
     destination: Path,
+    benchmark_symbol: str = "",
 ) -> Path:
     """Render normalized performance on common trading dates for valid comparisons."""
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -403,15 +436,20 @@ def render_relative_performance_chart(
     fig, ax = plt.subplots(figsize=(10.5, 4.8))
     fig.patch.set_facecolor("white")
     for index, column in enumerate(normalized.columns):
+        period_return = float(normalized[column].iloc[-1] / 100 - 1)
+        is_benchmark = bool(benchmark_symbol and column == benchmark_symbol)
         ax.plot(
             normalized.index,
             normalized[column],
             color=palette[index % len(palette)],
-            linewidth=1.8 if index == 0 else 1.25,
-            label=column,
+            linewidth=1.5 if is_benchmark else 1.9,
+            linestyle="--" if is_benchmark else "-",
+            alpha=0.85 if is_benchmark else 1.0,
+            label=f"{column}  {period_return:+.1%}",
         )
     ax.axhline(100, color="#8B929A", linewidth=0.7)
-    ax.set_title("Normalized Relative Performance - Starting Value 100", loc="left", color="#14263D", fontweight="bold")
+    title = "Performance vs Sector Benchmark" if benchmark_symbol else "Normalized Relative Performance"
+    ax.set_title(f"{title} - Starting Value 100", loc="left", color="#14263D", fontweight="bold")
     ax.set_ylabel("Indexed value")
     ax.grid(alpha=0.18)
     ax.legend(ncol=4, fontsize=8, frameon=False, loc="upper left")
@@ -421,6 +459,26 @@ def render_relative_performance_chart(
     fig.savefig(destination, dpi=170, bbox_inches="tight")
     plt.close(fig)
     return destination
+
+
+def relative_performance_returns(histories: dict[str, pd.DataFrame]) -> dict[str, float]:
+    """Return chart-period total returns on the exact common dates used by the chart."""
+    closes = {
+        symbol: history["Close"].dropna().astype(float).rename(symbol)
+        for symbol, history in histories.items()
+        if not history.empty and "Close" in history.columns
+    }
+    if len(closes) < 2:
+        return {}
+    frame = pd.concat(closes.values(), axis=1, join="inner").dropna()
+    if not any(history.attrs.get("custom_range") for history in histories.values()):
+        frame = frame.tail(260)
+    if len(frame) < 20:
+        return {}
+    return {
+        str(column): float(frame[column].iloc[-1] / frame[column].iloc[0] - 1)
+        for column in frame.columns
+    }
 
 
 def risk_chart_insight(history: pd.DataFrame, ticker: str) -> str:

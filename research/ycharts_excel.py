@@ -46,6 +46,16 @@ def _is_excel_error(value: object, displayed_text: str) -> bool:
     return isinstance(value, int) and (value & 0xFFFF0000) == 0x800A0000
 
 
+def _is_invalid_metric_value(label: str, value: object) -> bool:
+    """Reject add-in placeholders that are structurally valid Excel values."""
+    return (
+        "price target" in label.lower()
+        and "upside" not in label.lower()
+        and isinstance(value, (int, float))
+        and value <= 0
+    )
+
+
 def _safe_addin_value(addin, field: str) -> object:
     """Read a COM property without aborting the entire add-in scan."""
     try:
@@ -152,6 +162,9 @@ def retrieve_ycharts_metrics(ticker: str, workspace: Path, timeout: int = 60) ->
             formula = _formula(ticker, _function, _code)
             if _is_excel_error(value, displayed):
                 status = f"Unavailable - Excel returned {displayed or 'a formula error'}"
+                errors.append(f"{label} was unavailable: {status}. Cell F{row}: {formula}")
+            elif _is_invalid_metric_value(label, value):
+                status = "Unavailable - invalid zero or negative target"
                 errors.append(f"{label} was unavailable: {status}. Cell F{row}: {formula}")
             elif not displayed or displayed.lower() in {"loading", "n/a", "none", "-"}:
                 status = "Unavailable - no value returned"

@@ -6,16 +6,17 @@ The runnable application includes:
 
 - one conversational company/ticker research prompt with an automatic all-horizons framework;
 - a separate Deep Technical Analysis workspace for chart-specific research and benchmark/peer comparisons;
-- a two-security comparison workspace for stocks or funds, with one current evidence preference and a side-by-side report;
+- a two-security comparison workspace for stocks or funds, with one evidence preference, sector-benchmark performance, and a side-by-side report;
 - optional position context;
 - one Overall Rating supported by a Technical Setup, Fundamental Outlook, and plain-language interpretation;
 - a required evidence-review checkpoint;
 - Gottfried & Somberg Wealth Management branded PDF generation;
 - embedded PDF preview, requested-modification regeneration, versioned export, and temporary-session cleanup;
 - live security resolution, market history, fundamentals, news metadata, and deterministic technical indicators;
-- a compact, chart-led report with trend, support, resistance, volume, and Fibonacci levels;
+- cleanly separated price-trend and Fibonacci charts so technical evidence remains readable;
 - an optional multi-page technical chartbook with RSI/MACD, normalized relative performance, and requested drawdown/volatility analysis;
 - an Evidence Review audit showing the exact YCharts Excel result cells and formulas;
+- a minimal Evidence Review glossary: click or right-click a metric name for a plain-English explanation;
 - secure Windows certificate-store support for live market connections;
 - configurable OpenAI web research, local Ollama synthesis, deterministic fallback, and explicit demo mode.
 
@@ -72,7 +73,11 @@ Choose **Compare Securities** and name two stocks or funds in one prompt. Compan
 AVGO vs NVDA - Which currently offers better value and risk-adjusted opportunity?
 ```
 
-The comparison retrieves both securities and analyzes their technical setups, Fibonacci position, normalized relative performance, valuation, growth, margins, analyst-target upside, and fund expense ratios or three-year returns when those fields are available for both. Current price is shown as context, not treated as a measure of cheapness. The report identifies one **current evidence preference**, explains every metric edge, and states when no clear winner exists. It does not convert missing data into an estimate or claim that the preferred security is universally appropriate; portfolio role, concentration, tax, liquidity, and risk considerations remain part of the decision.
+The comparison retrieves both securities and automatically selects a relevant benchmark. Semiconductor pairs use SOXX; same-sector pairs use the appropriate Select Sector SPDR ETF; cross-sector or unsupported pairs use SPY. The report charts both securities and the benchmark over identical common dates, states each total return and excess return, and analyzes technical setup, Fibonacci position, volatility, valuation, growth, margins, cash-flow yield, leverage, beta, analyst-target upside, and fund fields when available for both. Current price is context, not a measure of cheapness. The three-page report separates the performance decision, full scorecard, and company snapshots so the evidence remains readable.
+
+Deep Analysis also honors prompts such as `Compare AXON to SPY and its respective sector and benchmarks`: it keeps SPY, automatically adds the relevant sector ETF, analyzes both relative-performance series, and includes them in the chartbook. The primary technical chart now focuses on price and moving averages; Fibonacci structure is shown in a separate chart.
+
+Possible investment approaches use plain-language labels: **Possible entry**, **What to wait for**, **When the idea fails**, and **Main risk**. Invalid zero YCharts targets are rejected rather than displayed as real evidence. Revenue and earnings growth are shown separately, with a short explanation when sales grow while earnings decline.
 
 ## Run on Windows
 

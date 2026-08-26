@@ -12,6 +12,15 @@ from core.research_prompt import (
 
 
 class ResearchPromptTests(unittest.TestCase):
+    def test_deep_prompt_preserves_sector_benchmark_request(self):
+        query, brief, comparisons, charts = parse_deep_analysis_prompt(
+            "Compare the stock AXON to SPY and its respective sector and benchmarks"
+        )
+        self.assertEqual(query, "AXON")
+        self.assertIn("sector and benchmarks", brief)
+        self.assertEqual(comparisons, ("SPY",))
+        self.assertIn("relative_performance", charts)
+
     def test_multiline_prompt_uses_first_line_as_security(self):
         query, brief = parse_research_prompt("WMT\nIs this an attractive entry after the pullback?")
         self.assertEqual(query, "WMT")

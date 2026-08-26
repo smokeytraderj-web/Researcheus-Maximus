@@ -14,9 +14,11 @@ from research.technical import (
     analyze_history,
     incorporate_relative_performance,
     render_chart,
+    render_fibonacci_chart,
     render_momentum_chart,
     render_relative_performance_chart,
     render_risk_chart,
+    relative_performance_returns,
     risk_chart_insight,
     strategies,
     technical_finding,
@@ -56,6 +58,34 @@ def _tradingview_exchange(exchange: str) -> str:
     if "AMEX" in value:
         return "AMEX"
     return value or "NASDAQ"
+
+
+_SECTOR_BENCHMARKS = {
+    "basic materials": ("XLB", "Materials Select Sector SPDR Fund"),
+    "communication services": ("XLC", "Communication Services Select Sector SPDR Fund"),
+    "consumer cyclical": ("XLY", "Consumer Discretionary Select Sector SPDR Fund"),
+    "consumer defensive": ("XLP", "Consumer Staples Select Sector SPDR Fund"),
+    "energy": ("XLE", "Energy Select Sector SPDR Fund"),
+    "financial services": ("XLF", "Financial Select Sector SPDR Fund"),
+    "healthcare": ("XLV", "Health Care Select Sector SPDR Fund"),
+    "industrials": ("XLI", "Industrial Select Sector SPDR Fund"),
+    "real estate": ("XLRE", "Real Estate Select Sector SPDR Fund"),
+    "technology": ("XLK", "Technology Select Sector SPDR Fund"),
+    "utilities": ("XLU", "Utilities Select Sector SPDR Fund"),
+}
+
+
+def _comparison_benchmark(primary_info: dict, secondary_info: dict) -> tuple[str, str]:
+    """Choose an industry benchmark when possible, then sector, then broad market."""
+    primary_industry = str(primary_info.get("industry") or "").lower()
+    secondary_industry = str(secondary_info.get("industry") or "").lower()
+    if "semiconductor" in primary_industry and "semiconductor" in secondary_industry:
+        return "SOXX", "iShares Semiconductor ETF"
+    primary_sector = str(primary_info.get("sector") or "").lower()
+    secondary_sector = str(secondary_info.get("sector") or "").lower()
+    if primary_sector and primary_sector == secondary_sector and primary_sector in _SECTOR_BENCHMARKS:
+        return _SECTOR_BENCHMARKS[primary_sector]
+    return "SPY", "SPDR S&P 500 ETF Trust (broad-market benchmark)"
 
 
 def _combine_ratings(
@@ -142,6 +172,19 @@ def _format_ycharts_metric(label: str, value: object) -> str:
     if "price target" in lowered or "capitalization" in lowered:
         return _metric(value, money=True)
     return _metric(value)
+
+
+def _usable_ycharts_metric(label: str, value: object) -> bool:
+    """Reject placeholder values that could be mistaken for real YCharts evidence."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip().lower() not in {"", "n/a", "none", "unavailable", "-"}
+    if not isinstance(value, (int, float)):
+        return False
+    if "price target" in label.lower() and "upside" not in label.lower():
+        return value > 0
+    return True
 
 
 def _direct_chart_history(session, symbol: str, start_date: str = "", end_date: str = ""):
@@ -399,6 +442,7 @@ class LiveResearchProvider:
         snapshot = analyze_history(history)
         comparison_histories = {}
         comparison_failures = []
+        deep_sector_benchmark = ""
         if request.deep_analysis:
             for comparison_symbol in request.comparison_symbols:
                 cleaned_comparison = comparison_symbol.strip().upper()
@@ -443,6 +487,41 @@ class LiveResearchProvider:
         exchange = str(info.get("fullExchangeName") or resolved.get("exchange") or "Unconfirmed")
         currency = str(info.get("currency") or "USD")
         quote_type = str(info.get("quoteType") or resolved.get("quoteType") or "Equity")
+        if request.deep_analysis and any(
+            term in request.question.lower()
+            for term in ("sector", "industry benchmark", "respective benchmark", "benchmarks")
+        ):
+            requested_benchmarks = ["SPY"]
+            sector_ticker, _sector_label = _comparison_benchmark(info, info)
+            deep_sector_benchmark = sector_ticker
+            if sector_ticker not in requested_benchmarks:
+                requested_benchmarks.append(sector_ticker)
+            for requested_benchmark in requested_benchmarks:
+                if requested_benchmark == symbol or requested_benchmark in comparison_histories:
+                    continue
+                try:
+                    benchmark_security = yf.Ticker(requested_benchmark, session=self._market_session)
+                    comparison_histories[requested_benchmark] = self._history(
+                        yf,
+                        benchmark_security,
+                        requested_benchmark,
+                        self._market_session,
+                        request.custom_start,
+                        request.custom_end,
+                    )
+                except Exception:
+                    comparison_failures.append(
+                        f"{requested_benchmark}: requested benchmark history was unavailable"
+                    )
+            technical = technical_finding(snapshot)
+            relative_metrics = ()
+            relative_insight = ""
+            if comparison_histories:
+                technical, relative_metrics, relative_insight = incorporate_relative_performance(
+                    technical,
+                    history,
+                    comparison_histories,
+                )
         primary_identity = SecurityIdentity(company, symbol, exchange, currency)
         comparison_assessment = None
         comparison_info = {}
@@ -450,6 +529,11 @@ class LiveResearchProvider:
         secondary_identity = None
         secondary_technical = None
         secondary_symbol = ""
+        benchmark_ticker = ""
+        benchmark_label = ""
+        benchmark_return = None
+        primary_chart_return = None
+        secondary_chart_return = None
         if request.comparison_analysis:
             try:
                 secondary_yf, secondary_ticker, secondary_resolved = self._resolve(request.comparison_query)
@@ -493,6 +577,32 @@ class LiveResearchProvider:
                     str(comparison_info.get("currency") or "USD"),
                 )
                 secondary_technical = technical_finding(secondary_snapshot)
+                comparison_histories[secondary_symbol] = secondary_history
+                benchmark_ticker, benchmark_label = _comparison_benchmark(info, comparison_info)
+                if benchmark_ticker in {symbol, secondary_symbol}:
+                    benchmark_ticker = "SPY"
+                    benchmark_label = "SPDR S&P 500 ETF Trust (broad-market benchmark)"
+                try:
+                    benchmark_security = yf.Ticker(benchmark_ticker, session=self._market_session)
+                    benchmark_history = self._history(
+                        yf,
+                        benchmark_security,
+                        benchmark_ticker,
+                        self._market_session,
+                        request.custom_start,
+                        request.custom_end,
+                    )
+                    comparison_histories[benchmark_ticker] = benchmark_history
+                except Exception:
+                    comparison_failures.append(
+                        f"{benchmark_ticker}: sector benchmark history was unavailable"
+                    )
+                chart_returns = relative_performance_returns(
+                    {symbol: history, **comparison_histories}
+                )
+                primary_chart_return = chart_returns.get(symbol)
+                secondary_chart_return = chart_returns.get(secondary_symbol)
+                benchmark_return = chart_returns.get(benchmark_ticker)
                 comparison_assessment = build_comparison_assessment(
                     primary_identity,
                     snapshot.price,
@@ -504,8 +614,12 @@ class LiveResearchProvider:
                     comparison_info,
                     secondary_snapshot,
                     secondary_technical,
+                    benchmark_ticker,
+                    benchmark_label,
+                    benchmark_return,
+                    primary_chart_return,
+                    secondary_chart_return,
                 )
-                comparison_histories[secondary_symbol] = secondary_history
             except ValueError:
                 raise
             except Exception as exc:
@@ -567,7 +681,23 @@ class LiveResearchProvider:
                 "earnings_growth": comparison_info.get("earningsGrowth"),
                 "profit_margin": comparison_info.get("profitMargins"),
                 "analyst_target_mean": comparison_info.get("targetMeanPrice"),
+                "sector": comparison_info.get("sector"),
+                "industry": comparison_info.get("industry"),
+                "market_cap": comparison_info.get("marketCap"),
+                "trailing_pe": comparison_info.get("trailingPE"),
+                "price_to_book": comparison_info.get("priceToBook"),
+                "enterprise_to_ebitda": comparison_info.get("enterpriseToEbitda"),
+                "operating_margin": comparison_info.get("operatingMargins"),
+                "return_on_equity": comparison_info.get("returnOnEquity"),
+                "free_cash_flow": comparison_info.get("freeCashflow"),
+                "debt_to_equity": comparison_info.get("debtToEquity"),
+                "beta": comparison_info.get("beta"),
                 "technical": dict(secondary_snapshot.as_metrics()),
+            }
+            market["comparison_benchmark"] = {
+                "ticker": benchmark_ticker,
+                "name": benchmark_label,
+                "chart_period_return": benchmark_return,
             }
         ycharts_values = ()
         ycharts_errors = ()
@@ -646,6 +776,11 @@ class LiveResearchProvider:
                         secondary_comparison_info,
                         secondary_snapshot,
                         secondary_technical,
+                        benchmark_ticker,
+                        benchmark_label,
+                        benchmark_return,
+                        primary_chart_return,
+                        secondary_chart_return,
                     )
         provider = self.synthesis_provider.lower()
         errors = []
@@ -691,11 +826,30 @@ class LiveResearchProvider:
                     render_relative_performance_chart(
                         {symbol: history, **comparison_histories},
                         workspace / "security-comparison-chart.png",
+                        benchmark_ticker,
                     )
                 )
             else:
                 chart_path = str(render_chart(history, symbol, snapshot, workspace / "technical-chart.png"))
             if request.deep_analysis:
+                fibonacci_path = render_fibonacci_chart(
+                    history,
+                    symbol,
+                    snapshot,
+                    workspace / "fibonacci-chart.png",
+                )
+                chartbook.append(
+                    ChartRecord(
+                        "Fibonacci Structure",
+                        str(fibonacci_path),
+                        (
+                            f"The {snapshot.fibonacci_range_label.lower()} swing spans "
+                            f"${snapshot.fib_swing_low:,.2f}-${snapshot.fib_swing_high:,.2f}; "
+                            f"price is ${snapshot.price:,.2f} versus the 38.2%, 50%, and 61.8% levels at "
+                            f"${snapshot.fib_38_2:,.2f}, ${snapshot.fib_50:,.2f}, and ${snapshot.fib_61_8:,.2f}."
+                        ),
+                    )
+                )
                 if "momentum" in request.requested_charts:
                     momentum_path = render_momentum_chart(history, symbol, workspace / "momentum-chart.png")
                     momentum_direction = "positive" if snapshot.macd > snapshot.macd_signal else "negative"
@@ -710,6 +864,7 @@ class LiveResearchProvider:
                     relative_path = render_relative_performance_chart(
                         {symbol: history, **comparison_histories},
                         workspace / "relative-performance-chart.png",
+                        deep_sector_benchmark,
                     )
                     chartbook.append(
                         ChartRecord(
@@ -774,16 +929,18 @@ class LiveResearchProvider:
         ycharts_metrics = tuple(
             (label, _format_ycharts_metric(label, value))
             for label, value in ycharts_values
-            if label in visible_ycharts
+            if label in visible_ycharts and _usable_ycharts_metric(label, value)
         )
-        analyst_target = info.get("targetMeanPrice")
-        analyst_upside = analyst_target / snapshot.price - 1 if isinstance(analyst_target, (int, float)) and analyst_target > 0 else None
+        raw_analyst_target = info.get("targetMeanPrice")
+        analyst_target = raw_analyst_target if isinstance(raw_analyst_target, (int, float)) and raw_analyst_target > 0 else None
+        analyst_upside = analyst_target / snapshot.price - 1 if analyst_target is not None else None
         key_metrics = position_metrics + (
             ("Range-end price" if request.custom_start else "Current price", _metric(snapshot.price, money=True)),
             ("Market capitalization", _metric(info.get("marketCap"), money=True)),
             ("Trailing / forward P/E", f"{_metric(info.get('trailingPE'))} / {_metric(info.get('forwardPE'))}"),
-            ("Revenue / earnings growth", f"{_metric(info.get('revenueGrowth'), percent=True)} / {_metric(info.get('earningsGrowth'), percent=True)}"),
-            ("Analyst mean target", _metric(info.get("targetMeanPrice"), money=True)),
+            ("Revenue growth", _metric(info.get("revenueGrowth"), percent=True)),
+            ("Earnings growth", _metric(info.get("earningsGrowth"), percent=True)),
+            ("Analyst mean target", _metric(analyst_target, money=True)),
             ("Analyst target implied upside", _metric(analyst_upside, percent=True)),
             ("Street consensus (Yahoo)", str(info.get("recommendationKey") or "Unavailable").replace("_", " ").title()),
         ) + ycharts_metrics + snapshot.as_metrics() + relative_metrics

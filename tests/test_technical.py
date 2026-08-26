@@ -10,6 +10,7 @@ from research.technical import (
     analyze_history,
     incorporate_relative_performance,
     render_chart,
+    render_fibonacci_chart,
     render_momentum_chart,
     render_relative_performance_chart,
     render_risk_chart,
@@ -68,8 +69,8 @@ class TechnicalAnalysisTests(unittest.TestCase):
         frame.loc[frame.index[-30]:, "Low"] = frame.loc[frame.index[-30]:, "Close"] - 2
         snapshot = analyze_history(frame)
         first = strategies(snapshot, Horizon.LONG)[0]
-        self.assertEqual(first.name, "Trend reclaim / staged entry")
-        self.assertIn("Wait for a close back", first.action_zone)
+        self.assertEqual(first.name, "Wait for the trend to improve")
+        self.assertIn("moves back above", first.action_zone)
 
     def test_relative_outperformance_strengthens_the_technical_rating(self):
         primary = self._history()
@@ -89,6 +90,7 @@ class TechnicalAnalysisTests(unittest.TestCase):
             root = Path(folder)
             outputs = (
                 render_chart(primary, "AXON", analyze_history(primary), root / "price.png"),
+                render_fibonacci_chart(primary, "AXON", analyze_history(primary), root / "fibonacci.png"),
                 render_momentum_chart(primary, "AXON", root / "momentum.png"),
                 render_relative_performance_chart(
                     {"AXON": primary, "SPY": benchmark},
