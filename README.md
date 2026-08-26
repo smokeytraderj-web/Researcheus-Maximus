@@ -22,6 +22,8 @@ The runnable application includes:
 - a calm lead chart directly after the Overall Conclusion; the default is the security versus SPY on a year-to-date total-return basis, while explicit price-trend, stop-loss-evidence, Fibonacci, momentum, or relative-performance chart requests are honored;
 - chart-led pages without redundant “what this chart shows” boxes; deep-analysis charts retain only a concise decision note when interpretation is needed;
 - a five-stage default report flow: Rating and Investment Summary, Position and Risk Plan, Research Evidence, Key Data and Levels, then Sources and Disclosure;
+- a client-facing first-page dashboard with one visually dominant Overall Rating, supporting technical/fundamental assessments, the exact user question, a direct answer, and the lead chart;
+- a second-page action dashboard that separates the position setup, planned entry, structural stop, targets/payoff, plain-English level rationale, and any eligible defined-risk options example;
 - navy-and-gold GSWM presentation with clean white pages, a navy title banner, gold rules, serif display headings, and readable sans-serif body copy;
 - a full-width editorial landing page in the same visual system: a navy research hero, white canvas, serif headings, restrained gold rules, three numbered research paths, and a Tailwind-inspired spacing/card system implemented natively in Qt;
 - an optional multi-page technical chartbook with dedicated structural stop-loss evidence, RSI/MACD, normalized relative performance, and requested drawdown/volatility analysis;
@@ -65,6 +67,10 @@ Historical trade prompts automatically open the deep-analysis workflow and inter
 - **Ollama:** start Ollama locally and install a model. The default is `gpt-oss:20b`; override it in Research Settings or with `RESEARCHEUS_OLLAMA_MODEL`.
 - **Automatic:** tries OpenAI, then Ollama, then a clearly disclosed deterministic fallback.
 - **Deterministic:** uses live market/provider fields without language-model synthesis.
+
+### TV Remix MCP research resource
+
+The repository includes a credential-free [`.mcp.json`](.mcp.json) connection for `https://tvremix.xyz/api/mcp/v1` and a [TV Remix research guide](resources/tvremix-mcp.md). In an MCP-capable host, the first tool call starts TV Remix OAuth; no token or API key belongs in this repository. Use the resource for verified OHLCV, multi-timeframe technicals, swing/SMC structure, forecasts, news, options, screening, comparisons, and correlation research. The current Qt desktop runtime does not call MCP directly; it continues to use its internal providers unless a native MCP adapter is added later.
 
 Natural-language report modifications are applied by OpenAI or Ollama. Deterministic fallback still refreshes market evidence, but cannot reliably interpret arbitrary editorial instructions.
 
