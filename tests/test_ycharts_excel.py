@@ -53,7 +53,7 @@ class YChartsExcelTests(unittest.TestCase):
 
     def test_zero_price_target_placeholder_is_rejected(self):
         self.assertTrue(_is_invalid_metric_value("YCharts price target", 0))
-        self.assertFalse(_is_invalid_metric_value("YCharts price target upside", 0))
+        self.assertTrue(_is_invalid_metric_value("YCharts price target upside", 0))
         self.assertFalse(_is_invalid_metric_value("YCharts price target", 250.0))
 
     def test_audit_exposes_exact_result_cells_and_formulas(self):
