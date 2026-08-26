@@ -4,12 +4,12 @@ A Windows desktop application for client-ready, evidence-grounded single-stock r
 
 The runnable application includes:
 
-- company/ticker intake and horizon selection;
+- one conversational company/ticker research prompt with an automatic all-horizons framework;
 - optional position context;
 - typed Technical, Fundamental, Sentiment, and Lead Analyst results;
 - a required evidence-review checkpoint;
 - Gottfried & Somberg Wealth Management branded PDF generation;
-- embedded PDF preview, versioned export, and temporary-session cleanup;
+- embedded PDF preview, requested-modification regeneration, versioned export, and temporary-session cleanup;
 - live security resolution, market history, fundamentals, news metadata, and deterministic technical indicators;
 - a compact two-page, chart-led report with trend, support, resistance, and volume;
 - an Evidence Review audit showing the exact YCharts Excel result cells and formulas;
@@ -24,10 +24,12 @@ The YCharts workbook uses columns A:G and calculates live results in F2:F9. Exce
 
 ## Provider setup
 
-- **OpenAI:** paste an API key into the intake screen for the current session, or set `OPENAI_API_KEY`. The key is never saved by the app. OpenAI synthesis uses the Responses API with web search and Structured Outputs.
-- **Ollama:** start Ollama locally and install a model. The default is `gpt-oss:20b`; override it in the intake screen or with `RESEARCHEUS_OLLAMA_MODEL`.
+- **OpenAI:** paste an API key into Research Settings for the current session, or set `OPENAI_API_KEY`. The key is never saved by the app. OpenAI synthesis uses the Responses API with web search and Structured Outputs.
+- **Ollama:** start Ollama locally and install a model. The default is `gpt-oss:20b`; override it in Research Settings or with `RESEARCHEUS_OLLAMA_MODEL`.
 - **Automatic:** tries OpenAI, then Ollama, then a clearly disclosed deterministic fallback.
 - **Deterministic:** uses live market/provider fields without language-model synthesis.
+
+Natural-language report modifications are applied by OpenAI or Ollama. Deterministic fallback still refreshes market evidence, but cannot reliably interpret arbitrary editorial instructions.
 
 ## Run on Windows
 
