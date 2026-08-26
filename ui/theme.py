@@ -8,8 +8,10 @@ QLabel#Firm { color: #C9AE79; font-size: 10px; font-weight: 600; }
 QLabel#Title { color: #14263D; font-size: 27px; font-weight: 700; }
 QLabel#Subtitle { color: #657386; font-size: 12px; }
 QLabel#Section { color: #14263D; font-size: 15px; font-weight: 700; }
+QLabel#Eyebrow { color: #B08D57; font-size: 10px; font-weight: 700; }
 QLabel#SettingsSummary { color: #657386; font-size: 11px; padding: 5px 2px; }
 QFrame#Card { background: #FFFFFF; border: 1px solid #DCE1E6; border-radius: 10px; }
+QFrame#DeepPanel { background: #F3F5F7; border: 1px solid #D7DDE3; border-radius: 8px; }
 QLineEdit, QComboBox, QDoubleSpinBox, QPlainTextEdit {
     background: #FFFFFF;
     border: 1px solid #C9D0D8;
@@ -24,6 +26,11 @@ QComboBox::drop-down, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
 QPlainTextEdit#ResearchQuery {
     min-height: 104px;
     font-size: 16px;
+    padding: 10px 12px;
+}
+QPlainTextEdit#DeepResearchQuery {
+    min-height: 150px;
+    font-size: 15px;
     padding: 10px 12px;
 }
 QPlainTextEdit#ModificationRequest {
