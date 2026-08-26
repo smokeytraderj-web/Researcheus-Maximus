@@ -1,0 +1,2 @@
+"""Client-ready report rendering."""
+
