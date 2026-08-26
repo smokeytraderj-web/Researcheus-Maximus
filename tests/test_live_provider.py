@@ -3,7 +3,8 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from research.live_provider import LiveResearchProvider, _direct_chart_history, _nasdaq_history
+from core.models import Horizon, Rating
+from research.live_provider import LiveResearchProvider, _combine_ratings, _direct_chart_history, _nasdaq_history
 
 
 class _Ticker:
@@ -104,6 +105,11 @@ class HistoryFallbackTests(unittest.TestCase):
         history = _nasdaq_history(_NasdaqSession(), "TSLA")
         self.assertEqual(float(history.iloc[-1]["Close"]), 350.20)
         self.assertEqual(history.attrs["market_data_source"], "Nasdaq historical prices")
+
+    def test_long_term_rating_prioritizes_fundamentals(self):
+        lead, technical_weight, fundamental_weight = _combine_ratings(Rating.SELL, Rating.HOLD, Horizon.LONG)
+        self.assertEqual(lead, Rating.HOLD)
+        self.assertEqual((technical_weight, fundamental_weight), (20, 80))
 
 
 if __name__ == "__main__":
