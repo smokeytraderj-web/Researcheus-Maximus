@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from html import escape
 from pathlib import Path
+import tempfile
 import traceback
 
 from PySide6.QtCore import QSettings, QThread, QUrl, Signal
@@ -37,13 +38,16 @@ from core.models import Horizon, ResearchRequest
 from core.research_prompt import (
     append_revision_instructions,
     classify_research_intent,
+    is_historical_trade_request,
     parse_comparison_prompt,
     parse_custom_range,
     parse_deep_analysis_prompt,
+    parse_portfolio_allocation,
     parse_research_prompt,
 )
 from research.demo_provider import DemoResearchProvider
 from research.live_provider import LiveResearchProvider
+from research.ycharts_excel import retrieve_ycharts_metrics
 from services.research_runner import PreparedResearch, ResearchRunner
 
 
@@ -143,6 +147,22 @@ class ResearchWorker(QThread):
             self.failed.emit(str(exc) or "Research preparation failed.")
 
 
+class YChartsTestWorker(QThread):
+    completed = Signal(bool, str)
+
+    def run(self) -> None:
+        try:
+            with tempfile.TemporaryDirectory(prefix="researcheus-ycharts-test-") as folder:
+                evidence = retrieve_ycharts_metrics("SPY", Path(folder), timeout=30)
+            if evidence.values:
+                self.completed.emit(True, f"Connected - {len(evidence.values)} YCharts metrics loaded for SPY.")
+            else:
+                message = evidence.errors[0] if evidence.errors else "No YCharts values were returned."
+                self.completed.emit(False, message)
+        except Exception as exc:
+            self.completed.emit(False, str(exc) or "YCharts connection test failed.")
+
+
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -152,6 +172,7 @@ class MainWindow(QMainWindow):
         self.runner = ResearchRunner()
         self.prepared: PreparedResearch | None = None
         self.worker: ResearchWorker | None = None
+        self.ycharts_test_worker: YChartsTestWorker | None = None
         self.settings = QSettings("GottfriedSomberg", "ResearcheusMaximus")
 
         root = QWidget(objectName="AppRoot")
@@ -247,7 +268,9 @@ class MainWindow(QMainWindow):
         helper.setWordWrap(True)
         self.query = QPlainTextEdit()
         self.query.setPlaceholderText(
-            "Example: Full analysis of TSLA — is it a good opportunity to buy?"
+            "Examples:\n"
+            "Is BDMIX good for a 70/30 portfolio?\n"
+            "Show historical QQQ trade entries and stop-loss examples from the past year."
         )
         self.query.setObjectName("ResearchQuery")
         self.query.setMinimumHeight(72)
@@ -432,10 +455,37 @@ class MainWindow(QMainWindow):
         form.addRow("Model override", self.model_name)
         form.addRow("YCharts", self.use_ycharts)
         outer.addLayout(form)
+        ycharts_note = QLabel(
+            "YCharts uses the signed-in desktop Excel add-in. Credentials are never stored in this app, workbook cells, or GitHub."
+        )
+        ycharts_note.setWordWrap(True)
+        ycharts_note.setObjectName("Subtitle")
+        outer.addWidget(ycharts_note)
+        self.ycharts_test_status = QLabel("Not tested in this session.", objectName="Subtitle")
+        self.ycharts_test_status.setWordWrap(True)
+        ycharts_test = QPushButton("Test YCharts Connection", objectName="Secondary")
+        ycharts_test.clicked.connect(lambda: self._test_ycharts_connection(ycharts_test))
+        outer.addWidget(ycharts_test)
+        outer.addWidget(self.ycharts_test_status)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(dialog.close)
         outer.addWidget(buttons)
         return dialog
+
+    def _test_ycharts_connection(self, button: QPushButton) -> None:
+        if self.ycharts_test_worker and self.ycharts_test_worker.isRunning():
+            return
+        button.setEnabled(False)
+        self.ycharts_test_status.setText("Testing the signed-in Excel add-in with SPY…")
+        self.ycharts_test_worker = YChartsTestWorker(self)
+
+        def finished(success: bool, message: str) -> None:
+            button.setEnabled(True)
+            prefix = "YCharts ready" if success else "YCharts needs attention"
+            self.ycharts_test_status.setText(f"{prefix}: {message}")
+
+        self.ycharts_test_worker.completed.connect(finished)
+        self.ycharts_test_worker.start()
 
     def _build_review(self) -> QWidget:
         page, outer = self._page_shell("Evidence Review", "Confirm the resolved security and preliminary analysis before creating the PDF.")
@@ -521,13 +571,25 @@ class MainWindow(QMainWindow):
             )
         security_query, research_brief = parse_research_prompt(self.query.toPlainText())
         custom_start, custom_end = parse_custom_range(research_brief)
+        historical_trades = is_historical_trade_request(research_brief)
+        comparisons = ("SPY",) if historical_trades else ()
+        requested_charts = (
+            ("price_trend", "momentum", "relative_performance", "historical_trades")
+            if historical_trades
+            else ()
+        )
         return ResearchRequest(
             security_query,
             Horizon.ALL,
             question=research_brief,
+            deep_analysis=historical_trades,
+            comparison_symbols=comparisons,
+            requested_charts=requested_charts,
             custom_start=custom_start,
             custom_end=custom_end,
             decision_intent=classify_research_intent(research_brief),
+            portfolio_allocation=parse_portfolio_allocation(research_brief),
+            historical_trade_examples=historical_trades,
         )
 
     def _start_research(self, *, deep: bool = False, comparison: bool = False) -> None:
@@ -661,6 +723,31 @@ class MainWindow(QMainWindow):
                 <b>Requested charts:</b> {escape(', '.join(prepared.request.requested_charts))}</p>
                 <ul>{chartbook_items}</ul>
             """
+        portfolio_fit = ""
+        if r.portfolio_fit:
+            fit = r.portfolio_fit
+            evidence = "".join(f"<li>{escape(item)}</li>" for item in fit.evidence)
+            watchouts = "".join(f"<li>{escape(item)}</li>" for item in fit.watchouts)
+            portfolio_fit = f"""
+                <h3>{fit.equity_target_pct}/{fit.fixed_income_target_pct} portfolio fit</h3>
+                <p><b>{escape(fit.fit_label)}</b><br>{escape(fit.summary)}</p>
+                <p><b>Proposed role:</b> {escape(fit.security_role)}</p>
+                <ul>{evidence}</ul>
+                <p><b>Confirm before use:</b></p><ul>{watchouts}</ul>
+            """
+        trade_case_review = ""
+        if prepared.request.historical_trade_examples:
+            rows = "".join(
+                f"<tr><td>{escape(case.signal_date)}</td><td>{escape(case.entry_date)} at ${case.entry_price:,.2f}</td>"
+                f"<td>${case.initial_stop:,.2f}</td><td>{escape(case.exit_date)} at ${case.exit_price:,.2f}</td>"
+                f"<td><b>{case.return_pct:+.1%}</b></td></tr>"
+                for case in r.historical_trade_cases
+            )
+            trade_case_review = f"""
+                <h3>Historical trade case studies</h3>
+                <p>Hypothetical rules-based examples using real market history; not executed trades.</p>
+                {f"<table cellspacing='0' cellpadding='5' border='1'><tr><th>Signal</th><th>Entry</th><th>Initial stop</th><th>Exit</th><th>Return</th></tr>{rows}</table>" if rows else "<p>No trade met every rule in the selected range.</p>"}
+            """
         if r.comparison:
             comparison = r.comparison
             custom_range = bool(prepared.request.custom_start and prepared.request.custom_end)
@@ -715,6 +802,8 @@ class MainWindow(QMainWindow):
             <p><b>Interpretation:</b> {interpretation}</p>
             <h3>Technical signals</h3><ul>{signals}</ul>
             {deep_analysis}
+            {portfolio_fit}
+            {trade_case_review}
             {key_metrics}
             <h3>Fundamental signals</h3><ul>{fundamentals}</ul>
             <h3>Sentiment</h3><p>{r.sentiment}</p>
