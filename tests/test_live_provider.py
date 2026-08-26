@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from research.live_provider import LiveResearchProvider
+from research.live_provider import LiveResearchProvider, _direct_chart_history, _nasdaq_history
 
 
 class _Ticker:
@@ -25,6 +25,51 @@ class _YF:
         return self.output
 
 
+class _Response:
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return {
+            "chart": {
+                "result": [{
+                    "timestamp": [1_700_000_000, 1_700_086_400],
+                    "indicators": {"quote": [{
+                        "open": [100.0, 101.0], "high": [102.0, 103.0],
+                        "low": [99.0, 100.0], "close": [101.0, 102.0],
+                        "volume": [1_000_000, 1_100_000],
+                    }]},
+                }],
+                "error": None,
+            }
+        }
+
+
+class _Session:
+    def get(self, *_args, **_kwargs):
+        return _Response()
+
+
+class _NasdaqResponse(_Response):
+    def json(self):
+        return {
+            "data": {
+                "tradesTable": {
+                    "rows": [
+                        {"date": "08/25/2026", "close": "$350.20", "volume": "1,100,000", "open": "$345.00", "high": "$352.00", "low": "$344.00"},
+                        {"date": "08/24/2026", "close": "$346.00", "volume": "1,000,000", "open": "$342.00", "high": "$348.00", "low": "$340.00"},
+                    ]
+                }
+            },
+            "status": {"rCode": 200},
+        }
+
+
+class _NasdaqSession:
+    def get(self, *_args, **_kwargs):
+        return _NasdaqResponse()
+
+
 def _history(rows=260):
     dates = pd.date_range("2025-01-01", periods=rows, freq="B")
     close = np.linspace(100, 140, rows)
@@ -43,6 +88,22 @@ class HistoryFallbackTests(unittest.TestCase):
     def test_reports_all_empty_attempts(self):
         with self.assertRaisesRegex(RuntimeError, "No usable live price history"):
             LiveResearchProvider._history(_YF(pd.DataFrame()), _Ticker([pd.DataFrame(), pd.DataFrame()]), "AXON")
+
+    def test_direct_chart_fallback_has_expected_ohlcv(self):
+        history = _direct_chart_history(_Session(), "TSLA")
+        self.assertEqual(list(history.columns), ["Open", "High", "Low", "Close", "Volume"])
+        self.assertEqual(history.attrs["market_data_source"], "Yahoo Finance direct chart API")
+
+    def test_uses_direct_chart_after_ticker_history_errors(self):
+        result = LiveResearchProvider._history(
+            _YF(pd.DataFrame()), _Ticker([RuntimeError("one"), RuntimeError("two")]), "TSLA", _Session()
+        )
+        self.assertEqual(len(result), 2)
+
+    def test_nasdaq_fallback_normalizes_currency_and_dates(self):
+        history = _nasdaq_history(_NasdaqSession(), "TSLA")
+        self.assertEqual(float(history.iloc[-1]["Close"]), 350.20)
+        self.assertEqual(history.attrs["market_data_source"], "Nasdaq historical prices")
 
 
 if __name__ == "__main__":
