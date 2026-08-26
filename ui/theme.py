@@ -21,6 +21,11 @@ QLineEdit, QComboBox, QDoubleSpinBox {
 QComboBox::drop-down, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
     min-width: 24px;
 }
+QLineEdit#ResearchQuery {
+    min-height: 42px;
+    font-size: 16px;
+    padding: 6px 12px;
+}
 QPushButton { background: #14263D; color: #FFFFFF; border: 0; border-radius: 6px; padding: 10px 18px; font-weight: 700; }
 QPushButton:hover { background: #203B5D; }
 QPushButton#Secondary { background: #E8EBEF; color: #14263D; }
