@@ -145,14 +145,24 @@ def technical_finding(snapshot: TechnicalSnapshot) -> SpecialistFinding:
 
 def strategies(snapshot: TechnicalSnapshot, horizon: Horizon) -> tuple[Strategy, ...]:
     buffer = max(snapshot.atr14 * 0.5, snapshot.price * 0.005)
-    return (
-        Strategy(
+    if snapshot.price < snapshot.sma20:
+        first = Strategy(
+            "Trend reclaim / staged entry",
+            f"Wait for a close back through ${snapshot.sma20 - buffer:,.2f}-${snapshot.sma20 + buffer:,.2f}; the current price is below this zone",
+            "The zone is reclaimed on a closing basis and MACD momentum turns higher",
+            f"Sustained close below ${snapshot.support - buffer:,.2f}",
+            "Buying before trend repair can add exposure while downside momentum remains active",
+        )
+    else:
+        first = Strategy(
             "Pullback entry or add",
-            f"Monitor ${snapshot.sma20 - buffer:,.2f}–${snapshot.sma20 + buffer:,.2f} around the 20-day trend",
+            f"Monitor ${snapshot.sma20 - buffer:,.2f}-${snapshot.sma20 + buffer:,.2f} around the 20-day trend",
             "The zone holds on a closing basis and momentum turns higher",
             f"Sustained close below ${min(snapshot.support, snapshot.sma50) - buffer:,.2f}",
             "Trend support can fail during event-driven or broad-market selling",
-        ),
+        )
+    return (
+        first,
         Strategy(
             "Breakout confirmation",
             f"Above ${snapshot.resistance + buffer:,.2f} after a confirmed range breakout",
@@ -170,7 +180,7 @@ def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot
     sma20 = close.rolling(20).mean()
     sma50 = close.rolling(50).mean()
     sma200 = close.rolling(200).mean()
-    fig, (ax, vol) = plt.subplots(2, 1, figsize=(10.5, 6.2), gridspec_kw={"height_ratios": [4, 1]}, sharex=True)
+    fig, (ax, vol) = plt.subplots(2, 1, figsize=(10.5, 7.0), gridspec_kw={"height_ratios": [4, 1]}, sharex=True)
     fig.patch.set_facecolor("white")
     ax.plot(frame.index, close, color="#14263D", linewidth=1.8, label="Close")
     ax.plot(frame.index, sma20, color="#B08D57", linewidth=1.2, label="SMA 20")
@@ -194,4 +204,3 @@ def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot
     fig.savefig(destination, dpi=170, bbox_inches="tight")
     plt.close(fig)
     return destination
-
