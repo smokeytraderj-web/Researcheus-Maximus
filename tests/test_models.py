@@ -21,6 +21,11 @@ class ResearchRequestTests(unittest.TestCase):
                 comparison_symbols=("SPY", "QQQ", "IWM", "DIA"),
             ).validate()
 
+    def test_overview_chart_must_use_a_supported_chart_type(self):
+        ResearchRequest("AXON", Horizon.ALL, overview_chart="fibonacci").validate()
+        with self.assertRaisesRegex(ValueError, "overview chart"):
+            ResearchRequest("AXON", Horizon.ALL, overview_chart="candlestick_cloud").validate()
+
     def test_security_comparison_requires_second_security(self):
         with self.assertRaisesRegex(ValueError, "two securities"):
             ResearchRequest("AVGO", Horizon.ALL, comparison_analysis=True).validate()
