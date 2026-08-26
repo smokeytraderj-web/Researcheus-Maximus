@@ -913,6 +913,138 @@ def render_relative_performance_chart(
     return destination
 
 
+def _common_period_closes(
+    histories: dict[str, pd.DataFrame],
+    start_date: str = "",
+    end_date: str = "",
+) -> pd.DataFrame:
+    closes = {
+        symbol: history["Close"].dropna().astype(float).rename(symbol)
+        for symbol, history in histories.items()
+        if not history.empty and "Close" in history.columns
+    }
+    if not closes:
+        return pd.DataFrame()
+    frame = pd.concat(closes.values(), axis=1, join="inner").dropna()
+    if frame.empty:
+        return frame
+    index_tz = getattr(frame.index, "tz", None)
+    if start_date:
+        start = pd.Timestamp(start_date)
+        if index_tz is not None:
+            start = start.tz_localize(index_tz)
+        frame = frame.loc[frame.index >= start]
+    if end_date:
+        end = pd.Timestamp(end_date) + pd.Timedelta(days=1)
+        if index_tz is not None:
+            end = end.tz_localize(index_tz)
+        frame = frame.loc[frame.index < end]
+    return frame
+
+
+def period_total_returns(
+    histories: dict[str, pd.DataFrame],
+    start_date: str = "",
+    end_date: str = "",
+) -> dict[str, float]:
+    """Calculate total returns on the exact common dates shown in the lead chart."""
+    frame = _common_period_closes(histories, start_date, end_date)
+    if len(frame) < 20:
+        return {}
+    return {
+        str(column): float(frame[column].iloc[-1] / frame[column].iloc[0] - 1)
+        for column in frame.columns
+    }
+
+
+def total_return_chart_insights(
+    histories: dict[str, pd.DataFrame],
+    primary_symbol: str,
+    benchmark_symbol: str,
+    period_label: str,
+    rating: Rating,
+    start_date: str = "",
+    end_date: str = "",
+) -> tuple[str, ...]:
+    """Explain the visible relative-return evidence in direct decision language."""
+    returns = period_total_returns(histories, start_date, end_date)
+    primary_return = returns.get(primary_symbol)
+    benchmark_return = returns.get(benchmark_symbol)
+    if primary_return is None:
+        return (f"{period_label} return evidence was unavailable for {primary_symbol}.",)
+    if not benchmark_symbol:
+        return (
+            f"{primary_symbol} returned {primary_return:+.1%} over {period_label}.",
+            "This is a standalone performance view because the researched security is the default benchmark.",
+        )
+    if benchmark_return is None:
+        return (
+            f"{primary_symbol} returned {primary_return:+.1%} over {period_label}.",
+            f"{benchmark_symbol} comparison data was unavailable, so no relative-strength conclusion was used.",
+        )
+    relative = primary_return - benchmark_return
+    direction = "outperformed" if relative > 0 else "underperformed" if relative < 0 else "matched"
+    if relative >= 0.05:
+        decision_effect = f"The relative strength supports the {technical_setup(rating)} technical setup."
+    elif relative <= -0.05:
+        decision_effect = f"The relative weakness is a caution against upgrading the {technical_setup(rating)} technical setup."
+    else:
+        decision_effect = f"The performance gap is modest and does not change the {technical_setup(rating)} technical setup."
+    return (
+        f"{primary_symbol} returned {primary_return:+.1%}; {benchmark_symbol} returned {benchmark_return:+.1%} over {period_label}.",
+        f"{primary_symbol} {direction} {benchmark_symbol} by {abs(relative):.1%}.",
+        decision_effect,
+    )
+
+
+def render_total_return_chart(
+    histories: dict[str, pd.DataFrame],
+    destination: Path,
+    period_label: str,
+    benchmark_symbol: str = "SPY",
+    start_date: str = "",
+    end_date: str = "",
+) -> Path:
+    """Render a calm cumulative-total-return chart for the report's lead visual."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    frame = _common_period_closes(histories, start_date, end_date)
+    if len(frame) < 20:
+        raise ValueError("At least 20 common trading sessions are required for a total-return chart.")
+    total_return = frame.divide(frame.iloc[0]).subtract(1).multiply(100)
+    palette = ["#14263D", "#B08D57", "#4E7298", "#6E9D85"]
+    fig, ax = plt.subplots(figsize=(10.5, 4.8))
+    fig.patch.set_facecolor("white")
+    for index, column in enumerate(total_return.columns):
+        ending_return = float(total_return[column].iloc[-1])
+        is_benchmark = bool(benchmark_symbol and column == benchmark_symbol)
+        ax.plot(
+            total_return.index,
+            total_return[column],
+            color=palette[index % len(palette)],
+            linewidth=1.7 if is_benchmark else 2.2,
+            linestyle="--" if is_benchmark else "-",
+            alpha=0.9 if is_benchmark else 1.0,
+            label=f"{column}  {ending_return:+.1f}%",
+        )
+    ax.axhline(0, color="#8B929A", linewidth=0.8)
+    symbols = " vs. ".join(str(column) for column in total_return.columns)
+    ax.set_title(
+        f"{symbols} - {period_label} Total Return",
+        loc="left",
+        color="#14263D",
+        fontweight="bold",
+    )
+    ax.set_ylabel("Total return (%)")
+    ax.grid(alpha=0.16)
+    ax.legend(ncol=3, fontsize=8.5, frameon=False, loc="upper left")
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=8))
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    fig.tight_layout()
+    fig.savefig(destination, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+    return destination
+
+
 def relative_performance_returns(histories: dict[str, pd.DataFrame]) -> dict[str, float]:
     """Return chart-period total returns on the exact common dates used by the chart."""
     closes = {
