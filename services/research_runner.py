@@ -64,7 +64,8 @@ class ResearchRunner:
             preview = session.preview / "research.pdf"
             build_research_pdf(result, request, preview)
             _verify_pdf(preview)
-            filename = _safe_name(f"{result.identity.ticker}_{request.horizon.value}_Research.pdf")
+            report_name = "Deep_Technical_Analysis" if request.deep_analysis else f"{request.horizon.value}_Research"
+            filename = _safe_name(f"{result.identity.ticker}_{report_name}.pdf")
             return PreparedResearch(session, request, result, preview, filename)
         except Exception:
             session.cleanup()
