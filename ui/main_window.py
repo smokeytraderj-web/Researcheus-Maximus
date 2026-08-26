@@ -8,6 +8,7 @@ from PySide6.QtCore import QSettings, QThread, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QComboBox,
+    QCheckBox,
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
@@ -27,6 +28,8 @@ from PySide6.QtWidgets import (
 )
 
 from core.models import Horizon, ResearchRequest
+from research.demo_provider import DemoResearchProvider
+from research.live_provider import LiveResearchProvider
 from services.research_runner import PreparedResearch, ResearchRunner
 
 
@@ -79,11 +82,11 @@ class MainWindow(QMainWindow):
         row.setContentsMargins(28, 12, 28, 12)
         titles = QVBoxLayout()
         titles.setSpacing(1)
-        titles.addWidget(QLabel("RESEARCH EUS MAXIMUS", objectName="Brand"))
+        titles.addWidget(QLabel("RESEARCHEUS MAXIMUS", objectName="Brand"))
         titles.addWidget(QLabel("GOTTFRIED & SOMBERG WEALTH MANAGEMENT", objectName="Firm"))
         row.addLayout(titles)
         row.addStretch()
-        demo = QLabel("DEMO RESEARCH PROVIDER")
+        demo = QLabel("LIVE RESEARCH • LOCAL ANALYSIS")
         demo.setStyleSheet("color: #F0D49A; font-weight: 700;")
         row.addWidget(demo)
         return frame
@@ -120,14 +123,30 @@ class MainWindow(QMainWindow):
         self.question = QTextEdit()
         self.question.setPlaceholderText("Optional question or research emphasis")
         self.question.setMaximumHeight(90)
+        self.research_mode = QComboBox()
+        self.research_mode.addItems(["Live Market Research", "Demo / Offline Test"])
+        self.synthesis_provider = QComboBox()
+        self.synthesis_provider.addItems(["Automatic", "OpenAI", "Ollama", "Deterministic"])
+        self.api_key = QLineEdit()
+        self.api_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.api_key.setPlaceholderText("Optional; used in memory only and never saved")
+        self.model_name = QLineEdit()
+        self.model_name.setPlaceholderText("Optional model override")
+        self.use_ycharts = QCheckBox("Query the installed YCharts Excel add-in")
+        self.use_ycharts.setChecked(True)
         form.addRow("Company or ticker *", self.query)
         form.addRow("Investment horizon *", self.horizon)
         form.addRow("Purchase price", self.purchase)
         form.addRow("Quantity", self.quantity)
         form.addRow("Risk tolerance", self.risk)
         form.addRow("Custom question", self.question)
+        form.addRow("Research mode", self.research_mode)
+        form.addRow("Synthesis provider", self.synthesis_provider)
+        form.addRow("OpenAI API key", self.api_key)
+        form.addRow("Model override", self.model_name)
+        form.addRow("YCharts", self.use_ycharts)
         outer.addWidget(card)
-        note = QLabel("This runnable build uses clearly labeled synthetic evidence. Live YCharts and TradingView research is not connected yet.")
+        note = QLabel("Live mode retrieves market history and fundamentals, calculates indicators locally, builds an annotated chart, and uses OpenAI web research or local Ollama when configured. YCharts and TradingView links remain visible for source review.")
         note.setWordWrap(True)
         note.setStyleSheet("color: #8A632B; padding: 4px;")
         outer.addWidget(note)
@@ -143,6 +162,7 @@ class MainWindow(QMainWindow):
     def _build_review(self) -> QWidget:
         page, outer = self._page_shell("Evidence Review", "Confirm the resolved security and preliminary analysis before creating the PDF.")
         self.review_browser = QTextBrowser()
+        self.review_browser.setOpenExternalLinks(True)
         outer.addWidget(self.review_browser, 1)
         actions = QHBoxLayout()
         back = QPushButton("Back", objectName="Secondary")
@@ -163,11 +183,14 @@ class MainWindow(QMainWindow):
         actions = QHBoxLayout()
         restart = QPushButton("Cancel & Start Over", objectName="Secondary")
         restart.clicked.connect(self._cancel)
+        revise = QPushButton("Revise Research", objectName="Secondary")
+        revise.clicked.connect(self._revise)
         open_pdf = QPushButton("Open PDF")
         open_pdf.clicked.connect(self._open_pdf)
         finalize = QPushButton("Finalize Research", objectName="Gold")
         finalize.clicked.connect(self._finalize)
         actions.addWidget(restart)
+        actions.addWidget(revise)
         actions.addStretch()
         actions.addWidget(open_pdf)
         actions.addWidget(finalize)
@@ -187,6 +210,17 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             QMessageBox.warning(self, "Check input", str(exc))
             return
+        if self.research_mode.currentText().startswith("Live"):
+            self.runner = ResearchRunner(
+                provider=LiveResearchProvider(
+                    self.synthesis_provider.currentText(),
+                    self.api_key.text().strip(),
+                    self.model_name.text().strip(),
+                    self.use_ycharts.isChecked(),
+                )
+            )
+        else:
+            self.runner = ResearchRunner(provider=DemoResearchProvider())
         progress = QProgressBar()
         progress.setRange(0, 0)
         progress.setFormat("Preparing evidence…")
@@ -203,6 +237,8 @@ class MainWindow(QMainWindow):
         r = prepared.result
         signals = "".join(f"<li>{item}</li>" for item in r.technical.signals)
         fundamentals = "".join(f"<li>{item}</li>" for item in r.fundamental.signals)
+        limitations = "".join(f"<li>{item}</li>" for item in r.limitations)
+        source_links = "".join(f"<li><a href='{item.locator}'>{item.name}</a> — {item.supports}</li>" for item in r.sources if item.locator.startswith(("https://", "http://")))
         self.review_browser.setHtml(f"""
             <h2>{r.identity.company_name} ({r.identity.ticker})</h2>
             <p><b>Exchange:</b> {r.identity.exchange} &nbsp; <b>Currency:</b> {r.identity.currency}<br>
@@ -215,7 +251,10 @@ class MainWindow(QMainWindow):
             <h3>Technical signals</h3><ul>{signals}</ul>
             <h3>Fundamental signals</h3><ul>{fundamentals}</ul>
             <h3>Sentiment</h3><p>{r.sentiment}</p>
-            <p style='color:#8A632B'><b>Blocking limitation:</b> Demo mode uses synthetic values and contains no live YCharts, TradingView, SEC, news, or social evidence.</p>
+            <h3>Research provider</h3><p>{r.provider_label}</p>
+            <h3>Sources and direct review links</h3><ul>{source_links}</ul>
+            <h3>Limitations and source gaps</h3><ul>{limitations or '<li>None reported.</li>'}</ul>
+            {"<p style='color:#8A632B'><b>Blocking limitation:</b> Demo mode uses synthetic values and contains no live YCharts, TradingView, SEC, news, or social evidence.</p>" if r.demo_mode else ""}
         """)
         self.stack.setCurrentIndex(1)
 
@@ -228,7 +267,8 @@ class MainWindow(QMainWindow):
         if not self.prepared:
             return
         path = self.prepared.preview_path
-        self.preview_browser.setHtml(f"<h2>PDF ready for review</h2><p><b>{self.prepared.suggested_filename}</b></p><p>The branded report passed structural PDF validation.</p><p style='color:#8A632B'><b>Demo mode:</b> The report is for application testing only.</p><p>Use <b>Open PDF</b> for the complete rendered preview, then finalize it to a folder you select.</p>")
+        mode_note = "<p style='color:#8A632B'><b>Demo mode:</b> The report is for application testing only.</p>" if self.prepared.result.demo_mode else "<p><b>Live research:</b> Review every source, limitation, and rating before finalization.</p>"
+        self.preview_browser.setHtml(f"<h2>PDF ready for review</h2><p><b>{self.prepared.suggested_filename}</b></p><p>The branded report passed structural PDF validation.</p>{mode_note}<p>Use <b>Open PDF</b> for the complete rendered preview, then finalize it to a folder you select.</p>")
         self.stack.setCurrentIndex(2)
 
     def _open_pdf(self) -> None:
@@ -258,9 +298,14 @@ class MainWindow(QMainWindow):
             self.prepared = None
         self.stack.setCurrentIndex(0)
 
+    def _revise(self) -> None:
+        if self.prepared:
+            self.runner.cancel(self.prepared)
+            self.prepared = None
+        self.stack.setCurrentIndex(0)
+
     def closeEvent(self, event) -> None:
         if self.prepared:
             self.runner.cancel(self.prepared)
             self.prepared = None
         event.accept()
-
