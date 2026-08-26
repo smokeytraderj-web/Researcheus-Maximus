@@ -70,16 +70,52 @@ class LiveResearchProvider:
         symbol = str(selected.get("symbol", upper)).upper()
         if not symbol or len(symbol) > 20:
             raise ValueError("The company or ticker could not be resolved.")
-        return yf.Ticker(symbol), selected
+        selected = dict(selected)
+        selected["originalQuery"] = cleaned
+        return yf, yf.Ticker(symbol), selected
+
+    @staticmethod
+    def _history(yf, ticker, symbol: str):
+        """Retrieve normalized daily history across yfinance API variations."""
+        import pandas as pd
+
+        failures = []
+        attempts = (
+            lambda: ticker.history(period="2y", interval="1d", auto_adjust=True),
+            lambda: ticker.history(period="5y", interval="1d", auto_adjust=True),
+            lambda: yf.download(symbol, period="2y", interval="1d", auto_adjust=True, progress=False, threads=False),
+        )
+        for attempt in attempts:
+            try:
+                history = attempt()
+                if history is None or history.empty:
+                    failures.append("provider returned no rows")
+                    continue
+                if isinstance(history.columns, pd.MultiIndex):
+                    if symbol in history.columns.get_level_values(-1):
+                        history = history.xs(symbol, axis=1, level=-1)
+                    else:
+                        history.columns = history.columns.get_level_values(0)
+                if {"Close", "High", "Low", "Volume"}.issubset(history.columns):
+                    return history
+                failures.append("provider returned incomplete OHLCV columns")
+            except Exception as exc:
+                failures.append(f"{type(exc).__name__}: {exc}")
+        detail = " | ".join(failures[-3:])
+        raise RuntimeError(f"No usable live price history was returned for {symbol}. {detail}")
 
     def run(self, request: ResearchRequest, workspace: Path | None = None) -> ResearchResult:
         request.validate()
-        ticker, resolved = self._resolve(request.query)
+        yf, ticker, resolved = self._resolve(request.query)
         symbol = str(resolved.get("symbol") or ticker.ticker).upper()
         try:
-            history = ticker.history(period="2y", interval="1d", auto_adjust=True, repair=False, timeout=20)
+            history = self._history(yf, ticker, symbol)
         except Exception as exc:
-            raise RuntimeError(f"Live price history for {symbol} could not be retrieved.") from exc
+            original = str(resolved.get("originalQuery") or request.query).upper()
+            correction = f" The search resolved {original} to {symbol}; confirm that correction." if original != symbol else ""
+            if original == "SPCX":
+                correction = " Did you mean SPXC (SPX Technologies)?"
+            raise RuntimeError(f"Live price history for {symbol} could not be retrieved.{correction} Details: {exc}") from exc
         snapshot = analyze_history(history)
         try:
             info = ticker.get_info() or {}
