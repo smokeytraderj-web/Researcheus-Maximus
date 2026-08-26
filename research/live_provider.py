@@ -814,7 +814,7 @@ class LiveResearchProvider:
         company = str(info.get("longName") or resolved.get("longname") or resolved.get("shortname") or symbol)
         exchange = str(info.get("fullExchangeName") or resolved.get("exchange") or "Unconfirmed")
         currency = str(info.get("currency") or "USD")
-        quote_type = str(info.get("quoteType") or resolved.get("quoteType") or "Equity")
+        quote_type = str(info.get("quoteType") or resolved.get("quoteType") or "")
         if request.deep_analysis and any(
             term in request.question.lower()
             for term in ("sector", "industry benchmark", "respective benchmark", "benchmarks")
