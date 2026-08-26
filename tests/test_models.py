@@ -25,6 +25,11 @@ class ResearchRequestTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "two securities"):
             ResearchRequest("AVGO", Horizon.ALL, comparison_analysis=True).validate()
 
+    def test_portfolio_allocation_must_total_one_hundred(self):
+        ResearchRequest("BDMIX", Horizon.ALL, portfolio_allocation=(70, 30)).validate()
+        with self.assertRaisesRegex(ValueError, "totaling 100"):
+            ResearchRequest("BDMIX", Horizon.ALL, portfolio_allocation=(60, 30)).validate()
+
     def test_custom_range_requires_valid_order_and_minimum_length(self):
         with self.assertRaisesRegex(ValueError, "before"):
             ResearchRequest(
