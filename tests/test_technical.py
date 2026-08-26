@@ -8,8 +8,10 @@ import pandas as pd
 from core.models import Horizon, Rating, SpecialistFinding
 from research.technical import (
     analyze_history,
+    fibonacci_decision_insight,
     historical_trade_examples,
     incorporate_relative_performance,
+    momentum_decision_insight,
     render_chart,
     render_fibonacci_chart,
     render_momentum_chart,
@@ -18,6 +20,7 @@ from research.technical import (
     render_trade_case_chart,
     strategies,
     technical_finding,
+    trend_decision_insight,
 )
 
 
@@ -50,6 +53,19 @@ class TechnicalAnalysisTests(unittest.TestCase):
         self.assertIn(finding.rating.value, {"Strong Buy", "Buy", "Add", "Hold", "Reduce", "Sell", "Avoid"})
         self.assertGreaterEqual(len(finding.signals), 3)
         self.assertTrue(any("Fibonacci" in signal for signal in finding.signals))
+        self.assertIn("Because price", finding.summary)
+
+    def test_deep_chart_insights_connect_evidence_to_the_decision(self):
+        snapshot = analyze_history(self._history())
+        rating = technical_finding(snapshot).rating
+        trend = trend_decision_insight(snapshot, rating)
+        fibonacci = fibonacci_decision_insight(snapshot, rating)
+        momentum = momentum_decision_insight(snapshot, rating)
+        self.assertIn("Because price", trend)
+        self.assertIn("setup", trend)
+        self.assertIn("setup", fibonacci)
+        self.assertIn("MACD", momentum)
+        self.assertIn("RSI", momentum)
 
     def test_custom_range_drives_fibonacci_and_performance_window(self):
         frame = self._history()
@@ -63,6 +79,18 @@ class TechnicalAnalysisTests(unittest.TestCase):
     def test_rejects_insufficient_history(self):
         with self.assertRaises(ValueError):
             analyze_history(self._history(30))
+
+    def test_zero_volume_fund_omits_volume_evidence_and_renders_clean_chart(self):
+        history = self._history()
+        history["Volume"] = 0
+        snapshot = analyze_history(history)
+        self.assertFalse(snapshot.volume_available)
+        self.assertFalse(any(label.startswith("Volume") for label, _value in snapshot.as_metrics()))
+        self.assertIn("volume was excluded", technical_finding(snapshot).signals[-1])
+        with tempfile.TemporaryDirectory() as folder:
+            output = render_chart(history, "BDMIX", snapshot, Path(folder) / "fund-price.png")
+            self.assertTrue(output.is_file())
+            self.assertGreater(output.stat().st_size, 10_000)
 
     def test_weak_trend_strategy_requires_reclaim_before_entry(self):
         frame = self._history()
@@ -82,7 +110,7 @@ class TechnicalAnalysisTests(unittest.TestCase):
         revised, metrics, insight = incorporate_relative_performance(finding, primary, {"SPY": benchmark})
         self.assertEqual(revised.rating, Rating.ADD)
         self.assertEqual(metrics[0][0], "3-month return vs. SPY")
-        self.assertIn("moved the technical rating", insight)
+        self.assertIn("changed the Technical Setup from Neutral to Bullish", insight)
 
     def test_deep_analysis_charts_render(self):
         primary = self._history()
