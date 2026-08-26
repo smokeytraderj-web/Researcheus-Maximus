@@ -28,7 +28,9 @@ class ResearchRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             runner = ResearchRunner(session_root=root / "sessions")
-            prepared = runner.prepare(ResearchRequest("AXON", Horizon.MEDIUM, 300, 10))
+            prepared = runner.prepare(
+                ResearchRequest("AXON", Horizon.MEDIUM, 300, 10, question="Give me a report on AXON.")
+            )
             session_path = prepared.session.root
             self.assertTrue(prepared.preview_path.is_file())
             reader = PdfReader(prepared.preview_path)
@@ -37,6 +39,9 @@ class ResearchRunnerTests(unittest.TestCase):
             self.assertIn("OVERALL RATING", report_text)
             self.assertIn("TECHNICAL SETUP", report_text)
             self.assertIn("FUNDAMENTAL OUTLOOK", report_text)
+            self.assertIn("RESPONSE TO YOUR REQUEST", report_text)
+            self.assertIn("Overall Conclusion:", report_text)
+            self.assertNotIn("Interpretation:", report_text)
             self.assertNotIn("LEAD\n", report_text)
             final = runner.finalize(prepared, root / "output")
             self.assertTrue(final.is_file())
