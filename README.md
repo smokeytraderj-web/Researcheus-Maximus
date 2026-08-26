@@ -5,6 +5,8 @@ A Windows desktop application for client-ready, evidence-grounded investment res
 The runnable application includes:
 
 - one conversational company/ticker research prompt with an automatic all-horizons framework;
+- portfolio-role questions such as whether a fund fits a 70/30 allocation;
+- historical, rules-based trade case studies with real market charts and explicit entry, initial-stop, and exit markers;
 - a separate Deep Technical Analysis workspace for chart-specific research and benchmark/peer comparisons;
 - a two-security comparison workspace for stocks or funds, with one evidence preference, sector-benchmark performance, and a side-by-side report;
 - optional position context;
@@ -22,7 +24,7 @@ The runnable application includes:
 
 Live mode links directly to YCharts, TradingView, SEC EDGAR, and the underlying market-data page. Authenticated YCharts values are never guessed when an account session cannot be read. Demo mode remains labeled throughout the UI and PDF and never claims that live research occurred.
 
-On Windows, live mode queries the installed YCharts Excel Add-In through a temporary workbook. Keep desktop Excel open and signed in to YCharts so the app can reuse the active authenticated session. The bridge checks and activates both the YCharts Excel Add-In and YCharts COM Add-In. Excel/YCharts credentials remain inside Excel.
+On Windows, live mode queries the installed YCharts Excel Add-In through a temporary workbook. Keep desktop Excel open and signed in to YCharts so the app can reuse the active authenticated session. The bridge checks and activates both the YCharts Excel Add-In and YCharts COM Add-In. Excel/YCharts credentials remain inside Excel. Use **Settings > Test YCharts Connection** to run a harmless SPY formula check before research. Do not paste a YCharts credential or access code into a workbook cell or the public repository; authentication must remain in the YCharts Excel ribbon.
 
 The YCharts workbook uses columns A:G and calculates live results in F2:F9. Excel formula errors such as `#NAME?` are rejected and can never be formatted as market values or ratings. When YCharts is unavailable, Evidence Review shows one concise amber data alert and keeps raw setup errors out of the client PDF.
 
@@ -34,9 +36,13 @@ The main workspace accepts natural-language decision questions and gives the dir
 Full analysis of TSLA - is it a good opportunity to buy?
 Should I sell my AVGO position?
 What about my WMT position?
+Is BDMIX good for a 70/30 portfolio?
+Show QQQ trade entries with stop-loss examples and real chart snapshots from the past year.
 ```
 
-The answer distinguishes the one Overall Rating from supporting technical and fundamental assessments, cites the evidence behind the conclusion, and states what would change it.
+The answer distinguishes the one Overall Rating from supporting technical and fundamental assessments, cites the evidence behind the conclusion, and states what would change it. A portfolio-fit question instead leads with the requested allocation, the sleeve the security could fill, and the look-through facts that must be confirmed.
+
+Historical trade prompts automatically open the deep-analysis workflow and interpret “past year” as an exact one-year date range. A case qualifies only after price reclaims its 20-day average while the 50-day trend is rising, MACD is improving, RSI is 45-72, and volume is at least 0.8x its 20-day average. The hypothetical entry occurs the next session. Each chart marks the entry, initial protective stop, and exit, and the report states the outcome and exit rule. These are reproducible case studies using attributed market history, not executed trades or fabricated TradingView screenshots; the report includes a direct TradingView link for independent review.
 
 ## Provider setup
 
@@ -56,7 +62,7 @@ AVGO - Compare against NVDA, SOXX, and SPY. Analyze trend, RSI, MACD,
 relative performance, drawdown, volatility, support, and resistance.
 ```
 
-Every technical workflow includes Fibonacci analysis. By default it uses a six-month swing range; when the prompt includes a custom range, Fibonacci, return, relative performance, and chart evidence use that selected range. The 38.2%, 50%, and 61.8% retracement levels are included in the technical score, written signals, strategy context, key metrics, and primary price chart. Every deep report also includes RSI/MACD and normalized relative performance. SPY is the default comparison when none is named. Asking for drawdown, volatility, or a risk chart adds a drawdown and realized-volatility study. Deep Analysis weights technical evidence 70% and fundamental evidence 30%. Relative strength is disclosed in the metrics and may move the technical assessment by one rating step; the report states when that adjustment occurs. Unavailable comparison data is disclosed and never fabricated.
+Every technical workflow includes Fibonacci analysis. By default it uses a six-month swing range; when the prompt includes a custom range, Fibonacci, return, relative performance, and chart evidence use that selected range. The 38.2%, 50%, and 61.8% retracement levels are included in the technical score, written signals, strategy context, key metrics, and a dedicated Fibonacci chart. Every deep report also includes RSI/MACD and normalized relative performance. SPY is the default comparison when none is named. Asking for drawdown, volatility, or a risk chart adds a drawdown and realized-volatility study. Deep Analysis weights technical evidence 70% and fundamental evidence 30%. Relative strength is disclosed in the metrics and may move the technical assessment by one rating step; the report states when that adjustment occurs. Unavailable comparison data is disclosed and never fabricated.
 
 Custom date ranges can be written directly in Overview, Deep Analysis, or Comparison prompts:
 
@@ -73,7 +79,7 @@ Choose **Compare Securities** and name two stocks or funds in one prompt. Compan
 AVGO vs NVDA - Which currently offers better value and risk-adjusted opportunity?
 ```
 
-The comparison retrieves both securities and automatically selects a relevant benchmark. Semiconductor pairs use SOXX; same-sector pairs use the appropriate Select Sector SPDR ETF; cross-sector or unsupported pairs use SPY. The report charts both securities and the benchmark over identical common dates, states each total return and excess return, and analyzes technical setup, Fibonacci position, volatility, valuation, growth, margins, cash-flow yield, leverage, beta, analyst-target upside, and fund fields when available for both. Current price is context, not a measure of cheapness. The three-page report separates the performance decision, full scorecard, and company snapshots so the evidence remains readable.
+The comparison retrieves both securities and automatically selects a relevant benchmark. Semiconductor pairs use SOXX; same-sector pairs use the appropriate Select Sector SPDR ETF; cross-sector or unsupported pairs use SPY. The report charts both securities and the benchmark over identical common dates, states each total return and excess return, and analyzes technical setup, Fibonacci position, volatility, valuation, growth, margins, cash-flow yield, leverage, beta, analyst-target upside, and fund fields when available for both. Current price is context, not a measure of cheapness. The four-page report separates the performance decision, full scorecard, company snapshots, and sources/disclosure so every page remains readable.
 
 Deep Analysis also honors prompts such as `Compare AXON to SPY and its respective sector and benchmarks`: it keeps SPY, automatically adds the relevant sector ETF, analyzes both relative-performance series, and includes them in the chartbook. The primary technical chart now focuses on price and moving averages; Fibonacci structure is shown in a separate chart.
 
