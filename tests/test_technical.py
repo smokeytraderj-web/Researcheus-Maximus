@@ -3,7 +3,8 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from research.technical import analyze_history, technical_finding
+from core.models import Horizon
+from research.technical import analyze_history, strategies, technical_finding
 
 
 class TechnicalAnalysisTests(unittest.TestCase):
@@ -35,6 +36,16 @@ class TechnicalAnalysisTests(unittest.TestCase):
     def test_rejects_insufficient_history(self):
         with self.assertRaises(ValueError):
             analyze_history(self._history(30))
+
+    def test_weak_trend_strategy_requires_reclaim_before_entry(self):
+        frame = self._history()
+        frame.loc[frame.index[-30]:, "Close"] = np.linspace(170, 120, 30)
+        frame.loc[frame.index[-30]:, "High"] = frame.loc[frame.index[-30]:, "Close"] + 2
+        frame.loc[frame.index[-30]:, "Low"] = frame.loc[frame.index[-30]:, "Close"] - 2
+        snapshot = analyze_history(frame)
+        first = strategies(snapshot, Horizon.LONG)[0]
+        self.assertEqual(first.name, "Trend reclaim / staged entry")
+        self.assertIn("Wait for a close back", first.action_zone)
 
 
 if __name__ == "__main__":
