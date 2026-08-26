@@ -5,6 +5,7 @@ A Windows desktop application for client-ready, evidence-grounded single-stock r
 The runnable application includes:
 
 - one conversational company/ticker research prompt with an automatic all-horizons framework;
+- a separate Deep Technical Analysis workspace for chart-specific research and benchmark/peer comparisons;
 - optional position context;
 - one Overall Rating supported by a Technical Setup, Fundamental Outlook, and plain-language interpretation;
 - a required evidence-review checkpoint;
@@ -12,6 +13,7 @@ The runnable application includes:
 - embedded PDF preview, requested-modification regeneration, versioned export, and temporary-session cleanup;
 - live security resolution, market history, fundamentals, news metadata, and deterministic technical indicators;
 - a compact two-page, chart-led report with trend, support, resistance, and volume;
+- an optional multi-page technical chartbook with RSI/MACD, normalized relative performance, and requested drawdown/volatility analysis;
 - an Evidence Review audit showing the exact YCharts Excel result cells and formulas;
 - secure Windows certificate-store support for live market connections;
 - configurable OpenAI web research, local Ollama synthesis, deterministic fallback, and explicit demo mode.
@@ -30,6 +32,17 @@ The YCharts workbook uses columns A:G and calculates live results in F2:F9. Exce
 - **Deterministic:** uses live market/provider fields without language-model synthesis.
 
 Natural-language report modifications are applied by OpenAI or Ollama. Deterministic fallback still refreshes market evidence, but cannot reliably interpret arbitrary editorial instructions.
+
+## Deep Technical Analysis
+
+Choose **Try Deep Analysis** from the right side of the research card. Start the prompt with the primary company or ticker, then name up to three comparison symbols and the technical work you want. For example:
+
+```text
+AVGO - Compare against NVDA, SOXX, and SPY. Analyze trend, RSI, MACD,
+relative performance, drawdown, volatility, support, and resistance.
+```
+
+Every deep report includes the primary price/trend chart, RSI/MACD, and normalized relative performance. SPY is the default comparison when none is named. Asking for drawdown, volatility, or a risk chart adds a drawdown and realized-volatility study. Deep Analysis weights technical evidence 70% and fundamental evidence 30%. Three-month relative strength is disclosed in the metrics and may move the technical assessment by one rating step; the report states when that adjustment occurs. Unavailable comparison data is disclosed and never fabricated.
 
 ## Run on Windows
 
