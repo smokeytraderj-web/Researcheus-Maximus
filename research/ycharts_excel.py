@@ -48,12 +48,12 @@ def _is_excel_error(value: object, displayed_text: str) -> bool:
 
 def _is_invalid_metric_value(label: str, value: object) -> bool:
     """Reject add-in placeholders that are structurally valid Excel values."""
-    return (
-        "price target" in label.lower()
-        and "upside" not in label.lower()
-        and isinstance(value, (int, float))
-        and value <= 0
-    )
+    lowered = label.lower()
+    if "price target" not in lowered or not isinstance(value, (int, float)):
+        return False
+    if "upside" in lowered:
+        return value == 0
+    return value <= 0
 
 
 def _safe_addin_value(addin, field: str) -> object:
