@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from core.models import Horizon, Rating, SpecialistFinding, Strategy
+from core.models import HistoricalTradeCase, Horizon, Rating, SpecialistFinding, Strategy
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +76,142 @@ def _rsi(close: pd.Series, periods: int = 14) -> pd.Series:
     losses = (-change.clip(upper=0)).ewm(alpha=1 / periods, adjust=False).mean()
     rs = gains / losses.replace(0, np.nan)
     return (100 - 100 / (1 + rs)).fillna(50)
+
+
+def historical_trade_examples(
+    history: pd.DataFrame,
+    max_cases: int = 3,
+) -> tuple[HistoricalTradeCase, ...]:
+    """Find reproducible long-entry case studies without using future data in the signal."""
+    frame = history.dropna(subset=["Close", "High", "Low", "Volume"]).copy()
+    if len(frame) < 80:
+        return ()
+    close = frame["Close"].astype(float)
+    high = frame["High"].astype(float)
+    low = frame["Low"].astype(float)
+    open_price = frame["Open"].astype(float) if "Open" in frame else close
+    volume = frame["Volume"].astype(float).fillna(0)
+    frame["SMA20"] = close.rolling(20).mean()
+    frame["SMA50"] = close.rolling(50).mean()
+    frame["RSI"] = _rsi(close)
+    ema12 = close.ewm(span=12, adjust=False).mean()
+    ema26 = close.ewm(span=26, adjust=False).mean()
+    frame["MACD"] = ema12 - ema26
+    frame["MACDSignal"] = frame["MACD"].ewm(span=9, adjust=False).mean()
+    previous = close.shift(1)
+    true_range = pd.concat([(high - low), (high - previous).abs(), (low - previous).abs()], axis=1).max(axis=1)
+    frame["ATR"] = true_range.rolling(14).mean()
+    frame["VolumeRatio"] = volume / volume.rolling(20).mean().replace(0, np.nan)
+    frame["Prior10Low"] = low.shift(1).rolling(10).min()
+    signal = (
+        (close > frame["SMA20"])
+        & (close.shift(1) <= frame["SMA20"].shift(1))
+        & (frame["SMA50"] > frame["SMA50"].shift(10))
+        & (frame["MACD"] > frame["MACD"].shift(1))
+        & frame["RSI"].between(45, 72)
+        & (frame["VolumeRatio"] >= 0.8)
+    )
+    cases = []
+    last_exit_index = -1
+    candidate_positions = np.flatnonzero(signal.fillna(False).to_numpy())
+    for signal_index in candidate_positions:
+        entry_index = signal_index + 1
+        if entry_index >= len(frame) or entry_index <= last_exit_index:
+            continue
+        entry = float(open_price.iloc[entry_index])
+        if not np.isfinite(entry) or entry <= 0:
+            entry = float(close.iloc[entry_index])
+        atr = float(frame["ATR"].iloc[signal_index])
+        prior_low = float(frame["Prior10Low"].iloc[signal_index])
+        volatility_stop = entry - 2.0 * atr
+        structure_stop = prior_low - 0.25 * atr
+        initial_stop = min(entry * 0.995, max(volatility_stop, structure_stop))
+        trailing_stop = initial_stop
+        exit_index = min(entry_index + 40, len(frame) - 1)
+        exit_price = float(close.iloc[exit_index])
+        exit_reason = "Forty-session review exit"
+        for index in range(entry_index + 1, min(entry_index + 41, len(frame))):
+            if float(low.iloc[index]) <= trailing_stop:
+                exit_index = index
+                exit_price = trailing_stop
+                exit_reason = "Protective stop was reached"
+                break
+            if float(close.iloc[index]) < float(frame["SMA20"].iloc[index]) and float(frame["MACD"].iloc[index]) < float(frame["MACDSignal"].iloc[index]):
+                exit_index = index
+                exit_price = float(close.iloc[index])
+                exit_reason = "Price lost the 20-day trend while MACD weakened"
+                break
+            new_trailing_stop = max(
+                float(frame["SMA20"].iloc[index]) - 0.75 * float(frame["ATR"].iloc[index]),
+                float(close.iloc[entry_index:index + 1].max()) - 2.5 * float(frame["ATR"].iloc[index]),
+            )
+            trailing_stop = max(trailing_stop, min(new_trailing_stop, float(close.iloc[index]) * 0.995))
+        trade_return = exit_price / entry - 1
+        cases.append(
+            HistoricalTradeCase(
+                signal_date=frame.index[signal_index].date().isoformat(),
+                entry_date=frame.index[entry_index].date().isoformat(),
+                entry_price=entry,
+                initial_stop=initial_stop,
+                exit_date=frame.index[exit_index].date().isoformat(),
+                exit_price=exit_price,
+                return_pct=trade_return,
+                outcome="Gain" if trade_return > 0 else "Loss",
+                rationale=(
+                    f"Close reclaimed the 20-day average while the 50-day trend was rising; "
+                    f"RSI was {float(frame['RSI'].iloc[signal_index]):.1f}, MACD was improving, and volume was "
+                    f"{float(frame['VolumeRatio'].iloc[signal_index]):.2f}x its 20-day average."
+                ),
+                exit_reason=exit_reason,
+            )
+        )
+        last_exit_index = exit_index
+        if len(cases) >= max_cases:
+            break
+    return tuple(cases)
+
+
+def render_trade_case_chart(
+    history: pd.DataFrame,
+    ticker: str,
+    trade: HistoricalTradeCase,
+    destination: Path,
+) -> Path:
+    """Render a real-market historical chart with entry, initial stop, and exit markers."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    frame = history.dropna(subset=["Close"]).copy()
+    entry_stamp = pd.Timestamp(trade.entry_date)
+    exit_stamp = pd.Timestamp(trade.exit_date)
+    entry_location = frame.index.get_indexer([entry_stamp], method="nearest")[0]
+    exit_location = frame.index.get_indexer([exit_stamp], method="nearest")[0]
+    start = max(0, entry_location - 25)
+    end = min(len(frame), exit_location + 16)
+    view = frame.iloc[start:end]
+    close = view["Close"].astype(float)
+    sma20 = frame["Close"].astype(float).rolling(20).mean().iloc[start:end]
+    sma50 = frame["Close"].astype(float).rolling(50).mean().iloc[start:end]
+    fig, (ax, vol) = plt.subplots(2, 1, figsize=(10.5, 5.6), gridspec_kw={"height_ratios": [4, 1]}, sharex=True)
+    fig.patch.set_facecolor("white")
+    ax.plot(view.index, close, color="#14263D", linewidth=1.8, label="Close")
+    ax.plot(view.index, sma20, color="#B08D57", linewidth=1.1, label="SMA 20")
+    ax.plot(view.index, sma50, color="#4E7298", linewidth=1.1, label="SMA 50")
+    ax.scatter(pd.Timestamp(trade.entry_date), trade.entry_price, marker="^", s=80, color="#2E7D52", zorder=5, label=f"Entry ${trade.entry_price:,.2f}")
+    ax.scatter(pd.Timestamp(trade.exit_date), trade.exit_price, marker="X", s=75, color="#A94442", zorder=5, label=f"Exit ${trade.exit_price:,.2f}")
+    ax.axhline(trade.initial_stop, color="#A94442", linestyle="--", linewidth=1.0, label=f"Initial stop ${trade.initial_stop:,.2f}")
+    ax.set_title(f"{ticker} - Historical Trade Case: {trade.entry_date} Entry", loc="left", color="#14263D", fontweight="bold")
+    ax.set_ylabel("Price (USD)")
+    ax.grid(alpha=0.18)
+    ax.legend(ncol=3, fontsize=8, frameon=False, loc="upper left")
+    colors_v = np.where(close.diff().fillna(0) >= 0, "#6E9D85", "#C77A7A")
+    vol.bar(view.index, view["Volume"].fillna(0).astype(float), color=colors_v, width=1.0, alpha=0.75)
+    vol.set_ylabel("Volume")
+    vol.grid(axis="y", alpha=0.15)
+    vol.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=9))
+    vol.xaxis.set_major_formatter(mdates.ConciseDateFormatter(vol.xaxis.get_major_locator()))
+    fig.tight_layout()
+    fig.savefig(destination, dpi=170, bbox_inches="tight")
+    plt.close(fig)
+    return destination
 
 
 def analyze_history(history: pd.DataFrame) -> TechnicalSnapshot:
