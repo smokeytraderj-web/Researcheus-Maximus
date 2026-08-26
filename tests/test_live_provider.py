@@ -172,6 +172,15 @@ class HistoryFallbackTests(unittest.TestCase):
         self.assertEqual(lead, Rating.REDUCE)
         self.assertEqual((technical_weight, fundamental_weight), (70, 30))
 
+    def test_main_all_horizons_rating_is_technically_led(self):
+        lead, technical_weight, fundamental_weight = _combine_ratings(
+            Rating.BUY,
+            Rating.REDUCE,
+            Horizon.ALL,
+        )
+        self.assertEqual((technical_weight, fundamental_weight), (70, 30))
+        self.assertEqual(lead, Rating.ADD)
+
     def test_buy_question_gets_a_direct_conditional_answer(self):
         answer = _direct_decision_answer(
             ResearchRequest("TSLA", Horizon.ALL, decision_intent="buy"),
