@@ -20,6 +20,15 @@ from core.assessments import technical_setup
 from core.models import HistoricalTradeCase, Horizon, Rating, SpecialistFinding, Strategy, TechnicalActionPlan
 
 
+NAVY = "#1B2A4A"
+GOLD = "#BFA054"
+BLUE = "#5378A5"
+MUTED = "#7A8491"
+GREEN = "#3F7D62"
+RED = "#A34B4B"
+PALE = "#F3F5F8"
+
+
 @dataclass(frozen=True, slots=True)
 class TechnicalSnapshot:
     price: float
@@ -196,13 +205,13 @@ def render_trade_case_chart(
     sma50 = frame["Close"].astype(float).rolling(50).mean().iloc[start:end]
     fig, (ax, vol) = plt.subplots(2, 1, figsize=(10.5, 5.6), gridspec_kw={"height_ratios": [4, 1]}, sharex=True)
     fig.patch.set_facecolor("white")
-    ax.plot(view.index, close, color="#14263D", linewidth=1.8, label="Close")
-    ax.plot(view.index, sma20, color="#B08D57", linewidth=1.1, label="SMA 20")
-    ax.plot(view.index, sma50, color="#4E7298", linewidth=1.1, label="SMA 50")
+    ax.plot(view.index, close, color=NAVY, linewidth=1.8, label="Close")
+    ax.plot(view.index, sma20, color=GOLD, linewidth=1.1, label="SMA 20")
+    ax.plot(view.index, sma50, color=BLUE, linewidth=1.1, label="SMA 50")
     ax.scatter(pd.Timestamp(trade.entry_date), trade.entry_price, marker="^", s=80, color="#2E7D52", zorder=5, label=f"Entry ${trade.entry_price:,.2f}")
     ax.scatter(pd.Timestamp(trade.exit_date), trade.exit_price, marker="X", s=75, color="#A94442", zorder=5, label=f"Exit ${trade.exit_price:,.2f}")
     ax.axhline(trade.initial_stop, color="#A94442", linestyle="--", linewidth=1.0, label=f"Initial stop ${trade.initial_stop:,.2f}")
-    ax.set_title(f"{ticker} - Historical Trade Case: {trade.entry_date} Entry", loc="left", color="#14263D", fontweight="bold")
+    ax.set_title(f"{ticker} - Historical Trade Case: {trade.entry_date} Entry", loc="left", color=NAVY, fontweight="bold")
     ax.set_ylabel("Price (USD)")
     ax.grid(alpha=0.18)
     ax.legend(ncol=3, fontsize=8, frameon=False, loc="upper left")
@@ -633,7 +642,7 @@ def technical_action_plan(
         }
     )
     first_target = next(
-        (level for level in structural_targets if level >= entry_mid + risk_per_share * 1.25),
+        (level for level in structural_targets if level >= entry_mid + risk_per_share * 1.50),
         structural_targets[0] if structural_targets else entry_mid + risk_per_share * 1.5,
     )
     higher_targets = [level for level in structural_targets if level > first_target + atr * 0.25]
@@ -645,6 +654,12 @@ def technical_action_plan(
         order_type = "No order - structural stop is too wide"
         confirmation = (
             f"Wait until support rises or price forms a tighter base; the current technical stop requires {stop_pct:.1%} risk."
+        )
+    elif reward_risk < 1.50 and not negative:
+        stance = "Wait for a better reward-to-risk setup"
+        order_type = "No order - first target offers less than 1.5x reward / risk"
+        confirmation = (
+            "Wait for a lower entry, a tighter structural stop, or a higher confirmed target before considering the trade."
         )
     invalidation = (
         f"A sustained close below ${stop_level:,.2f} invalidates the setup; the stop is {stop_pct:.1%} below the planned entry midpoint."
@@ -661,7 +676,8 @@ def technical_action_plan(
     options_risk = ""
     normalized_type = quote_type.upper().replace(" ", "")
     optionable_reference = normalized_type in {"EQUITY", "ETF"} and price >= 5
-    if optionable_reference:
+    actionable_entry = not order_type.lower().startswith("no order")
+    if optionable_reference and (actionable_entry or negative or trending_lower):
         if negative or trending_lower:
             protective_strike = _rounded_strike(stop_level, up=False)
             options_strategy = "Existing position only: protective put or collar review"
@@ -708,6 +724,63 @@ def technical_action_plan(
     )
 
 
+def _stop_reference(
+    snapshot: TechnicalSnapshot,
+    plan: TechnicalActionPlan,
+) -> tuple[str, float]:
+    """Return the nearest usable structural level beneath the planned entry."""
+    atr = max(snapshot.atr14, snapshot.price * 0.005)
+    candidates = (
+        ("60-day support", snapshot.support),
+        ("Fibonacci 61.8%", snapshot.fib_61_8),
+        ("Fibonacci 50%", snapshot.fib_50),
+        ("50-day average", snapshot.sma50),
+        ("20-day average", snapshot.sma20),
+    )
+    usable = [
+        (label, float(level))
+        for label, level in candidates
+        if 0 < float(level) < plan.entry_low - atr * 0.25
+    ]
+    if usable:
+        return max(usable, key=lambda item: item[1])
+    return "volatility-derived support", max(plan.stop_level, (plan.entry_low + plan.entry_high) / 2 - atr * 2.0)
+
+
+def stop_loss_decision_insights(
+    snapshot: TechnicalSnapshot,
+    plan: TechnicalActionPlan,
+) -> tuple[str, ...]:
+    """Explain the structure, volatility buffer, and payoff behind the stop."""
+    entry_mid = (plan.entry_low + plan.entry_high) / 2
+    atr = max(snapshot.atr14, snapshot.price * 0.005)
+    risk_per_share = max(0.01, entry_mid - plan.stop_level)
+    reference_label, reference_level = _stop_reference(snapshot, plan)
+    buffer = max(0.0, reference_level - plan.stop_level)
+    atr_multiple = risk_per_share / atr
+    if plan.reward_risk >= 1.50:
+        payoff = (
+            f"Target 1 at ${plan.first_target:,.2f} offers {plan.reward_risk:.2f}x estimated reward/risk, "
+            "meeting the 1.5x minimum used for an actionable setup."
+        )
+    else:
+        payoff = (
+            f"Target 1 at ${plan.first_target:,.2f} offers only {plan.reward_risk:.2f}x estimated reward/risk; "
+            "the setup should be monitored rather than entered until the payoff improves."
+        )
+    order_context = (
+        "This is a planning reference rather than an active order because confirmation is still required."
+        if plan.order_type.lower().startswith("no order")
+        else "The stop becomes relevant only after the entry and confirmation conditions are satisfied."
+    )
+    return (
+        f"Structure: the nearest usable invalidation reference is {reference_label} near ${reference_level:,.2f}; the stop is placed beyond it at ${plan.stop_level:,.2f}.",
+        f"Volatility: the stop is {plan.stop_pct:.1%} below the entry midpoint, equal to {atr_multiple:.1f}x current ATR, with a ${buffer:,.2f} buffer beneath that structural reference.",
+        payoff,
+        order_context,
+    )
+
+
 def render_chart(
     history: pd.DataFrame,
     ticker: str,
@@ -737,42 +810,50 @@ def render_chart(
         fig, ax = plt.subplots(figsize=(10.5, 5.5))
         vol = None
     fig.patch.set_facecolor("white")
-    ax.plot(frame.index, close, color="#14263D", linewidth=1.8, label="Close")
-    ax.plot(frame.index, sma20, color="#B08D57", linewidth=1.2, label="SMA 20")
-    ax.plot(frame.index, sma50, color="#4E7298", linewidth=1.2, label="SMA 50")
+    ax.plot(frame.index, close, color=NAVY, linewidth=1.8, label="Close")
+    ax.plot(frame.index, sma20, color=GOLD, linewidth=1.2, label="SMA 20")
+    ax.plot(frame.index, sma50, color=BLUE, linewidth=1.2, label="SMA 50")
     if sma200.notna().any():
-        ax.plot(frame.index, sma200, color="#8B929A", linewidth=1.1, label="SMA 200")
+        ax.plot(frame.index, sma200, color=MUTED, linewidth=1.1, label="SMA 200")
     if plan is not None:
+        reference_label, reference_level = _stop_reference(snapshot, plan)
         ax.axhspan(
             plan.entry_low,
             plan.entry_high,
-            color="#B08D57",
+            color=GOLD,
             alpha=0.12,
             label=f"Entry zone ${plan.entry_low:,.2f}-${plan.entry_high:,.2f}",
         )
         ax.axhline(
+            reference_level,
+            color=MUTED,
+            linestyle="-.",
+            linewidth=0.9,
+            label=f"{reference_label.title()} ${reference_level:,.2f}",
+        )
+        ax.axhline(
             plan.stop_level,
-            color="#B65050",
+            color=RED,
             linestyle="--",
             linewidth=1.0,
             label=f"Stop ${plan.stop_level:,.2f}",
         )
         ax.axhline(
             plan.first_target,
-            color="#4A8A68",
+            color=GREEN,
             linestyle=":",
             linewidth=1.1,
             label=f"Target ${plan.first_target:,.2f}",
         )
     ax.set_title(
-        f"{ticker} - Price Trend and Moving Averages",
+        f"{ticker} - Price Trend and Action Levels",
         loc="left",
-        color="#14263D",
+        color=NAVY,
         fontweight="bold",
     )
     ax.set_ylabel("Price (USD)")
     ax.grid(alpha=0.18)
-    ax.legend(ncol=4, fontsize=7.4, frameon=False, loc="upper left")
+    ax.legend(ncol=3, fontsize=7.4, frameon=False, loc="upper left")
     date_axis = ax
     if vol is not None:
         colors_v = np.where(close.diff().fillna(0) >= 0, "#6E9D85", "#C77A7A")
@@ -784,6 +865,121 @@ def render_chart(
     date_axis.xaxis.set_major_formatter(mdates.ConciseDateFormatter(date_axis.xaxis.get_major_locator()))
     fig.tight_layout()
     fig.savefig(destination, dpi=170, bbox_inches="tight")
+    plt.close(fig)
+    return destination
+
+
+def render_stop_loss_evidence_chart(
+    history: pd.DataFrame,
+    ticker: str,
+    snapshot: TechnicalSnapshot,
+    plan: TechnicalActionPlan,
+    destination: Path,
+) -> Path:
+    """Show exactly why the proposed stop sits beyond structure and normal volatility."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    frame = history.dropna(subset=["Close", "High", "Low"]).copy()
+    if not history.attrs.get("custom_range"):
+        frame = frame.tail(160)
+    close = frame["Close"].astype(float)
+    high = frame["High"].astype(float)
+    low = frame["Low"].astype(float)
+    previous = close.shift(1)
+    true_range = pd.concat(
+        [(high - low), (high - previous).abs(), (low - previous).abs()],
+        axis=1,
+    ).max(axis=1)
+    atr = true_range.rolling(14).mean()
+    sma20 = close.rolling(20).mean()
+    sma50 = close.rolling(50).mean()
+    entry_mid = (plan.entry_low + plan.entry_high) / 2
+    risk_per_share = max(0.01, entry_mid - plan.stop_level)
+    current_atr = max(snapshot.atr14, snapshot.price * 0.005)
+    atr_multiple = risk_per_share / current_atr
+    reference_label, reference_level = _stop_reference(snapshot, plan)
+
+    fig, (price_ax, atr_ax) = plt.subplots(
+        2,
+        1,
+        figsize=(10.5, 6.3),
+        gridspec_kw={"height_ratios": [4.4, 1.25]},
+        sharex=True,
+    )
+    fig.patch.set_facecolor("white")
+    price_ax.plot(frame.index, close, color=NAVY, linewidth=2.0, label="Close")
+    price_ax.plot(frame.index, sma20, color=GOLD, linewidth=1.15, label="SMA 20")
+    price_ax.plot(frame.index, sma50, color=BLUE, linewidth=1.05, label="SMA 50")
+    price_ax.axhspan(
+        plan.entry_low,
+        plan.entry_high,
+        color=GOLD,
+        alpha=0.16,
+        label=f"Entry zone ${plan.entry_low:,.2f}-${plan.entry_high:,.2f}",
+    )
+    price_ax.axhspan(
+        plan.stop_level,
+        plan.entry_low,
+        color=RED,
+        alpha=0.055,
+        label="Defined risk to stop",
+    )
+    price_ax.axhline(
+        reference_level,
+        color=MUTED,
+        linestyle="-.",
+        linewidth=1.0,
+        label=f"{reference_label.title()} ${reference_level:,.2f}",
+    )
+    price_ax.axhline(
+        plan.stop_level,
+        color=RED,
+        linestyle="--",
+        linewidth=1.35,
+        label=f"Structural stop ${plan.stop_level:,.2f}",
+    )
+    price_ax.axhline(
+        plan.first_target,
+        color=GREEN,
+        linestyle=":",
+        linewidth=1.25,
+        label=f"Target 1 ${plan.first_target:,.2f} ({plan.reward_risk:.2f}x R:R)",
+    )
+    price_ax.set_title(
+        f"{ticker} - Stop-Loss Evidence: Structure and Volatility",
+        loc="left",
+        color=NAVY,
+        fontweight="bold",
+    )
+    price_ax.set_ylabel("Price (USD)")
+    price_ax.grid(alpha=0.14)
+    price_ax.legend(ncol=3, fontsize=7.5, frameon=False, loc="upper left")
+
+    atr_ax.plot(atr.index, atr, color=GOLD, linewidth=1.5, label="ATR (14)")
+    atr_ax.axhline(
+        risk_per_share,
+        color=RED,
+        linestyle="--",
+        linewidth=1.1,
+        label=f"Entry-to-stop risk ${risk_per_share:,.2f}",
+    )
+    atr_ax.text(
+        0.99,
+        0.84,
+        f"Stop distance = {atr_multiple:.1f}x current ATR",
+        transform=atr_ax.transAxes,
+        ha="right",
+        va="top",
+        color=NAVY,
+        fontsize=8.5,
+        fontweight="bold",
+    )
+    atr_ax.set_ylabel("Daily range")
+    atr_ax.grid(axis="y", alpha=0.14)
+    atr_ax.legend(ncol=2, fontsize=7.5, frameon=False, loc="upper left")
+    atr_ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=9))
+    atr_ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(atr_ax.xaxis.get_major_locator()))
+    fig.tight_layout()
+    fig.savefig(destination, dpi=180, bbox_inches="tight")
     plt.close(fig)
     return destination
 
@@ -802,19 +998,19 @@ def render_fibonacci_chart(
     close = frame["Close"].astype(float)
     fig, ax = plt.subplots(figsize=(10.5, 4.8))
     fig.patch.set_facecolor("white")
-    ax.plot(frame.index, close, color="#14263D", linewidth=1.9, label="Close")
+    ax.plot(frame.index, close, color=NAVY, linewidth=1.9, label="Close")
     for level, label, color in (
-        (snapshot.fib_swing_high, "Swing high", "#4A8A68"),
+        (snapshot.fib_swing_high, "Swing high", GREEN),
         (snapshot.fib_38_2, "38.2%", "#8E6BB8"),
         (snapshot.fib_50, "50.0%", "#7D7D7D"),
         (snapshot.fib_61_8, "61.8%", "#B06F57"),
-        (snapshot.fib_swing_low, "Swing low", "#B65050"),
+        (snapshot.fib_swing_low, "Swing low", RED),
     ):
         ax.axhline(level, color=color, linestyle="--" if "Swing" in label else ":", linewidth=1.0, label=f"{label}  ${level:,.2f}")
     ax.set_title(
         f"{ticker} - {snapshot.fibonacci_range_label} Fibonacci Structure",
         loc="left",
-        color="#14263D",
+        color=NAVY,
         fontweight="bold",
     )
     ax.set_ylabel("Price (USD)")
@@ -842,19 +1038,19 @@ def render_momentum_chart(history: pd.DataFrame, ticker: str, destination: Path)
     histogram = macd - signal
     fig, (rsi_ax, macd_ax) = plt.subplots(2, 1, figsize=(10.5, 5.2), sharex=True)
     fig.patch.set_facecolor("white")
-    rsi_ax.plot(rsi.index, rsi, color="#14263D", linewidth=1.5, label="RSI (14)")
-    rsi_ax.axhline(70, color="#B65050", linestyle="--", linewidth=0.9)
-    rsi_ax.axhline(30, color="#4A8A68", linestyle="--", linewidth=0.9)
-    rsi_ax.fill_between(rsi.index, 30, 70, color="#F3F5F7", alpha=0.7)
+    rsi_ax.plot(rsi.index, rsi, color=NAVY, linewidth=1.5, label="RSI (14)")
+    rsi_ax.axhline(70, color=RED, linestyle="--", linewidth=0.9)
+    rsi_ax.axhline(30, color=GREEN, linestyle="--", linewidth=0.9)
+    rsi_ax.fill_between(rsi.index, 30, 70, color=PALE, alpha=0.7)
     rsi_ax.set_ylim(0, 100)
     rsi_ax.set_ylabel("RSI")
-    rsi_ax.set_title(f"{ticker} - Momentum: RSI and MACD", loc="left", color="#14263D", fontweight="bold")
+    rsi_ax.set_title(f"{ticker} - Momentum: RSI and MACD", loc="left", color=NAVY, fontweight="bold")
     rsi_ax.grid(alpha=0.16)
-    macd_ax.plot(macd.index, macd, color="#14263D", linewidth=1.3, label="MACD")
-    macd_ax.plot(signal.index, signal, color="#B08D57", linewidth=1.2, label="Signal")
+    macd_ax.plot(macd.index, macd, color=NAVY, linewidth=1.3, label="MACD")
+    macd_ax.plot(signal.index, signal, color=GOLD, linewidth=1.2, label="Signal")
     colors_v = np.where(histogram >= 0, "#6E9D85", "#C77A7A")
     macd_ax.bar(histogram.index, histogram, color=colors_v, width=1.0, alpha=0.65, label="Histogram")
-    macd_ax.axhline(0, color="#8B929A", linewidth=0.7)
+    macd_ax.axhline(0, color=MUTED, linewidth=0.7)
     macd_ax.set_ylabel("MACD")
     macd_ax.grid(alpha=0.16)
     macd_ax.legend(ncol=3, fontsize=8, frameon=False, loc="upper left")
@@ -884,7 +1080,7 @@ def render_relative_performance_chart(
     if len(frame) < 20:
         raise ValueError("At least 20 common trading sessions are required for a comparison chart.")
     normalized = frame.divide(frame.iloc[0]).multiply(100)
-    palette = ["#14263D", "#B08D57", "#4E7298", "#6E9D85"]
+    palette = [NAVY, GOLD, BLUE, GREEN]
     fig, ax = plt.subplots(figsize=(10.5, 4.8))
     fig.patch.set_facecolor("white")
     for index, column in enumerate(normalized.columns):
@@ -899,9 +1095,9 @@ def render_relative_performance_chart(
             alpha=0.85 if is_benchmark else 1.0,
             label=f"{column}  {period_return:+.1%}",
         )
-    ax.axhline(100, color="#8B929A", linewidth=0.7)
+    ax.axhline(100, color=MUTED, linewidth=0.7)
     title = "Performance vs Sector Benchmark" if benchmark_symbol else "Normalized Relative Performance"
-    ax.set_title(f"{title} - Starting Value 100", loc="left", color="#14263D", fontweight="bold")
+    ax.set_title(f"{title} - Starting Value 100", loc="left", color=NAVY, fontweight="bold")
     ax.set_ylabel("Indexed value")
     ax.grid(alpha=0.18)
     ax.legend(ncol=4, fontsize=8, frameon=False, loc="upper left")
@@ -1011,7 +1207,7 @@ def render_total_return_chart(
     if len(frame) < 20:
         raise ValueError("At least 20 common trading sessions are required for a total-return chart.")
     total_return = frame.divide(frame.iloc[0]).subtract(1).multiply(100)
-    palette = ["#14263D", "#B08D57", "#4E7298", "#6E9D85"]
+    palette = [NAVY, GOLD, BLUE, GREEN]
     fig, ax = plt.subplots(figsize=(10.5, 4.8))
     fig.patch.set_facecolor("white")
     for index, column in enumerate(total_return.columns):
@@ -1026,12 +1222,12 @@ def render_total_return_chart(
             alpha=0.9 if is_benchmark else 1.0,
             label=f"{column}  {ending_return:+.1f}%",
         )
-    ax.axhline(0, color="#8B929A", linewidth=0.8)
+    ax.axhline(0, color=MUTED, linewidth=0.8)
     symbols = " vs. ".join(str(column) for column in total_return.columns)
     ax.set_title(
         f"{symbols} - {period_label} Total Return",
         loc="left",
-        color="#14263D",
+        color=NAVY,
         fontweight="bold",
     )
     ax.set_ylabel("Total return (%)")
@@ -1092,12 +1288,12 @@ def render_risk_chart(history: pd.DataFrame, ticker: str, destination: Path) -> 
     fig, (drawdown_ax, volatility_ax) = plt.subplots(2, 1, figsize=(10.5, 5.2), sharex=True)
     fig.patch.set_facecolor("white")
     drawdown_ax.fill_between(drawdown.index, drawdown, 0, color="#C77A7A", alpha=0.65)
-    drawdown_ax.plot(drawdown.index, drawdown, color="#B65050", linewidth=1.0)
-    drawdown_ax.set_title(f"{ticker} - Drawdown and Realized Volatility", loc="left", color="#14263D", fontweight="bold")
+    drawdown_ax.plot(drawdown.index, drawdown, color=RED, linewidth=1.0)
+    drawdown_ax.set_title(f"{ticker} - Drawdown and Realized Volatility", loc="left", color=NAVY, fontweight="bold")
     drawdown_ax.set_ylabel("Drawdown")
     drawdown_ax.yaxis.set_major_formatter(lambda value, _position: f"{value:.0%}")
     drawdown_ax.grid(alpha=0.16)
-    volatility_ax.plot(volatility.index, volatility, color="#14263D", linewidth=1.4)
+    volatility_ax.plot(volatility.index, volatility, color=NAVY, linewidth=1.4)
     volatility_ax.set_ylabel("20d ann. vol.")
     volatility_ax.yaxis.set_major_formatter(lambda value, _position: f"{value:.0%}")
     volatility_ax.grid(alpha=0.16)
