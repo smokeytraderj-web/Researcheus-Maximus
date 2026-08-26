@@ -35,7 +35,7 @@ KNOWN = {
 class DemoResearchProvider:
     """Return stable synthetic content without calling external services."""
 
-    def run(self, request: ResearchRequest) -> ResearchResult:
+    def run(self, request: ResearchRequest, workspace=None) -> ResearchResult:
         request.validate()
         key = request.query.strip().upper()
         company, ticker, exchange = KNOWN.get(
@@ -109,8 +109,9 @@ class DemoResearchProvider:
             sources=(
                 SourceRecord("Researcheus Demo Provider", "synthetic://demo", now, "Workflow validation only"),
             ),
+            provider_label="Deterministic demo provider",
+            limitations=("Synthetic values only; no live research sources were contacted.",),
             demo_mode=True,
         )
         result.validate()
         return result
-
