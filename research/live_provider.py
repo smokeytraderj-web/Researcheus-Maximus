@@ -10,6 +10,7 @@ from core.models import Confidence, Horizon, Rating, ResearchRequest, ResearchRe
 from research.synthesis import deterministic_synthesis, ollama_synthesize, openai_synthesize
 from research.technical import analyze_history, render_chart, strategies, technical_finding
 from research.ycharts_excel import retrieve_ycharts_metrics
+from security.certificates import verified_market_session
 
 
 def _first_number(mapping: dict, *keys):
@@ -45,26 +46,116 @@ def _tradingview_exchange(exchange: str) -> str:
     return value or "NASDAQ"
 
 
+def _direct_chart_history(session, symbol: str):
+    """Retrieve Yahoo's public chart JSON without the cookie/crumb workflow."""
+    import pandas as pd
+
+    if session is None:
+        raise RuntimeError("verified market session was unavailable")
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{quote(symbol, safe='')}"
+    response = session.get(
+        url,
+        params={"range": "2y", "interval": "1d", "events": "div,splits", "includeAdjustedClose": "true"},
+        timeout=20,
+    )
+    response.raise_for_status()
+    chart = response.json().get("chart", {})
+    if chart.get("error"):
+        raise RuntimeError(str(chart["error"].get("description") or chart["error"]))
+    results = chart.get("result") or []
+    if not results:
+        raise RuntimeError("direct chart endpoint returned no result")
+    result = results[0]
+    timestamps = result.get("timestamp") or []
+    quote_rows = ((result.get("indicators") or {}).get("quote") or [{}])[0]
+    frame = pd.DataFrame(
+        {
+            "Open": quote_rows.get("open") or [],
+            "High": quote_rows.get("high") or [],
+            "Low": quote_rows.get("low") or [],
+            "Close": quote_rows.get("close") or [],
+            "Volume": quote_rows.get("volume") or [],
+        },
+        index=pd.to_datetime(timestamps, unit="s", utc=True).tz_convert(None),
+    )
+    frame = frame.dropna(subset=["Close", "High", "Low", "Volume"])
+    frame.attrs["market_data_source"] = "Yahoo Finance direct chart API"
+    frame.attrs["market_data_url"] = url
+    return frame
+
+
+def _nasdaq_history(session, symbol: str):
+    """Retrieve a second, attributed US-market history when Yahoo is throttled."""
+    import pandas as pd
+
+    if session is None:
+        raise RuntimeError("verified market session was unavailable")
+    end = dt.date.today()
+    start = end - dt.timedelta(days=740)
+    api_url = f"https://api.nasdaq.com/api/quote/{quote(symbol, safe='')}/historical"
+    response = session.get(
+        api_url,
+        params={
+            "assetclass": "stocks",
+            "fromdate": start.isoformat(),
+            "todate": end.isoformat(),
+            "limit": 5000,
+        },
+        headers={
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://www.nasdaq.com",
+            "Referer": f"https://www.nasdaq.com/market-activity/stocks/{quote(symbol.lower(), safe='')}/historical",
+        },
+        timeout=20,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    status = payload.get("status") or {}
+    if status.get("rCode") not in (None, 200):
+        raise RuntimeError("Nasdaq historical endpoint rejected the request")
+    rows = ((((payload.get("data") or {}).get("tradesTable") or {}).get("rows")) or [])
+    if not rows:
+        raise RuntimeError("Nasdaq historical endpoint returned no rows")
+    frame = pd.DataFrame(rows).rename(
+        columns={"date": "Date", "open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume"}
+    )
+    for column in ("Open", "High", "Low", "Close", "Volume"):
+        frame[column] = pd.to_numeric(
+            frame[column].astype(str).str.replace("$", "", regex=False).str.replace(",", "", regex=False),
+            errors="coerce",
+        )
+    frame["Date"] = pd.to_datetime(frame["Date"], errors="coerce")
+    frame = frame.dropna(subset=["Date", "Close", "High", "Low", "Volume"]).set_index("Date").sort_index()
+    frame = frame[["Open", "High", "Low", "Close", "Volume"]]
+    frame.attrs["market_data_source"] = "Nasdaq historical prices"
+    frame.attrs["market_data_url"] = f"https://www.nasdaq.com/market-activity/stocks/{quote(symbol.lower(), safe='')}/historical"
+    return frame
+
+
 class LiveResearchProvider:
     def __init__(self, synthesis_provider: str = "Automatic", api_key: str = "", model: str = "", use_ycharts: bool = True):
         self.synthesis_provider = synthesis_provider
         self.api_key = api_key
         self.model = model
         self.use_ycharts = use_ycharts
+        self._market_session = None
 
     def _resolve(self, query: str):
         try:
             import yfinance as yf
         except ImportError as exc:
             raise RuntimeError("Live market support is not installed. Re-run pip install -r requirements.txt.") from exc
+        self._market_session = verified_market_session()
         cleaned = query.strip()
         candidates = []
-        try:
-            search = yf.Search(cleaned, max_results=8, news_count=0)
-            candidates = [item for item in (search.quotes or []) if item.get("quoteType") in {"EQUITY", "ETF"}]
-        except Exception:
-            candidates = []
         upper = cleaned.upper()
+        looks_like_ticker = cleaned == upper and " " not in cleaned and len(cleaned) <= 10
+        if not looks_like_ticker:
+            try:
+                search = yf.Search(cleaned, max_results=8, news_count=0, session=self._market_session)
+                candidates = [item for item in (search.quotes or []) if item.get("quoteType") in {"EQUITY", "ETF"}]
+            except Exception:
+                candidates = []
         exact = next((item for item in candidates if str(item.get("symbol", "")).upper() == upper), None)
         selected = exact or (candidates[0] if candidates else {"symbol": upper})
         symbol = str(selected.get("symbol", upper)).upper()
@@ -72,18 +163,20 @@ class LiveResearchProvider:
             raise ValueError("The company or ticker could not be resolved.")
         selected = dict(selected)
         selected["originalQuery"] = cleaned
-        return yf, yf.Ticker(symbol), selected
+        return yf, yf.Ticker(symbol, session=self._market_session), selected
 
     @staticmethod
-    def _history(yf, ticker, symbol: str):
+    def _history(yf, ticker, symbol: str, session=None):
         """Retrieve normalized daily history across yfinance API variations."""
         import pandas as pd
 
         failures = []
         attempts = (
+            lambda: _direct_chart_history(session, symbol),
+            lambda: _nasdaq_history(session, symbol),
             lambda: ticker.history(period="2y", interval="1d", auto_adjust=True),
             lambda: ticker.history(period="5y", interval="1d", auto_adjust=True),
-            lambda: yf.download(symbol, period="2y", interval="1d", auto_adjust=True, progress=False, threads=False),
+            lambda: yf.download(symbol, period="2y", interval="1d", auto_adjust=True, progress=False, threads=False, session=session),
         )
         for attempt in attempts:
             try:
@@ -101,7 +194,7 @@ class LiveResearchProvider:
                 failures.append("provider returned incomplete OHLCV columns")
             except Exception as exc:
                 failures.append(f"{type(exc).__name__}: {exc}")
-        detail = " | ".join(failures[-3:])
+        detail = " | ".join(failures[-5:])
         raise RuntimeError(f"No usable live price history was returned for {symbol}. {detail}")
 
     def run(self, request: ResearchRequest, workspace: Path | None = None) -> ResearchResult:
@@ -109,13 +202,22 @@ class LiveResearchProvider:
         yf, ticker, resolved = self._resolve(request.query)
         symbol = str(resolved.get("symbol") or ticker.ticker).upper()
         try:
-            history = self._history(yf, ticker, symbol)
+            history = self._history(yf, ticker, symbol, self._market_session)
         except Exception as exc:
             original = str(resolved.get("originalQuery") or request.query).upper()
             correction = f" The search resolved {original} to {symbol}; confirm that correction." if original != symbol else ""
             if original == "SPCX":
                 correction = " SPCX is not a conventional exchange-listed Yahoo Finance symbol. If you meant SPX Technologies, use SPXC; private or pre-IPO securities are outside the current live-price workflow."
-            raise RuntimeError(f"Live price history for {symbol} could not be retrieved.{correction} Details: {exc}") from exc
+            detail = str(exc)
+            if "certificate" in detail.lower() or "curl: (60)" in detail.lower():
+                raise RuntimeError(
+                    "A secure connection to the market-data provider could not be established even after "
+                    "loading Windows trusted certificates. Close the app, run pip install -r requirements.txt, "
+                    "and try again. If this is a managed work computer, the company network certificate may "
+                    "need to be added to Windows Trusted Root Certification Authorities. SSL verification was "
+                    "not disabled."
+                ) from exc
+            raise RuntimeError(f"Live price history for {symbol} could not be retrieved.{correction} Details: {detail}") from exc
         snapshot = analyze_history(history)
         try:
             info = ticker.get_info() or {}
@@ -201,8 +303,11 @@ class LiveResearchProvider:
         chart_path = ""
         if workspace is not None:
             chart_path = str(render_chart(history, symbol, snapshot, workspace / "technical-chart.png"))
+        history_source = str(history.attrs.get("market_data_source") or "Yahoo Finance market data")
+        history_url = str(history.attrs.get("market_data_url") or f"https://finance.yahoo.com/quote/{quote(symbol)}")
         sources = [
-            SourceRecord("Yahoo Finance market data", f"https://finance.yahoo.com/quote/{quote(symbol)}", now, "Price history, quote metadata, fundamentals, and news feed"),
+            SourceRecord(history_source, history_url, now, "Price history used for the technical analysis"),
+            SourceRecord("Yahoo Finance security page", f"https://finance.yahoo.com/quote/{quote(symbol)}", now, "Quote metadata, fundamentals, and news feed when available"),
             SourceRecord("TradingView chart", f"https://www.tradingview.com/chart/?symbol={quote(_tradingview_exchange(exchange))}%3A{quote(symbol)}", now, "Direct chart review link"),
             SourceRecord("YCharts", f"https://ycharts.com/companies/{quote(symbol)}", now, "Authenticated supplemental review link; no YCharts values were silently inferred"),
             SourceRecord("SEC EDGAR", f"https://www.sec.gov/edgar/search/#/q={quote(symbol)}", now, "Official filing research link"),
