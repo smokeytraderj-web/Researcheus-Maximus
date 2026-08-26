@@ -23,6 +23,7 @@ The runnable application includes:
 - prominent plain-English bullet takeaways directly beneath every chart;
 - a deliberately spaced report flow with the Technical Action Plan starting on its own page and Sources, report notes, and disclosure isolated on the final page in every report mode;
 - navy-and-gold GSWM presentation with a warm off-white page, navy title banner, gold rules, serif display headings, and clean sans-serif body copy;
+- an editorial landing page in the same visual system: a navy research hero, warm ivory canvas, serif headings, restrained gold rules, and three numbered research paths;
 - an optional multi-page technical chartbook with RSI/MACD, normalized relative performance, and requested drawdown/volatility analysis;
 - plain-English decision insights beneath every deep-analysis chart, connecting the observed signal to the next confirmation level, downside level, and rating effect;
 - fund-profile enrichment for strategy, family, fees, assets, turnover, allocation, and fixed-income characteristics when the provider exposes them;
@@ -69,7 +70,7 @@ Natural-language report modifications are applied by OpenAI or Ollama. Determini
 
 ## Deep Technical Analysis
 
-The landing page presents three clear choices: **Research Overview**, **Deep Analysis**, and **Compare Securities**. Choose **Open Deep Analysis**, start the prompt with the primary company or ticker, then name up to three comparison symbols and the technical work you want. For example:
+The landing page presents three numbered choices: **Research Overview**, **Deep Technical Analysis**, and **Security Comparison**. Choose **Start analysis**, begin the prompt with the primary company or ticker, then name up to three comparison symbols and the technical work you want. For example:
 
 ```text
 AVGO - Compare against NVDA, SOXX, and SPY. Analyze trend, RSI, MACD,
@@ -87,7 +88,7 @@ AVGO vs NVDA from January 2024 to June 2025 - which performed better technically
 
 ## Compare Securities
 
-Choose **Compare Securities** and name two stocks or funds in one prompt. Company names and tickers are both supported. For example:
+Choose **Start comparison** and name two stocks or funds in one prompt. Company names and tickers are both supported. For example:
 
 ```text
 AVGO vs NVDA - Which currently offers better value and risk-adjusted opportunity?
