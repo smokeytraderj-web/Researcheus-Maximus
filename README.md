@@ -10,13 +10,16 @@ The runnable application includes:
 - a separate Deep Technical Analysis workspace for chart-specific research and benchmark/peer comparisons;
 - a two-security comparison workspace for stocks or funds, with one evidence preference, sector-benchmark performance, and a side-by-side report;
 - optional position context;
-- one Overall Rating supported by a Technical Setup, Fundamental Outlook, and plain-language interpretation;
+- one prominent Overall Conclusion and Overall Rating, supported by a Technical Setup and Fundamental Outlook;
 - a required evidence-review checkpoint;
 - Gottfried & Somberg Wealth Management branded PDF generation;
 - embedded PDF preview, requested-modification regeneration, versioned export, and temporary-session cleanup;
 - live security resolution, market history, fundamentals, news metadata, and deterministic technical indicators;
 - cleanly separated price-trend and Fibonacci charts so technical evidence remains readable;
 - an optional multi-page technical chartbook with RSI/MACD, normalized relative performance, and requested drawdown/volatility analysis;
+- plain-English decision insights beneath every deep-analysis chart, connecting the observed signal to the next confirmation level, downside level, and rating effect;
+- fund-profile enrichment for strategy, family, fees, assets, turnover, allocation, and fixed-income characteristics when the provider exposes them;
+- volume-aware fund charts that omit the volume panel and metric when daily fund volume is not reported;
 - an Evidence Review audit showing the exact YCharts Excel result cells and formulas;
 - a minimal Evidence Review glossary: click or right-click a metric name for a plain-English explanation;
 - secure Windows certificate-store support for live market connections;
@@ -26,7 +29,7 @@ Live mode links directly to YCharts, TradingView, SEC EDGAR, and the underlying 
 
 On Windows, live mode queries the installed YCharts Excel Add-In through a temporary workbook. Keep desktop Excel open and signed in to YCharts so the app can reuse the active authenticated session. The bridge checks and activates both the YCharts Excel Add-In and YCharts COM Add-In. Excel/YCharts credentials remain inside Excel. Use **Settings > Test YCharts Connection** to run a harmless SPY formula check before research. Do not paste a YCharts credential or access code into a workbook cell or the public repository; authentication must remain in the YCharts Excel ribbon.
 
-The YCharts workbook uses columns A:G and calculates live results in F2:F9. Excel formula errors such as `#NAME?` are rejected and can never be formatted as market values or ratings. When YCharts is unavailable, Evidence Review shows one concise amber data alert and keeps raw setup errors out of the client PDF.
+The YCharts workbook uses columns A:G and calculates live results in F2:F9. Excel formula errors such as `#NAME?` are rejected and can never be formatted as market values or ratings. A zero YCharts price target or zero price-target-upside result is also treated as an unresolved add-in placeholder and omitted; a separately available Yahoo analyst target remains visible. When YCharts is unavailable, Evidence Review shows one concise amber data alert and keeps raw setup errors out of the client PDF.
 
 ## Ask a research question
 
@@ -62,7 +65,7 @@ AVGO - Compare against NVDA, SOXX, and SPY. Analyze trend, RSI, MACD,
 relative performance, drawdown, volatility, support, and resistance.
 ```
 
-Every technical workflow includes Fibonacci analysis. By default it uses a six-month swing range; when the prompt includes a custom range, Fibonacci, return, relative performance, and chart evidence use that selected range. The 38.2%, 50%, and 61.8% retracement levels are included in the technical score, written signals, strategy context, key metrics, and a dedicated Fibonacci chart. Every deep report also includes RSI/MACD and normalized relative performance. SPY is the default comparison when none is named. Asking for drawdown, volatility, or a risk chart adds a drawdown and realized-volatility study. Deep Analysis weights technical evidence 70% and fundamental evidence 30%. Relative strength is disclosed in the metrics and may move the technical assessment by one rating step; the report states when that adjustment occurs. Unavailable comparison data is disclosed and never fabricated.
+Every technical workflow includes Fibonacci analysis. By default it uses a six-month swing range; when the prompt includes a custom range, Fibonacci, return, relative performance, and chart evidence use that selected range. The 38.2%, 50%, and 61.8% retracement levels are included in the technical score, written signals, strategy context, key metrics, and a dedicated Fibonacci chart. Every deep report also includes RSI/MACD and normalized relative performance. Beneath each chart, a concise **Decision insight** explains what the signal means—for example, which price level would confirm improvement, which level would weaken the setup, and whether that evidence changed the technical assessment. SPY is the default comparison when none is named. Asking for drawdown, volatility, or a risk chart adds a drawdown and realized-volatility study. Deep Analysis weights technical evidence 70% and fundamental evidence 30%. Relative strength is disclosed in the metrics and may move the technical assessment by one rating step; the report states when that adjustment occurs. Unavailable comparison data is disclosed and never fabricated.
 
 Custom date ranges can be written directly in Overview, Deep Analysis, or Comparison prompts:
 
@@ -83,7 +86,7 @@ The comparison retrieves both securities and automatically selects a relevant be
 
 Deep Analysis also honors prompts such as `Compare AXON to SPY and its respective sector and benchmarks`: it keeps SPY, automatically adds the relevant sector ETF, analyzes both relative-performance series, and includes them in the chartbook. The primary technical chart now focuses on price and moving averages; Fibonacci structure is shown in a separate chart.
 
-Possible investment approaches use plain-language labels: **Possible entry**, **What to wait for**, **When the idea fails**, and **Main risk**. Invalid zero YCharts targets are rejected rather than displayed as real evidence. Revenue and earnings growth are shown separately, with a short explanation when sales grow while earnings decline.
+Possible investment approaches use plain-language labels: **Possible entry**, **What to wait for**, **When the idea fails**, and **Main risk**. Invalid zero YCharts targets and target-upside placeholders are rejected rather than displayed as real evidence. Revenue and earnings growth are shown separately, with a short explanation when sales grow while earnings decline.
 
 ## Run on Windows
 
