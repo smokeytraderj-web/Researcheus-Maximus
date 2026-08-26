@@ -11,6 +11,7 @@ The runnable application includes:
 - a two-security comparison workspace for stocks or funds, with one evidence preference, sector-benchmark performance, and a side-by-side report;
 - optional position context;
 - one prominent Overall Conclusion and Overall Rating, supported by a Technical Setup and Fundamental Outlook;
+- a first-page **Response to Your Request** that answers the user’s stated focus before the standard analysis; fund-summary prompts lead with a concise provider-grounded description, strategy/category, family, and available fee/asset facts;
 - a required evidence-review checkpoint;
 - Gottfried & Somberg Wealth Management branded PDF generation;
 - embedded PDF preview, requested-modification regeneration, versioned export, and temporary-session cleanup;
@@ -49,7 +50,7 @@ Historical trade prompts automatically open the deep-analysis workflow and inter
 
 ## Provider setup
 
-- **OpenAI:** paste an API key into Research Settings for the current session, or set `OPENAI_API_KEY`. The key is never saved by the app. OpenAI synthesis uses the Responses API with web search and Structured Outputs.
+- **OpenAI:** paste an API key into Research Settings for the current session, or set `OPENAI_API_KEY`. The key is never saved by the app. OpenAI synthesis uses the Responses API with web search and Structured Outputs. The external synthesis context includes the security, market evidence, and research question; optional purchase price, quantity, and risk-tolerance fields remain local and are not included in that payload.
 - **Ollama:** start Ollama locally and install a model. The default is `gpt-oss:20b`; override it in Research Settings or with `RESEARCHEUS_OLLAMA_MODEL`.
 - **Automatic:** tries OpenAI, then Ollama, then a clearly disclosed deterministic fallback.
 - **Deterministic:** uses live market/provider fields without language-model synthesis.
