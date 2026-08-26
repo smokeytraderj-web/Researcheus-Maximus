@@ -69,7 +69,13 @@ class ResearchRunner:
                     f"{result.identity.ticker}_vs_{result.comparison.secondary_identity.ticker}_Security_Comparison.pdf"
                 )
             else:
-                report_name = "Deep_Technical_Analysis" if request.deep_analysis else f"{request.horizon.value}_Research"
+                report_name = (
+                    "Historical_Trade_Case_Study"
+                    if request.historical_trade_examples
+                    else "Deep_Technical_Analysis"
+                    if request.deep_analysis
+                    else f"{request.horizon.value}_Research"
+                )
                 filename = _safe_name(f"{result.identity.ticker}_{report_name}.pdf")
             return PreparedResearch(session, request, result, preview, filename)
         except Exception:
