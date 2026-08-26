@@ -179,6 +179,7 @@ class ResearchResult:
     change_conditions: tuple[str, ...]
     sources: tuple[SourceRecord, ...]
     provider_label: str = ""
+    request_response: str = ""
     limitations: tuple[str, ...] = ()
     chart_path: str = ""
     demo_mode: bool = False
