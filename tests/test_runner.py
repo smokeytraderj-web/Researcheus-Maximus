@@ -51,10 +51,12 @@ class ResearchRunnerTests(unittest.TestCase):
             session_path = prepared.session.root
             self.assertTrue(prepared.preview_path.is_file())
             reader = PdfReader(prepared.preview_path)
-            self.assertEqual(len(reader.pages), 4)
+            self.assertEqual(len(reader.pages), 5)
             report_text = "\n".join(page.extract_text() or "" for page in reader.pages)
             first_page = reader.pages[0].extract_text() or ""
             second_page = reader.pages[1].extract_text() or ""
+            third_page = reader.pages[2].extract_text() or ""
+            fourth_page = reader.pages[3].extract_text() or ""
             final_page = reader.pages[-1].extract_text() or ""
             self.assertIn("OVERALL RATING", report_text)
             self.assertIn("TECHNICAL SETUP", report_text)
@@ -62,12 +64,23 @@ class ResearchRunnerTests(unittest.TestCase):
             self.assertIn("RESPONSE TO YOUR REQUEST", report_text)
             self.assertIn("Overall Conclusion:", report_text)
             self.assertIn("Technical Action Plan", report_text)
-            self.assertIn("TECHNICAL STOP", report_text)
-            self.assertIn("OPTIONS SCENARIO", report_text)
+            self.assertIn("Technical stop / invalidation", report_text)
+            self.assertIn("OPTIONS STRATEGY", report_text)
+            self.assertIn("EXAMPLE", report_text)
             self.assertIn("YTD Total Return", first_page)
-            self.assertIn("WHAT THIS CHART SHOWS", first_page)
+            self.assertNotIn("WHAT THIS CHART SHOWS", report_text)
+            self.assertIn("Investment Summary", first_page)
+            self.assertIn("Position and Risk Plan", second_page)
             self.assertIn("Technical Action Plan", second_page)
+            self.assertIn("POSITION IDEA", second_page)
+            self.assertIn("STOP-LOSS IDEA", second_page)
             self.assertIn("Technical Price Structure", second_page)
+            self.assertIn("Research Evidence", third_page)
+            self.assertIn("Analysis and Decision Framework", third_page)
+            self.assertIn("Key Data and Levels", fourth_page)
+            self.assertIn("POSITION AND RISK", fourth_page)
+            self.assertIn("TREND AND MOMENTUM", fourth_page)
+            self.assertIn("COMPANY AND VALUATION", fourth_page)
             self.assertIn("Sources and Disclosure", final_page)
             self.assertIn("Disclosure:", final_page)
             self.assertNotIn("Sources and Disclosure", "\n".join(page.extract_text() or "" for page in reader.pages[:-1]))
@@ -132,7 +145,7 @@ class ResearchRunnerTests(unittest.TestCase):
             first_page = PdfReader(prepared.preview_path).pages[0].extract_text() or ""
             self.assertIn("Fibonacci Structure", first_page)
             self.assertNotIn("YTD Total Return", first_page)
-            self.assertIn("WHAT THIS CHART SHOWS", first_page)
+            self.assertNotIn("WHAT THIS CHART SHOWS", first_page)
             runner.cancel(prepared)
 
     def test_comparison_uses_two_ticker_filename_and_dedicated_sources_page(self):
