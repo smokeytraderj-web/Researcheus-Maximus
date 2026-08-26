@@ -13,7 +13,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle, TopPadder
 
 from core.assessments import fundamental_outlook, technical_setup
 from core.models import ResearchRequest, ResearchResult
@@ -197,6 +197,32 @@ def _chart_note(items: tuple[str, ...], styles) -> Paragraph | None:
     if not clean:
         return None
     return Paragraph(f"<b>Decision note:</b> {_safe(clean[0])}", styles["chart_note"])
+
+
+def _chart_takeaways(items: tuple[str, ...], styles) -> Table | None:
+    """Render a short client-facing interpretation panel beneath the lead chart."""
+    clean = tuple(item.strip() for item in items if item and item.strip())[:3]
+    if not clean:
+        return None
+    content = [
+        Paragraph("KEY CHART TAKEAWAYS", styles["action_label"]),
+        *_bullet_text(clean, styles["compact"]),
+    ]
+    panel = Table([[content]], colWidths=[7.15 * inch], hAlign="LEFT")
+    panel.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), PALE),
+                ("LINEBEFORE", (0, 0), (0, -1), 2.5, GOLD),
+                ("BOX", (0, 0), (-1, -1), 0.35, LINE),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    return panel
 
 
 def _rating_box(result: ResearchResult, styles, *, price_label: str = "CURRENT PRICE") -> Table:
@@ -941,26 +967,31 @@ def _technical_action_plan_story(result: ResearchResult, styles) -> list:
 
 
 def _research_watchlist(result: ResearchResult, styles) -> Table:
-    columns = []
+    rows = []
     for title, items in (
         ("Risks", result.risks),
         ("Catalysts", result.catalysts),
-        ("Rating changes if", result.change_conditions),
+        ("Rating triggers", result.change_conditions),
     ):
-        columns.append([Paragraph(title.upper(), styles["subsection"]), *_bullet_text(items, styles["compact"], 2)])
-    table = Table([columns], colWidths=[2.383 * inch] * 3)
+        rows.append(
+            [
+                Paragraph(title.upper(), styles["subsection"]),
+                _bullet_text(items, styles["compact"], 2),
+            ]
+        )
+    table = Table(rows, colWidths=[1.55 * inch, 5.6 * inch], hAlign="LEFT")
     table.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, -1), colors.white),
                 ("BOX", (0, 0), (-1, -1), 0.4, LINE),
-                ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.3, LINE),
                 ("LINEABOVE", (0, 0), (-1, 0), 1.4, GOLD),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 9),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("LEFTPADDING", (0, 0), (-1, -1), 11),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 11),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
             ]
         )
     )
@@ -1034,12 +1065,14 @@ def _sources_and_disclosure_story(result: ResearchResult, styles, *, comparison:
             *_bullet_text(visible_limitations[:4], styles["small"]),
         ]
     story.append(
-        Paragraph(
-            "<b>Disclosure:</b> This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing involves risk, including possible loss of principal."
-            + comparison_note
-            + options_disclosure
-            + " Firm compliance review is required before client distribution.",
-            styles["tiny"],
+        TopPadder(
+            Paragraph(
+                "<b>Disclosure:</b> This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing involves risk, including possible loss of principal."
+                + comparison_note
+                + options_disclosure
+                + " Firm compliance review is required before client distribution.",
+                styles["tiny"],
+            )
         )
     )
     return story
@@ -1275,8 +1308,14 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
     if result.overview_chart and Path(result.overview_chart.path).is_file():
         story += [Spacer(1, 0.04 * inch), Paragraph(_safe(result.overview_chart.title), styles["subsection"])]
         overview_image = Image(result.overview_chart.path)
-        overview_image._restrictSize(7.25 * inch, 3.55 * inch)
+        overview_image._restrictSize(7.25 * inch, 3.35 * inch)
         story.append(overview_image)
+        takeaways = _chart_takeaways(
+            result.overview_chart.insights or _insight_bullets(result.overview_chart.insight),
+            styles,
+        )
+        if takeaways is not None:
+            story += [Spacer(1, 0.04 * inch), takeaways]
     story += [PageBreak(), *_content_header("Position and Risk Plan", page_meta, styles)]
 
     action_plan_story = _technical_action_plan_story(result, styles)
