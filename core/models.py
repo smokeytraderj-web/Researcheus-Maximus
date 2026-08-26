@@ -46,6 +46,8 @@ class ResearchRequest:
     custom_start: str = ""
     custom_end: str = ""
     decision_intent: str = "research"
+    portfolio_allocation: tuple[int, int] = ()
+    historical_trade_examples: bool = False
 
     def validate(self) -> None:
         if not self.query.strip():
@@ -56,6 +58,9 @@ class ResearchRequest:
             raise ValueError("Quantity must be greater than zero.")
         if len(self.comparison_symbols) > 3:
             raise ValueError("Deep analysis supports up to three comparison symbols.")
+        if self.portfolio_allocation:
+            if len(self.portfolio_allocation) != 2 or sum(self.portfolio_allocation) != 100:
+                raise ValueError("Portfolio allocation must contain equity and fixed-income percentages totaling 100%.")
         if self.comparison_analysis and not self.comparison_query.strip():
             raise ValueError("Enter two securities or funds to compare.")
         if bool(self.custom_start) != bool(self.custom_end):
@@ -114,6 +119,32 @@ class ChartRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class HistoricalTradeCase:
+    signal_date: str
+    entry_date: str
+    entry_price: float
+    initial_stop: float
+    exit_date: str
+    exit_price: float
+    return_pct: float
+    outcome: str
+    rationale: str
+    exit_reason: str
+    chart_path: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PortfolioFitAssessment:
+    equity_target_pct: int
+    fixed_income_target_pct: int
+    security_role: str
+    fit_label: str
+    summary: str
+    evidence: tuple[str, ...]
+    watchouts: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class ComparisonAssessment:
     secondary_identity: SecurityIdentity
     secondary_price: float
@@ -156,6 +187,8 @@ class ResearchResult:
     chartbook: tuple[ChartRecord, ...] = ()
     comparison: ComparisonAssessment | None = None
     ycharts_status: str = ""
+    historical_trade_cases: tuple[HistoricalTradeCase, ...] = ()
+    portfolio_fit: PortfolioFitAssessment | None = None
 
     def validate(self) -> None:
         if self.current_price <= 0:
