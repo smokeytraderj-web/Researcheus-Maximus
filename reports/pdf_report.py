@@ -14,7 +14,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
+from core.assessments import fundamental_outlook, technical_setup
 from core.models import ResearchRequest, ResearchResult
 
 NAVY = colors.HexColor("#14263D")
@@ -47,10 +47,13 @@ def _styles():
     base = getSampleStyleSheet()
     return {
         "brand": ParagraphStyle("Brand", parent=base["Normal"], fontName=bold, fontSize=7.2, textColor=GOLD, leading=9),
+        "request_label": ParagraphStyle("RequestLabel", parent=base["Normal"], fontName=bold, fontSize=7.0, textColor=GOLD, leading=9, spaceBefore=2, spaceAfter=2),
+        "request_response": ParagraphStyle("RequestResponse", parent=base["BodyText"], fontName=regular, fontSize=8.5, leading=11.2, textColor=INK, spaceAfter=5),
         "title": ParagraphStyle("Title", parent=base["Title"], fontName=bold, fontSize=20, leading=23, textColor=NAVY, alignment=TA_LEFT, spaceAfter=3),
         "subtitle": ParagraphStyle("Subtitle", parent=base["Normal"], fontName=regular, fontSize=7.7, leading=10, textColor=MUTED),
         "section": ParagraphStyle("Section", parent=base["Heading2"], fontName=bold, fontSize=11, leading=13, textColor=NAVY, spaceBefore=7, spaceAfter=4),
         "body": ParagraphStyle("Body", parent=base["BodyText"], fontName=regular, fontSize=7.8, leading=10.4, textColor=INK, spaceAfter=3),
+        "conclusion": ParagraphStyle("Conclusion", parent=base["BodyText"], fontName=regular, fontSize=9.2, leading=12.2, textColor=INK, spaceAfter=5),
         "compact": ParagraphStyle("Compact", parent=base["BodyText"], fontName=regular, fontSize=6.9, leading=9, textColor=INK),
         "small": ParagraphStyle("Small", parent=base["BodyText"], fontName=regular, fontSize=6.2, leading=7.7, textColor=MUTED),
         "table_header": ParagraphStyle("TableHeader", parent=base["BodyText"], fontName=bold, fontSize=6.2, leading=7.7, textColor=colors.white),
@@ -75,6 +78,23 @@ def _footer(canvas, document) -> None:
 
 def _safe(value: object) -> str:
     return escape(str(value), quote=True)
+
+
+def _overall_conclusion_text(value: str) -> str:
+    """Remove redundant machine-style prefixes beneath the report heading."""
+    prefixes = (
+        "Overall conclusion:",
+        "Direct answer:",
+        "Position answer:",
+        "Portfolio-fit answer:",
+        "Historical conclusion:",
+        "Historical case-study answer:",
+    )
+    cleaned = value.strip()
+    for prefix in prefixes:
+        if cleaned.lower().startswith(prefix.lower()):
+            return cleaned[len(prefix):].lstrip()
+    return cleaned
 
 
 def _bullet_text(items: tuple[str, ...], style, limit: int | None = None) -> list[Paragraph]:
@@ -342,6 +362,17 @@ _METRIC_PRIORITY = (
     "User quantity",
     "Illustrative current position value",
     "Range-end price",
+    "Security type",
+    "Fund strategy",
+    "Fund family",
+    "Expense ratio",
+    "Distribution yield",
+    "Fund net assets",
+    "Annual holdings turnover",
+    "Reported asset allocation",
+    "Fund duration",
+    "Fund maturity",
+    "Fund credit quality",
     "Market capitalization",
     "Trailing / forward P/E",
     "Revenue growth",
@@ -740,11 +771,16 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         story += [
             _comparison_preference_box(result, styles, historical_range=historical_range),
             Paragraph("Comparison View", styles["section"]),
+        ]
+        if result.request_response:
+            story += [
+                Paragraph("RESPONSE TO YOUR REQUEST", styles["request_label"]),
+                Paragraph(_safe(result.request_response), styles["request_response"]),
+            ]
+        story += [
             Paragraph(_safe(comparison.verdict), styles["body"]),
             *_bullet_text(comparison.rationale, styles["compact"]),
         ]
-        if request.question:
-            story.append(Paragraph(f"<b>Research question:</b> {_safe(request.question)}", styles["small"]))
         performance_summary = _comparison_performance_summary(result, styles)
         if performance_summary is not None:
             story += [Paragraph("Performance Difference", styles["section"]), performance_summary]
@@ -801,20 +837,35 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
         return destination
 
-    interpretation = assessment_interpretation(result.technical.rating, result.fundamental.rating)
     story += [
         _rating_box(result, styles, price_label="RANGE-END PRICE" if custom_range else "CURRENT PRICE"),
         Paragraph("Investment View", styles["section"]),
-        Paragraph(f"<b>Interpretation:</b> {_safe(interpretation)}", styles["body"]),
-        Paragraph(_safe(result.executive_summary), styles["body"]),
+    ]
+    if result.request_response:
+        story += [
+            Paragraph("RESPONSE TO YOUR REQUEST", styles["request_label"]),
+            Paragraph(_safe(result.request_response), styles["request_response"]),
+        ]
+    story += [
+        Paragraph(
+            f"<b>Overall Conclusion:</b> {_safe(_overall_conclusion_text(result.executive_summary))}",
+            styles["conclusion"],
+        ),
     ]
     portfolio_fit_box = _portfolio_fit_box(result, styles)
     if portfolio_fit_box is not None:
         story += [Paragraph("Portfolio Role", styles["section"]), portfolio_fit_box]
     if result.chart_path and Path(result.chart_path).is_file():
+        primary_chart = Image(result.chart_path)
+        primary_chart._restrictSize(7.2 * inch, 4.75 * inch)
         story += [
-            Spacer(1, 0.06 * inch),
-            Image(result.chart_path, width=7.2 * inch, height=4.75 * inch),
+            Spacer(1, (0.16 if portfolio_fit_box is not None else 0.06) * inch),
+            primary_chart,
+            *(
+                [Paragraph(f"<b>Decision insight:</b> {_safe(result.technical.summary)}", styles["compact"])]
+                if request.deep_analysis
+                else []
+            ),
             Paragraph("Source: attributed live price history; indicators and annotations calculated by Researcheus Maximus.", styles["small"]),
         ]
     if request.deep_analysis and result.chartbook:
