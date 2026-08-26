@@ -77,9 +77,9 @@ class DemoResearchProvider:
             ),
             key_metrics=(
                 ("Illustrative current price", f"${price:,.2f}"),
-                ("Technical rating", "Add"),
-                ("Fundamental rating", "Hold"),
-                ("Lead confidence", "Low — demo evidence"),
+                ("Technical setup", "Bullish"),
+                ("Fundamental outlook", "Balanced"),
+                ("Overall confidence", "Low — demo evidence"),
             ),
             strategies=(
                 Strategy(
