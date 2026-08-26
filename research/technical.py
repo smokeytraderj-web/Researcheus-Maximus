@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from core.assessments import technical_setup
 from core.models import HistoricalTradeCase, Horizon, Rating, SpecialistFinding, Strategy
 
 
@@ -43,10 +44,11 @@ class TechnicalSnapshot:
     fibonacci_range_label: str = "Six-month"
     analysis_return: float | None = None
     performance_label: str = "Three-month"
+    volume_available: bool = True
 
     def as_metrics(self) -> tuple[tuple[str, str], ...]:
         sma200 = "Unavailable" if self.sma200 is None else f"${self.sma200:,.2f}"
-        return (
+        metrics = [
             (
                 f"{self.performance_label} return",
                 f"{(self.analysis_return if self.analysis_return is not None else self.return_3m):+.1%}",
@@ -57,7 +59,6 @@ class TechnicalSnapshot:
             ("RSI (14)", f"{self.rsi14:.1f}"),
             ("MACD / signal", f"{self.macd:.2f} / {self.macd_signal:.2f}"),
             ("ATR (14)", f"${self.atr14:,.2f}"),
-            ("Volume vs. 20-day avg.", f"{self.volume_ratio:.2f}x"),
             ("60-day support / resistance", f"${self.support:,.2f} / ${self.resistance:,.2f}"),
             (
                 f"{self.fibonacci_range_label} Fibonacci swing range",
@@ -67,7 +68,10 @@ class TechnicalSnapshot:
                 "Fibonacci 38.2% / 50% / 61.8%",
                 f"${self.fib_38_2:,.2f} / ${self.fib_50:,.2f} / ${self.fib_61_8:,.2f}",
             ),
-        )
+        ]
+        if self.volume_available:
+            metrics.insert(7, ("Volume vs. 20-day avg.", f"{self.volume_ratio:.2f}x"))
+        return tuple(metrics)
 
 
 def _rsi(close: pd.Series, periods: int = 14) -> pd.Series:
@@ -225,6 +229,7 @@ def analyze_history(history: pd.DataFrame) -> TechnicalSnapshot:
     high = frame["High"].astype(float)
     low = frame["Low"].astype(float)
     volume = frame["Volume"].astype(float).fillna(0)
+    volume_available = bool(float(volume.abs().sum()) > 0)
     sma20_s = close.rolling(20).mean()
     sma50_s = close.rolling(50).mean()
     sma200_s = close.rolling(200).mean()
@@ -245,7 +250,7 @@ def analyze_history(history: pd.DataFrame) -> TechnicalSnapshot:
     macd_signal = float(signal_s.iloc[-1])
     atr14 = float(atr.iloc[-1])
     vol_avg = float(volume.rolling(20).mean().iloc[-1])
-    volume_ratio = float(volume.iloc[-1] / vol_avg) if vol_avg > 0 else 1.0
+    volume_ratio = float(volume.iloc[-1] / vol_avg) if vol_avg > 0 else 0.0
     support = float(low.tail(60).min())
     resistance = float(high.tail(60).max())
     custom_range = bool(history.attrs.get("custom_range"))
@@ -300,6 +305,7 @@ def analyze_history(history: pd.DataFrame) -> TechnicalSnapshot:
         fibonacci_range_label=fibonacci_range_label,
         analysis_return=analysis_return,
         performance_label=performance_label,
+        volume_available=volume_available,
     )
 
 
@@ -318,9 +324,6 @@ def _rating(score: int) -> Rating:
 
 
 def technical_finding(snapshot: TechnicalSnapshot) -> SpecialistFinding:
-    trend = "above" if snapshot.price > snapshot.sma50 else "below"
-    momentum = "positive" if snapshot.macd > snapshot.macd_signal else "negative"
-    rsi_text = "overbought" if snapshot.rsi14 >= 70 else "oversold" if snapshot.rsi14 <= 30 else "neutral"
     if snapshot.price >= snapshot.fib_38_2:
         fibonacci_text = f"above the 38.2% retracement, in the upper portion of the {snapshot.fibonacci_range_label.lower()} swing range"
     elif snapshot.price >= snapshot.fib_50:
@@ -329,9 +332,10 @@ def technical_finding(snapshot: TechnicalSnapshot) -> SpecialistFinding:
         fibonacci_text = "between the 50% and 61.8% retracement levels"
     else:
         fibonacci_text = "below the 61.8% retracement, signaling a deeper technical retracement"
+    rating = _rating(snapshot.score)
     return SpecialistFinding(
-        _rating(snapshot.score),
-        f"Price is {trend} its 50-day trend measure; MACD momentum is {momentum}, while RSI is {rsi_text} at {snapshot.rsi14:.1f}.",
+        rating,
+        trend_decision_insight(snapshot, rating),
         (
             f"Price ${snapshot.price:,.2f} versus 20-day SMA ${snapshot.sma20:,.2f} and 50-day SMA ${snapshot.sma50:,.2f}.",
             (
@@ -344,8 +348,75 @@ def technical_finding(snapshot: TechnicalSnapshot) -> SpecialistFinding:
                 f"Fibonacci: price is {fibonacci_text}; 38.2%, 50%, and 61.8% levels are "
                 f"${snapshot.fib_38_2:,.2f}, ${snapshot.fib_50:,.2f}, and ${snapshot.fib_61_8:,.2f}."
             ),
-            f"Latest volume is {snapshot.volume_ratio:.2f}x the 20-day average.",
+            (
+                f"Latest volume is {snapshot.volume_ratio:.2f}x the 20-day average."
+                if snapshot.volume_available
+                else "Daily trading volume was not reported for this fund, so volume was excluded from the setup."
+            ),
         ),
+    )
+
+
+def trend_decision_insight(snapshot: TechnicalSnapshot, rating: Rating) -> str:
+    """Explain how the moving-average structure affects the technical conclusion."""
+    setup = technical_setup(rating).lower()
+    if snapshot.price > snapshot.sma20 and snapshot.price > snapshot.sma50:
+        return (
+            f"Because price ${snapshot.price:,.2f} is above both the 20-day (${snapshot.sma20:,.2f}) and 50-day "
+            f"(${snapshot.sma50:,.2f}) averages, trend evidence supports the {setup} setup. A confirmed close above "
+            f"${snapshot.resistance:,.2f} would strengthen the case; a close back below ${snapshot.sma20:,.2f} would weaken it."
+        )
+    reclaim = max(snapshot.sma20, snapshot.sma50)
+    return (
+        f"Because price ${snapshot.price:,.2f} is below at least one key trend average, the chart does not yet confirm a durable advance. "
+        f"A close above about ${reclaim:,.2f} would improve the {setup} setup, while a break below ${snapshot.support:,.2f} would keep downside risk open."
+    )
+
+
+def fibonacci_decision_insight(snapshot: TechnicalSnapshot, rating: Rating) -> str:
+    """Translate the current Fibonacci position into the next confirmation and risk level."""
+    setup = technical_setup(rating).lower()
+    if snapshot.price >= snapshot.fib_38_2:
+        return (
+            f"Because price is above the 38.2% level at ${snapshot.fib_38_2:,.2f}, the upper part of the swing range remains in play. "
+            f"Holding that level supports the {setup} setup, and a confirmed break above ${snapshot.resistance:,.2f} would point to the "
+            f"${snapshot.fib_swing_high:,.2f} swing high as the next reference."
+        )
+    if snapshot.price >= snapshot.fib_50:
+        return (
+            f"Price is between the 50% (${snapshot.fib_50:,.2f}) and 38.2% (${snapshot.fib_38_2:,.2f}) levels. "
+            f"Reclaiming ${snapshot.fib_38_2:,.2f} would improve the {setup} setup; losing ${snapshot.fib_50:,.2f} would put "
+            f"${snapshot.fib_61_8:,.2f} in play."
+        )
+    if snapshot.price >= snapshot.fib_61_8:
+        return (
+            f"Price is holding between the 61.8% (${snapshot.fib_61_8:,.2f}) and 50% (${snapshot.fib_50:,.2f}) retracements. "
+            f"A close above ${snapshot.fib_50:,.2f} is the next repair signal for the {setup} setup; a break below "
+            f"${snapshot.fib_61_8:,.2f} would expose the ${snapshot.fib_swing_low:,.2f} swing low."
+        )
+    return (
+        f"Price is below the 61.8% retracement at ${snapshot.fib_61_8:,.2f}, so the prior advance has materially weakened. "
+        f"The {setup} setup would need a close back above that level to improve; otherwise the ${snapshot.fib_swing_low:,.2f} swing low remains the next risk reference."
+    )
+
+
+def momentum_decision_insight(snapshot: TechnicalSnapshot, rating: Rating) -> str:
+    """Explain whether RSI and MACD confirm or challenge the technical conclusion."""
+    setup = technical_setup(rating).lower()
+    macd_state = "above" if snapshot.macd > snapshot.macd_signal else "below"
+    if snapshot.macd > snapshot.macd_signal and 45 <= snapshot.rsi14 < 70:
+        implication = f"momentum confirms the {setup} setup"
+    elif snapshot.macd <= snapshot.macd_signal and snapshot.rsi14 < 45:
+        implication = f"momentum does not confirm an upgrade from the {setup} setup"
+    elif snapshot.rsi14 >= 70:
+        implication = "momentum is strong but stretched, so chasing price carries higher reversal risk"
+    elif snapshot.rsi14 <= 30:
+        implication = "the stock is oversold, but that is only an early watch signal until MACD and price turn higher"
+    else:
+        implication = f"momentum is mixed and therefore leaves the {setup} setup unchanged"
+    return (
+        f"MACD ({snapshot.macd:.2f}) is {macd_state} its signal ({snapshot.macd_signal:.2f}) and RSI is {snapshot.rsi14:.1f}; "
+        f"{implication}."
     )
 
 
@@ -386,6 +457,8 @@ def incorporate_relative_performance(
     original_index = ratings.index(finding.rating)
     adjustment = -1 if average_relative >= 0.08 else 1 if average_relative <= -0.08 else 0
     adjusted_rating = ratings[max(0, min(len(ratings) - 1, original_index + adjustment))]
+    original_setup = technical_setup(finding.rating)
+    adjusted_setup = technical_setup(adjusted_rating)
     direction = "outperforming" if average_relative > 0 else "underperforming" if average_relative < 0 else "matching"
     symbols = ", ".join(comparison_histories)
     insight = (
@@ -393,9 +466,13 @@ def incorporate_relative_performance(
         f"({symbols}) by {average_relative:+.1%} on average."
     )
     if adjustment:
-        insight += f" This moved the technical rating from {finding.rating.value} to {adjusted_rating.value}."
+        if original_setup == adjusted_setup:
+            direction_word = "strengthened" if adjustment < 0 else "weakened"
+            insight += f" This {direction_word} the internal technical score by one step; the Technical Setup remains {adjusted_setup}."
+        else:
+            insight += f" This changed the Technical Setup from {original_setup} to {adjusted_setup}."
     else:
-        insight += " Relative strength did not change the technical rating."
+        insight += f" Relative strength did not change the {adjusted_setup} Technical Setup."
     revised = SpecialistFinding(
         adjusted_rating,
         f"{finding.summary} {insight}",
@@ -443,7 +520,19 @@ def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot
     sma20 = close.rolling(20).mean()
     sma50 = close.rolling(50).mean()
     sma200 = close.rolling(200).mean()
-    fig, (ax, vol) = plt.subplots(2, 1, figsize=(10.5, 7.0), gridspec_kw={"height_ratios": [4, 1]}, sharex=True)
+    volume = frame["Volume"].fillna(0).astype(float)
+    show_volume = bool(float(volume.abs().sum()) > 0)
+    if show_volume:
+        fig, (ax, vol) = plt.subplots(
+            2,
+            1,
+            figsize=(10.5, 7.0),
+            gridspec_kw={"height_ratios": [4, 1]},
+            sharex=True,
+        )
+    else:
+        fig, ax = plt.subplots(figsize=(10.5, 5.5))
+        vol = None
     fig.patch.set_facecolor("white")
     ax.plot(frame.index, close, color="#14263D", linewidth=1.8, label="Close")
     ax.plot(frame.index, sma20, color="#B08D57", linewidth=1.2, label="SMA 20")
@@ -459,13 +548,15 @@ def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot
     ax.set_ylabel("Price (USD)")
     ax.grid(alpha=0.18)
     ax.legend(ncol=4, fontsize=8, frameon=False, loc="upper left")
-    volume = frame["Volume"].fillna(0).astype(float)
-    colors_v = np.where(close.diff().fillna(0) >= 0, "#6E9D85", "#C77A7A")
-    vol.bar(frame.index, volume, color=colors_v, width=1.0, alpha=0.75)
-    vol.set_ylabel("Volume")
-    vol.grid(axis="y", alpha=0.15)
-    vol.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=9))
-    vol.xaxis.set_major_formatter(mdates.ConciseDateFormatter(vol.xaxis.get_major_locator()))
+    date_axis = ax
+    if vol is not None:
+        colors_v = np.where(close.diff().fillna(0) >= 0, "#6E9D85", "#C77A7A")
+        vol.bar(frame.index, volume, color=colors_v, width=1.0, alpha=0.75)
+        vol.set_ylabel("Volume")
+        vol.grid(axis="y", alpha=0.15)
+        date_axis = vol
+    date_axis.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=9))
+    date_axis.xaxis.set_major_formatter(mdates.ConciseDateFormatter(date_axis.xaxis.get_major_locator()))
     fig.tight_layout()
     fig.savefig(destination, dpi=170, bbox_inches="tight")
     plt.close(fig)
@@ -624,9 +715,11 @@ def risk_chart_insight(history: pd.DataFrame, ticker: str) -> str:
     returns = close.pct_change().dropna()
     drawdown = close / close.cummax() - 1
     annualized_volatility = float(returns.tail(63).std() * np.sqrt(252)) if len(returns) >= 20 else 0.0
+    sizing = "smaller position sizing and wider risk limits" if annualized_volatility >= 0.35 else "normal position sizing with a defined exit level"
     return (
         f"{ticker}'s analysis-range maximum drawdown was {float(drawdown.min()):.1%}; ending drawdown is "
-        f"{float(drawdown.iloc[-1]):.1%}, with three-month annualized volatility of {annualized_volatility:.1%}."
+        f"{float(drawdown.iloc[-1]):.1%}, with three-month annualized volatility of {annualized_volatility:.1%}. "
+        f"This risk profile argues for {sizing}; it affects implementation rather than changing the rating by itself."
     )
 
 
