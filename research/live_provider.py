@@ -22,10 +22,12 @@ from research.technical import (
     render_momentum_chart,
     render_relative_performance_chart,
     render_risk_chart,
+    render_stop_loss_evidence_chart,
     render_total_return_chart,
     render_trade_case_chart,
     relative_performance_returns,
     risk_chart_insight,
+    stop_loss_decision_insights,
     strategies,
     technical_action_plan,
     technical_finding,
@@ -1226,6 +1228,21 @@ class LiveResearchProvider:
                             technical.summary,
                             (technical.summary, *technical.signals[:2]),
                         )
+                    elif request.overview_chart == "stop_loss":
+                        lead_stop_path = render_stop_loss_evidence_chart(
+                            history,
+                            symbol,
+                            snapshot,
+                            technical_plan,
+                            workspace / "lead-stop-loss-evidence.png",
+                        )
+                        stop_insights = stop_loss_decision_insights(snapshot, technical_plan)
+                        overview_chart = ChartRecord(
+                            "Stop-Loss Evidence",
+                            str(lead_stop_path),
+                            stop_insights[0],
+                            stop_insights,
+                        )
                     elif request.overview_chart == "fibonacci":
                         lead_fibonacci_path = render_fibonacci_chart(
                             history,
@@ -1280,6 +1297,22 @@ class LiveResearchProvider:
                 except Exception as exc:
                     limitations.append(f"Lead performance chart unavailable: {exc}")
             if request.deep_analysis:
+                stop_path = render_stop_loss_evidence_chart(
+                    history,
+                    symbol,
+                    snapshot,
+                    technical_plan,
+                    workspace / "stop-loss-evidence.png",
+                )
+                stop_insights = stop_loss_decision_insights(snapshot, technical_plan)
+                chartbook.append(
+                    ChartRecord(
+                        "Stop-Loss Evidence",
+                        str(stop_path),
+                        stop_insights[0],
+                        stop_insights,
+                    )
+                )
                 fibonacci_path = render_fibonacci_chart(
                     history,
                     symbol,
