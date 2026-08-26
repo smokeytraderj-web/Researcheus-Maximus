@@ -14,6 +14,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
 from core.models import ResearchRequest, ResearchResult
 
 NAVY = colors.HexColor("#14263D")
@@ -84,15 +85,15 @@ def _rating_box(result: ResearchResult, styles) -> Table:
     box = Table(
         [
             [
-                Paragraph("LEAD", styles["small"]),
-                Paragraph("TECHNICAL", styles["small"]),
-                Paragraph("FUNDAMENTAL", styles["small"]),
-                Paragraph("PRICE", styles["small"]),
+                Paragraph("OVERALL RATING", styles["small"]),
+                Paragraph("TECHNICAL SETUP", styles["small"]),
+                Paragraph("FUNDAMENTAL OUTLOOK", styles["small"]),
+                Paragraph("CURRENT PRICE", styles["small"]),
             ],
             [
                 Paragraph(_safe(result.lead_rating.value), styles["rating"]),
-                Paragraph(_safe(result.technical.rating.value), styles["rating"]),
-                Paragraph(_safe(result.fundamental.rating.value), styles["rating"]),
+                Paragraph(_safe(technical_setup(result.technical.rating)), styles["rating"]),
+                Paragraph(_safe(fundamental_outlook(result.fundamental.rating)), styles["rating"]),
                 Paragraph(f"${result.current_price:,.2f}", styles["rating"]),
             ],
         ],
@@ -183,12 +184,12 @@ def _metric_grid(result: ResearchResult, styles) -> Table:
 
 def _analysis_cards(result: ResearchResult, styles) -> Table:
     technical = [
-        Paragraph(f"<b>Technical - {_safe(result.technical.rating.value)}</b>", styles["body"]),
+        Paragraph(f"<b>Technical Setup - {_safe(technical_setup(result.technical.rating))}</b>", styles["body"]),
         Paragraph(_safe(result.technical.summary), styles["compact"]),
         *_bullet_text(result.technical.signals, styles["compact"], 3),
     ]
     fundamental = [
-        Paragraph(f"<b>Fundamental - {_safe(result.fundamental.rating.value)}</b>", styles["body"]),
+        Paragraph(f"<b>Fundamental Outlook - {_safe(fundamental_outlook(result.fundamental.rating))}</b>", styles["body"]),
         Paragraph(_safe(result.fundamental.summary), styles["compact"]),
         *_bullet_text(result.fundamental.signals, styles["compact"], 3),
     ]
@@ -321,7 +322,13 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         warning.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFF3D8")), ("BOX", (0, 0), (-1, -1), 0.7, GOLD), ("LEFTPADDING", (0, 0), (-1, -1), 8), ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5)]))
         story += [warning, Spacer(1, 0.08 * inch)]
 
-    story += [_rating_box(result, styles), Paragraph("Investment View", styles["section"]), Paragraph(_safe(result.executive_summary), styles["body"])]
+    interpretation = assessment_interpretation(result.technical.rating, result.fundamental.rating)
+    story += [
+        _rating_box(result, styles),
+        Paragraph("Investment View", styles["section"]),
+        Paragraph(f"<b>Interpretation:</b> {_safe(interpretation)}", styles["body"]),
+        Paragraph(_safe(result.executive_summary), styles["body"]),
+    ]
     if result.chart_path and Path(result.chart_path).is_file():
         story += [
             Spacer(1, 0.06 * inch),
