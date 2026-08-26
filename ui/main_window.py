@@ -202,7 +202,7 @@ class MainWindow(QMainWindow):
         row.setContentsMargins(28, 8, 28, 8)
         titles = QVBoxLayout()
         titles.setSpacing(0)
-        titles.addWidget(QLabel("RESEARCHEUS", objectName="Brand"))
+        titles.addWidget(QLabel("RESEARCHEUS MAXIMUS", objectName="Brand"))
         titles.addWidget(QLabel("GOTTFRIED & SOMBERG WEALTH MANAGEMENT", objectName="Firm"))
         row.addLayout(titles)
         row.addStretch()
@@ -221,8 +221,8 @@ class MainWindow(QMainWindow):
     def _build_intake(self) -> QWidget:
         page = QWidget()
         outer = QVBoxLayout(page)
-        outer.setContentsMargins(32, 24, 32, 22)
-        outer.setSpacing(0)
+        outer.setContentsMargins(24, 20, 24, 22)
+        outer.setSpacing(14)
 
         self.research_mode = QComboBox()
         self.research_mode.addItems(["Live Market Research", "Demo / Offline Test"])
@@ -238,100 +238,109 @@ class MainWindow(QMainWindow):
         self.settings_dialog = self._build_settings_dialog()
 
         content = QWidget()
-        content.setMinimumWidth(700)
-        content.setMaximumWidth(880)
+        content.setMinimumWidth(760)
+        content.setMaximumWidth(1040)
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(14)
+        content_layout.setSpacing(12)
 
-        heading_row = QHBoxLayout()
-        heading = QVBoxLayout()
-        heading.setSpacing(3)
-        heading.addWidget(QLabel("Research Workspace", objectName="Title"))
-        heading.addWidget(QLabel("Research one security, build a chart study, or compare two opportunities.", objectName="Subtitle"))
-        heading_row.addLayout(heading)
-        heading_row.addStretch()
+        hero = QFrame(objectName="HeroPanel")
+        hero_layout = QVBoxLayout(hero)
+        hero_layout.setContentsMargins(32, 20, 32, 21)
+        hero_layout.setSpacing(7)
+        hero_top = QHBoxLayout()
+        hero_top.setSpacing(12)
+        hero_top.addWidget(QLabel("EQUITY RESEARCH", objectName="HeroEyebrow"))
+        hero_top.addStretch()
         settings_button = QPushButton("Settings", objectName="Settings")
         settings_button.clicked.connect(self.settings_dialog.open)
-        heading_row.addWidget(settings_button)
-        content_layout.addLayout(heading_row)
+        hero_top.addWidget(settings_button)
+        hero_layout.addLayout(hero_top)
+        hero_layout.addWidget(QLabel("What would you like to research?", objectName="HeroTitle"))
+        hero_rule = QFrame(objectName="HeroRule")
+        hero_rule.setFixedSize(64, 2)
+        hero_layout.addWidget(hero_rule)
+        hero_subtitle = QLabel(
+            "Ask a decision question, build a technical study, or compare two securities.",
+            objectName="HeroSubtitle",
+        )
+        hero_subtitle.setWordWrap(True)
+        hero_layout.addWidget(hero_subtitle)
+        content_layout.addWidget(hero)
 
-        card = QFrame(objectName="PrimaryPanel")
+        content_layout.addWidget(QLabel("RESEARCH TYPES", objectName="ResearchPaths"))
+
+        card = QFrame(objectName="PrimaryModePanel")
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(22, 18, 22, 18)
-        card_layout.setSpacing(9)
-        card_layout.addWidget(QLabel("QUICK RESEARCH", objectName="Eyebrow"))
-        prompt = QLabel("What would you like to know?", objectName="PrimaryTitle")
+        card_layout.setContentsMargins(24, 14, 24, 16)
+        card_layout.setSpacing(6)
+        card_heading = QHBoxLayout()
+        card_heading.addWidget(QLabel("01", objectName="ModeNumber"))
+        card_heading.addSpacing(10)
+        card_heading.addWidget(QLabel("Research Overview", objectName="ModeTitle"))
+        card_heading.addStretch()
+        card_layout.addLayout(card_heading)
         helper = QLabel(
-            "Ask a natural-language question about any stock or fund.",
-            objectName="FieldHelp",
+            "Ask naturally. Your exact question will lead the report and the technical action plan.",
+            objectName="ModeDescription",
         )
         helper.setWordWrap(True)
+        card_layout.addWidget(helper)
         self.query = QPlainTextEdit()
         self.query.setPlaceholderText(
-            "Examples:\n"
-            "Is BDMIX good for a 70/30 portfolio?\n"
-            "Show historical QQQ trade entries and stop-loss examples from the past year."
+            "Example: Is TSLA a good opportunity to buy now, and where should I place a stop loss?"
         )
         self.query.setObjectName("ResearchQuery")
-        self.query.setMinimumHeight(72)
+        self.query.setMinimumHeight(84)
         begin = QPushButton("Generate Research", objectName="Gold")
         begin.setMinimumHeight(40)
         begin.setFixedWidth(176)
         begin.clicked.connect(lambda: self._start_research())
-        card_layout.addWidget(prompt)
-        card_layout.addWidget(helper)
         card_layout.addWidget(self.query)
         overview_actions = QHBoxLayout()
-        overview_hint = QLabel("Buy · Sell · Hold · Position review · Full analysis", objectName="FieldHelp")
+        overview_hint = QLabel("Buy  /  Sell  /  Hold  /  Position review  /  Full analysis", objectName="ModeHint")
         overview_actions.addWidget(overview_hint)
         overview_actions.addStretch()
         overview_actions.addWidget(begin)
         card_layout.addLayout(overview_actions)
         content_layout.addWidget(card)
 
-        tools_heading = QHBoxLayout()
-        tools_heading.addWidget(QLabel("Advanced tools", objectName="Section"))
-        tools_heading.addStretch()
-        tools_heading.addWidget(QLabel("For focused technical or side-by-side work", objectName="FieldHelp"))
-        content_layout.addLayout(tools_heading)
-
         mode_row = QHBoxLayout()
         mode_row.setSpacing(12)
-        deep_panel = QFrame(objectName="ToolPanel")
+        deep_panel = QFrame(objectName="ModePanel")
         deep_layout = QVBoxLayout(deep_panel)
-        deep_layout.setContentsMargins(20, 17, 20, 17)
-        deep_layout.setSpacing(6)
-        deep_layout.addWidget(QLabel("TECHNICAL", objectName="Eyebrow"))
-        deep_title = QLabel("Deep Technical Analysis", objectName="Section")
+        deep_layout.setContentsMargins(24, 15, 24, 16)
+        deep_layout.setSpacing(5)
+        deep_layout.addWidget(QLabel("02", objectName="ModeNumber"))
+        deep_title = QLabel("Deep Technical Analysis", objectName="ModeTitle")
         deep_title.setWordWrap(True)
         deep_description = QLabel(
-            "Charts, custom ranges, Fibonacci, momentum, risk, and benchmarks.",
-            objectName="Subtitle",
+            "Build a chart-led study with custom ranges, Fibonacci, momentum, risk, and benchmarks.",
+            objectName="ModeDescription",
         )
         deep_description.setWordWrap(True)
-        deep_button = QPushButton("Open Technical Analysis", objectName="ToolAction")
-        deep_button.setMinimumHeight(38)
+        deep_button = QPushButton("Start analysis  →", objectName="ModeLink")
+        deep_button.setMinimumHeight(28)
         deep_button.clicked.connect(lambda: self.stack.setCurrentIndex(3))
         deep_layout.addWidget(deep_title)
         deep_layout.addWidget(deep_description)
         deep_layout.addStretch()
         deep_layout.addWidget(deep_button)
 
-        compare_panel = QFrame(objectName="ToolPanel")
+        compare_panel = QFrame(objectName="ModePanel")
         compare_layout = QVBoxLayout(compare_panel)
-        compare_layout.setContentsMargins(20, 17, 20, 17)
-        compare_layout.setSpacing(6)
-        compare_layout.addWidget(QLabel("COMPARISON", objectName="Eyebrow"))
-        compare_title = QLabel("Compare Securities", objectName="Section")
+        compare_layout.setContentsMargins(24, 15, 24, 16)
+        compare_layout.setSpacing(5)
+        compare_layout.addWidget(QLabel("03", objectName="ModeNumber"))
+        compare_title = QLabel("Security Comparison", objectName="ModeTitle")
         compare_title.setWordWrap(True)
         compare_description = QLabel(
-            "Compare two stocks or funds across value, growth, technical setup, and risk.",
-            objectName="Subtitle",
+            "Compare two stocks or funds across performance, value, growth, technical setup, and risk.",
+            objectName="ModeDescription",
         )
         compare_description.setWordWrap(True)
-        compare_button = QPushButton("Open Comparison", objectName="ToolAction")
-        compare_button.setMinimumHeight(38)
+        compare_button = QPushButton("Start comparison  →", objectName="ModeLink")
+        compare_button.setMinimumHeight(28)
         compare_button.clicked.connect(lambda: self.stack.setCurrentIndex(4))
         compare_layout.addWidget(compare_title)
         compare_layout.addWidget(compare_description)
@@ -346,9 +355,8 @@ class MainWindow(QMainWindow):
         centered.addStretch()
         centered.addWidget(content)
         centered.addStretch()
-        outer.addStretch(1)
         outer.addLayout(centered)
-        outer.addStretch(2)
+        outer.addStretch(1)
         return page
 
     def _build_comparison(self) -> QWidget:
