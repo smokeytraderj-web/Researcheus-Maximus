@@ -97,6 +97,9 @@ class ResearchResult:
     catalysts: tuple[str, ...]
     change_conditions: tuple[str, ...]
     sources: tuple[SourceRecord, ...]
+    provider_label: str = ""
+    limitations: tuple[str, ...] = ()
+    chart_path: str = ""
     demo_mode: bool = False
 
     def validate(self) -> None:
@@ -106,4 +109,3 @@ class ResearchResult:
             raise ValueError("At least one source record is required.")
         if not self.executive_summary.strip():
             raise ValueError("Executive summary is required.")
-
