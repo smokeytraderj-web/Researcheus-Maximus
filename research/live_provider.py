@@ -22,12 +22,14 @@ from research.technical import (
     render_momentum_chart,
     render_relative_performance_chart,
     render_risk_chart,
+    render_total_return_chart,
     render_trade_case_chart,
     relative_performance_returns,
     risk_chart_insight,
     strategies,
     technical_action_plan,
     technical_finding,
+    total_return_chart_insights,
 )
 from research.ycharts_excel import METRICS as YCHARTS_METRICS, retrieve_ycharts_metrics
 from security.certificates import verified_market_session
@@ -850,6 +852,39 @@ class LiveResearchProvider:
                     history,
                     comparison_histories,
                 )
+        overview_histories: dict[str, object] = {}
+        overview_benchmark = "SPY"
+        overview_start = request.custom_start or dt.date.today().replace(month=1, day=1).isoformat()
+        overview_end = request.custom_end or dt.date.today().isoformat()
+        overview_period_label = (
+            f"{request.custom_start} to {request.custom_end}"
+            if request.custom_start and request.custom_end
+            else "YTD"
+        )
+        if not request.comparison_analysis and request.overview_chart in {"", "relative_performance"}:
+            if request.overview_chart == "relative_performance" and comparison_histories:
+                overview_histories = {symbol: history, **comparison_histories}
+                overview_benchmark = "SPY" if "SPY" in comparison_histories else deep_sector_benchmark
+            else:
+                overview_histories = {symbol: history}
+                if symbol == "SPY":
+                    overview_benchmark = ""
+                else:
+                    try:
+                        spy_history = comparison_histories.get("SPY")
+                        if spy_history is None:
+                            spy_ticker = yf.Ticker("SPY", session=self._market_session)
+                            spy_history = self._history(
+                                yf,
+                                spy_ticker,
+                                "SPY",
+                                self._market_session,
+                                request.custom_start,
+                                request.custom_end,
+                            )
+                        overview_histories["SPY"] = spy_history
+                    except Exception:
+                        comparison_failures.append("SPY: YTD benchmark history was unavailable")
         primary_identity = SecurityIdentity(company, symbol, exchange, currency)
         portfolio_fit = _build_portfolio_fit(request, info, company)
         trade_cases = historical_trade_examples(history) if request.historical_trade_examples else ()
@@ -1162,6 +1197,7 @@ class LiveResearchProvider:
         confidence = Confidence.LOW if synthesis.provider_label == "Deterministic fallback" else Confidence.MEDIUM
         chart_path = ""
         chartbook = []
+        overview_chart = None
         if workspace is not None:
             if request.comparison_analysis and comparison_histories:
                 chart_path = str(
@@ -1181,6 +1217,68 @@ class LiveResearchProvider:
                         technical_plan,
                     )
                 )
+            if not request.comparison_analysis:
+                try:
+                    if request.overview_chart == "price_trend":
+                        overview_chart = ChartRecord(
+                            "Price Trend and Moving Averages",
+                            chart_path,
+                            technical.summary,
+                            (technical.summary, *technical.signals[:2]),
+                        )
+                    elif request.overview_chart == "fibonacci":
+                        lead_fibonacci_path = render_fibonacci_chart(
+                            history,
+                            symbol,
+                            snapshot,
+                            workspace / "lead-fibonacci-chart.png",
+                        )
+                        fibonacci_insight = fibonacci_decision_insight(snapshot, technical.rating)
+                        overview_chart = ChartRecord(
+                            "Fibonacci Structure",
+                            str(lead_fibonacci_path),
+                            fibonacci_insight,
+                            (fibonacci_insight,),
+                        )
+                    elif request.overview_chart == "momentum":
+                        lead_momentum_path = render_momentum_chart(
+                            history,
+                            symbol,
+                            workspace / "lead-momentum-chart.png",
+                        )
+                        momentum_insight = momentum_decision_insight(snapshot, technical.rating)
+                        overview_chart = ChartRecord(
+                            "Momentum - RSI and MACD",
+                            str(lead_momentum_path),
+                            momentum_insight,
+                            (momentum_insight,),
+                        )
+                    elif overview_histories:
+                        lead_total_return_path = render_total_return_chart(
+                            overview_histories,
+                            workspace / "lead-total-return-chart.png",
+                            overview_period_label,
+                            overview_benchmark,
+                            overview_start,
+                            overview_end,
+                        )
+                        overview_insights = total_return_chart_insights(
+                            overview_histories,
+                            symbol,
+                            overview_benchmark,
+                            overview_period_label,
+                            technical.rating,
+                            overview_start,
+                            overview_end,
+                        )
+                        overview_chart = ChartRecord(
+                            f"{overview_period_label} Total Return",
+                            str(lead_total_return_path),
+                            overview_insights[0] if overview_insights else "",
+                            overview_insights,
+                        )
+                except Exception as exc:
+                    limitations.append(f"Lead performance chart unavailable: {exc}")
             if request.deep_analysis:
                 fibonacci_path = render_fibonacci_chart(
                     history,
@@ -1246,6 +1344,21 @@ class LiveResearchProvider:
             SourceRecord("YCharts", f"https://ycharts.com/companies/{quote(symbol)}", now, "Authenticated supplemental review link; no YCharts values were silently inferred"),
             SourceRecord("SEC EDGAR", f"https://www.sec.gov/edgar/search/#/q={quote(symbol)}", now, "Official filing research link"),
         ]
+        if "SPY" in overview_histories and symbol != "SPY" and "SPY" not in comparison_histories:
+            spy_overview_history = overview_histories["SPY"]
+            spy_source = str(spy_overview_history.attrs.get("market_data_source") or "Yahoo Finance market data")
+            spy_url = str(
+                spy_overview_history.attrs.get("market_data_url")
+                or "https://finance.yahoo.com/quote/SPY"
+            )
+            sources.append(
+                SourceRecord(
+                    f"{spy_source} - SPY",
+                    spy_url,
+                    now,
+                    "SPY benchmark history used for the lead total-return chart",
+                )
+            )
         if technical_plan.options_strategy:
             sources.extend(
                 (
@@ -1431,6 +1544,7 @@ class LiveResearchProvider:
             historical_trade_cases=tuple(trade_cases),
             portfolio_fit=portfolio_fit,
             technical_plan=technical_plan,
+            overview_chart=overview_chart,
         )
         result.validate()
         return result
