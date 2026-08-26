@@ -32,7 +32,9 @@ from research.technical import (
     render_chart,
     render_fibonacci_chart,
     render_momentum_chart,
+    render_stop_loss_evidence_chart,
     render_total_return_chart,
+    stop_loss_decision_insights,
     total_return_chart_insights,
 )
 
@@ -108,6 +110,7 @@ class DemoResearchProvider:
         )
         chart_path = ""
         overview_chart = None
+        chartbook = []
         if workspace is not None and not request.comparison_analysis:
             if request.custom_start and request.custom_end:
                 dates = pd.bdate_range(request.custom_start, request.custom_end)
@@ -159,6 +162,16 @@ class DemoResearchProvider:
                     technical.summary,
                     (technical.summary, *technical.signals[:2]),
                 )
+            elif request.overview_chart == "stop_loss":
+                lead_path = render_stop_loss_evidence_chart(
+                    primary_history,
+                    ticker,
+                    demo_snapshot,
+                    technical_plan,
+                    workspace / "lead-stop-loss-evidence.png",
+                )
+                insights = stop_loss_decision_insights(demo_snapshot, technical_plan)
+                overview_chart = ChartRecord("Stop-Loss Evidence", str(lead_path), insights[0], insights)
             elif request.overview_chart == "fibonacci":
                 lead_path = render_fibonacci_chart(
                     primary_history,
@@ -206,6 +219,26 @@ class DemoResearchProvider:
                     insights[0],
                     insights,
                 )
+            if request.deep_analysis:
+                stop_path = render_stop_loss_evidence_chart(
+                    primary_history,
+                    ticker,
+                    demo_snapshot,
+                    technical_plan,
+                    workspace / "stop-loss-evidence.png",
+                )
+                stop_insights = stop_loss_decision_insights(demo_snapshot, technical_plan)
+                chartbook.append(
+                    ChartRecord("Stop-Loss Evidence", str(stop_path), stop_insights[0], stop_insights)
+                )
+                fib_path = render_fibonacci_chart(
+                    primary_history,
+                    ticker,
+                    demo_snapshot,
+                    workspace / "fibonacci-chart.png",
+                )
+                fib_insight = fibonacci_decision_insight(demo_snapshot, technical.rating)
+                chartbook.append(ChartRecord("Fibonacci Structure", str(fib_path), fib_insight, (fib_insight,)))
         comparison = None
         if request.comparison_analysis:
             second_key = request.comparison_query.strip().upper()
@@ -321,6 +354,7 @@ class DemoResearchProvider:
                 if request.deep_analysis
                 else "Standard Research"
             ),
+            chartbook=tuple(chartbook),
             comparison=comparison,
             ycharts_status="YCharts is not queried in Demo / Offline Test mode.",
             technical_plan=technical_plan,
