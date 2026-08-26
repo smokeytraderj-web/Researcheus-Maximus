@@ -17,10 +17,12 @@ from research.technical import (
     render_momentum_chart,
     render_relative_performance_chart,
     render_risk_chart,
+    render_total_return_chart,
     render_trade_case_chart,
     strategies,
     technical_action_plan,
     technical_finding,
+    total_return_chart_insights,
     trend_decision_insight,
 )
 
@@ -166,6 +168,36 @@ class TechnicalAnalysisTests(unittest.TestCase):
         self.assertEqual(revised.rating, Rating.ADD)
         self.assertEqual(metrics[0][0], "3-month return vs. SPY")
         self.assertIn("changed the Technical Setup from Neutral to Bullish", insight)
+
+    def test_ytd_total_return_chart_and_bullets_use_the_same_visible_dates(self):
+        primary = self._history()
+        benchmark = self._history()
+        benchmark["Close"] = np.linspace(100, 120, len(benchmark))
+        histories = {"AXON": primary, "SPY": benchmark}
+        insights = total_return_chart_insights(
+            histories,
+            "AXON",
+            "SPY",
+            "YTD",
+            Rating.BUY,
+            "2025-01-01",
+            "2025-12-31",
+        )
+        self.assertEqual(len(insights), 3)
+        self.assertIn("AXON returned", insights[0])
+        self.assertIn("outperformed", insights[1])
+        self.assertIn("supports", insights[2])
+        with tempfile.TemporaryDirectory() as folder:
+            output = render_total_return_chart(
+                histories,
+                Path(folder) / "ytd-total-return.png",
+                "YTD",
+                "SPY",
+                "2025-01-01",
+                "2025-12-31",
+            )
+            self.assertTrue(output.is_file())
+            self.assertGreater(output.stat().st_size, 10_000)
 
     def test_deep_analysis_charts_render(self):
         primary = self._history()
