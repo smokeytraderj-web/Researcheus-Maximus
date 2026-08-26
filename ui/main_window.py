@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from html import escape
 from pathlib import Path
 import traceback
@@ -19,9 +20,9 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QInputDialog,
     QMainWindow,
     QMessageBox,
+    QPlainTextEdit,
     QProgressBar,
     QPushButton,
     QStackedWidget,
@@ -31,6 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.models import Horizon, ResearchRequest
+from core.research_prompt import append_revision_instructions, parse_research_prompt
 from research.demo_provider import DemoResearchProvider
 from research.live_provider import LiveResearchProvider
 from services.research_runner import PreparedResearch, ResearchRunner
@@ -105,17 +107,24 @@ class MainWindow(QMainWindow):
         return page, outer
 
     def _build_intake(self) -> QWidget:
-        page, outer = self._page_shell("Research a Stock", "Enter a public company or ticker. Everything else is handled automatically.")
+        page, outer = self._page_shell(
+            "Research a Stock",
+            "Describe the company and the decision you want researched. Everything else is handled automatically.",
+        )
         outer.addStretch(1)
         card = QFrame(objectName="Card")
         card.setMaximumWidth(760)
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(34, 30, 34, 30)
         card_layout.setSpacing(14)
-        prompt = QLabel("What should we research?", objectName="Section")
-        self.query = QLineEdit()
-        self.query.setPlaceholderText("Axon, AXON, Apple, AAPL…")
+        prompt = QLabel("What would you like to research?", objectName="Section")
+        self.query = QPlainTextEdit()
+        self.query.setPlaceholderText(
+            "Start with a company or ticker, then add any question.\n\n"
+            "Example: WMT — Is this an attractive entry after the recent pullback?"
+        )
         self.query.setObjectName("ResearchQuery")
+        self.query.setMinimumHeight(118)
         begin = QPushButton("Begin Research", objectName="Gold")
         begin.clicked.connect(self._start_research)
         card_layout.addWidget(prompt)
@@ -190,45 +199,55 @@ class MainWindow(QMainWindow):
         return page
 
     def _build_preview(self) -> QWidget:
-        page, outer = self._page_shell("Research Preview", "Review the completed PDF before finalizing it.")
+        page, outer = self._page_shell(
+            "Finalize Research",
+            "Open the completed PDF, request any final changes, or save the approved report.",
+        )
         self.preview_browser = QTextBrowser()
         self.preview_browser.setOpenExternalLinks(True)
         outer.addWidget(self.preview_browser, 1)
+        revision_label = QLabel("Requested Modifications", objectName="Section")
+        revision_help = QLabel(
+            "Optional — describe the exact changes you want, then regenerate the report.",
+            objectName="Subtitle",
+        )
+        self.modification_request = QPlainTextEdit()
+        self.modification_request.setObjectName("ModificationRequest")
+        self.modification_request.setPlaceholderText(
+            "Example: Emphasize downside risks, make the investment view more concise, and use a more conservative entry strategy."
+        )
+        self.modification_request.setMaximumHeight(92)
+        outer.addWidget(revision_label)
+        outer.addWidget(revision_help)
+        outer.addWidget(self.modification_request)
         actions = QHBoxLayout()
         restart = QPushButton("Cancel & Start Over", objectName="Secondary")
         restart.clicked.connect(self._cancel)
-        revise = QPushButton("Revise Research", objectName="Secondary")
-        revise.clicked.connect(self._revise)
         open_pdf = QPushButton("Open PDF")
         open_pdf.clicked.connect(self._open_pdf)
+        apply_changes = QPushButton("Apply Changes & Regenerate", objectName="Secondary")
+        apply_changes.clicked.connect(self._apply_modifications)
         finalize = QPushButton("Finalize Research", objectName="Gold")
         finalize.clicked.connect(self._finalize)
         actions.addWidget(restart)
-        actions.addWidget(revise)
         actions.addStretch()
         actions.addWidget(open_pdf)
+        actions.addWidget(apply_changes)
         actions.addWidget(finalize)
         outer.addLayout(actions)
         return page
 
     def _request(self) -> ResearchRequest:
-        return ResearchRequest(self.query.text(), Horizon(self.selected_horizon))
+        security_query, research_brief = parse_research_prompt(self.query.toPlainText())
+        return ResearchRequest(security_query, Horizon.ALL, question=research_brief)
 
     def _start_research(self) -> None:
-        if not self.query.text().strip():
+        if self.worker and self.worker.isRunning():
+            QMessageBox.information(self, "Research in progress", "Please wait for the current research run to finish.")
+            return
+        if not self.query.toPlainText().strip():
             QMessageBox.warning(self, "Choose a stock", "Enter a company name or ticker.")
             return
-        horizon, accepted = QInputDialog.getItem(
-            self,
-            "Investment Horizon",
-            "What time horizon should this analysis target?",
-            [item.value for item in Horizon],
-            1,
-            False,
-        )
-        if not accepted:
-            return
-        self.selected_horizon = horizon
         try:
             request = self._request()
             request.validate()
@@ -246,18 +265,34 @@ class MainWindow(QMainWindow):
             )
         else:
             self.runner = ResearchRunner(provider=DemoResearchProvider())
+        self._run_request(request)
+
+    def _run_request(self, request: ResearchRequest, *, replacing: PreparedResearch | None = None) -> None:
         progress = QProgressBar()
         progress.setRange(0, 0)
-        progress.setFormat("Preparing evidence…")
+        progress.setFormat("Applying requested changes…" if replacing else "Preparing evidence…")
         self.statusBar().addPermanentWidget(progress)
         self.worker = ResearchWorker(self.runner, request, self)
-        self.worker.completed.connect(lambda prepared: self._research_ready(prepared, progress))
-        self.worker.failed.connect(lambda message: self._research_failed(message, progress))
+        self.worker.completed.connect(
+            lambda prepared: self._research_ready(prepared, progress, replacing=replacing)
+        )
+        self.worker.failed.connect(
+            lambda message: self._research_failed(message, progress, keep_preview=bool(replacing))
+        )
         self.worker.start()
 
-    def _research_ready(self, prepared: PreparedResearch, progress: QProgressBar) -> None:
+    def _research_ready(
+        self,
+        prepared: PreparedResearch,
+        progress: QProgressBar,
+        *,
+        replacing: PreparedResearch | None = None,
+    ) -> None:
         self.statusBar().removeWidget(progress)
         progress.deleteLater()
+        if replacing:
+            self.runner.cancel(replacing)
+            self.modification_request.clear()
         self.prepared = prepared
         r = prepared.result
         signals = "".join(f"<li>{item}</li>" for item in r.technical.signals)
@@ -297,10 +332,12 @@ class MainWindow(QMainWindow):
         """)
         self.stack.setCurrentIndex(1)
 
-    def _research_failed(self, message: str, progress: QProgressBar) -> None:
+    def _research_failed(self, message: str, progress: QProgressBar, *, keep_preview: bool = False) -> None:
         self.statusBar().removeWidget(progress)
         progress.deleteLater()
         QMessageBox.critical(self, "Research failed", message)
+        if keep_preview:
+            self.stack.setCurrentIndex(2)
 
     def _approve(self) -> None:
         if not self.prepared:
@@ -314,8 +351,32 @@ class MainWindow(QMainWindow):
         if self.prepared:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.prepared.preview_path)))
 
+    def _apply_modifications(self) -> None:
+        if not self.prepared:
+            return
+        if self.worker and self.worker.isRunning():
+            QMessageBox.information(self, "Research in progress", "Please wait for the current revision to finish.")
+            return
+        revision = self.modification_request.toPlainText().strip()
+        if not revision:
+            QMessageBox.information(
+                self,
+                "Describe the changes",
+                "Enter the report changes you want before regenerating.",
+            )
+            self.modification_request.setFocus()
+            return
+        revised_request = replace(
+            self.prepared.request,
+            question=append_revision_instructions(self.prepared.request.question, revision),
+        )
+        self._run_request(revised_request, replacing=self.prepared)
+
     def _finalize(self) -> None:
         if not self.prepared:
+            return
+        if self.worker and self.worker.isRunning():
+            QMessageBox.information(self, "Research in progress", "Please wait for the revised report to finish.")
             return
         default = self.settings.value("outputFolder", str(Path.home() / "Documents"))
         directory = QFileDialog.getExistingDirectory(self, "Choose output folder", str(default))
@@ -332,12 +393,9 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentIndex(0)
 
     def _cancel(self) -> None:
-        if self.prepared:
-            self.runner.cancel(self.prepared)
-            self.prepared = None
-        self.stack.setCurrentIndex(0)
-
-    def _revise(self) -> None:
+        if self.worker and self.worker.isRunning():
+            QMessageBox.information(self, "Research in progress", "Please wait for the current research run to finish.")
+            return
         if self.prepared:
             self.runner.cancel(self.prepared)
             self.prepared = None
