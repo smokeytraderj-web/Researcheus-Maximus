@@ -10,7 +10,6 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QComboBox,
     QCheckBox,
-    QDoubleSpinBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -19,6 +18,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QInputDialog,
     QMainWindow,
     QMessageBox,
     QProgressBar,
@@ -104,48 +104,27 @@ class MainWindow(QMainWindow):
         return page, outer
 
     def _build_intake(self) -> QWidget:
-        page, outer = self._page_shell("Single Stock Research", "Choose a company and time horizon. The research process is handled automatically.")
+        page, outer = self._page_shell("Research a Stock", "Enter a public company or ticker. Everything else is handled automatically.")
+        outer.addStretch(1)
         card = QFrame(objectName="Card")
-        form = QFormLayout(card)
-        form.setContentsMargins(28, 26, 28, 26)
-        form.setVerticalSpacing(14)
-        form.setHorizontalSpacing(18)
+        card.setMaximumWidth(760)
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(34, 30, 34, 30)
+        card_layout.setSpacing(14)
+        prompt = QLabel("What should we research?", objectName="Section")
         self.query = QLineEdit()
-        self.query.setPlaceholderText("Company or ticker — e.g., Axon or AXON")
-        self.horizon = QComboBox()
-        self.horizon.addItems([item.value for item in Horizon])
-        self.question = QLineEdit()
-        self.question.setPlaceholderText("Optional — e.g., Is this an attractive entry point?")
-        form.addRow("Company or ticker *", self.query)
-        form.addRow("Investment horizon *", self.horizon)
-        form.addRow("Research question", self.question)
-        outer.addWidget(card)
-
-        self.position_toggle = QPushButton("+ Add position details", objectName="Secondary")
-        self.position_toggle.setCheckable(True)
-        self.position_toggle.setFixedWidth(190)
-        self.position_toggle.toggled.connect(self._toggle_position_details)
-        outer.addWidget(self.position_toggle)
-
-        self.position_card = QFrame(objectName="Card")
-        position_form = QFormLayout(self.position_card)
-        position_form.setContentsMargins(28, 22, 28, 22)
-        position_form.setVerticalSpacing(12)
-        self.purchase = QDoubleSpinBox()
-        self.purchase.setRange(0, 1_000_000)
-        self.purchase.setDecimals(2)
-        self.purchase.setSpecialValueText("Not provided")
-        self.quantity = QDoubleSpinBox()
-        self.quantity.setRange(0, 1_000_000_000)
-        self.quantity.setDecimals(4)
-        self.quantity.setSpecialValueText("Not provided")
-        self.risk = QComboBox()
-        self.risk.addItems(["Not provided", "Conservative", "Moderate", "Aggressive"])
-        position_form.addRow("Purchase price", self.purchase)
-        position_form.addRow("Quantity", self.quantity)
-        position_form.addRow("Risk tolerance", self.risk)
-        self.position_card.setVisible(False)
-        outer.addWidget(self.position_card)
+        self.query.setPlaceholderText("Axon, AXON, Apple, AAPL…")
+        self.query.setObjectName("ResearchQuery")
+        begin = QPushButton("Begin Research", objectName="Gold")
+        begin.clicked.connect(self._start_research)
+        card_layout.addWidget(prompt)
+        card_layout.addWidget(self.query)
+        card_layout.addWidget(begin, 0)
+        centered = QHBoxLayout()
+        centered.addStretch()
+        centered.addWidget(card)
+        centered.addStretch()
+        outer.addLayout(centered)
 
         self.research_mode = QComboBox()
         self.research_mode.addItems(["Live Market Research", "Demo / Offline Test"])
@@ -160,22 +139,12 @@ class MainWindow(QMainWindow):
         self.use_ycharts.setChecked(True)
 
         self.settings_dialog = self._build_settings_dialog()
-        self.research_mode.currentTextChanged.connect(self._update_settings_summary)
-        self.synthesis_provider.currentTextChanged.connect(self._update_settings_summary)
-        self.use_ycharts.toggled.connect(self._update_settings_summary)
-        self.settings_summary = QLabel()
-        self.settings_summary.setObjectName("SettingsSummary")
-        self._update_settings_summary()
-        outer.addWidget(self.settings_summary)
-        outer.addStretch()
+        outer.addStretch(2)
         actions = QHBoxLayout()
         settings_button = QPushButton("Research Settings", objectName="Secondary")
         settings_button.clicked.connect(self.settings_dialog.open)
         actions.addWidget(settings_button)
         actions.addStretch()
-        run = QPushButton("Start Research")
-        run.clicked.connect(self._start_research)
-        actions.addWidget(run)
         outer.addLayout(actions)
         return page
 
@@ -202,17 +171,6 @@ class MainWindow(QMainWindow):
         buttons.rejected.connect(dialog.close)
         outer.addWidget(buttons)
         return dialog
-
-    def _toggle_position_details(self, visible: bool) -> None:
-        self.position_card.setVisible(visible)
-        self.position_toggle.setText("− Hide position details" if visible else "+ Add position details")
-
-    def _update_settings_summary(self, *_args) -> None:
-        if not hasattr(self, "settings_summary"):
-            return
-        mode = "Live research" if self.research_mode.currentText().startswith("Live") else "Demo mode"
-        ycharts = "YCharts on" if self.use_ycharts.isChecked() else "YCharts off"
-        self.settings_summary.setText(f"{mode}  •  {self.synthesis_provider.currentText()} synthesis  •  {ycharts}")
 
     def _build_review(self) -> QWidget:
         page, outer = self._page_shell("Evidence Review", "Confirm the resolved security and preliminary analysis before creating the PDF.")
@@ -253,12 +211,23 @@ class MainWindow(QMainWindow):
         return page
 
     def _request(self) -> ResearchRequest:
-        purchase = self.purchase.value() or None
-        quantity = self.quantity.value() or None
-        risk = "" if self.risk.currentIndex() == 0 else self.risk.currentText()
-        return ResearchRequest(self.query.text(), Horizon(self.horizon.currentText()), purchase, quantity, risk, self.question.text().strip())
+        return ResearchRequest(self.query.text(), Horizon(self.selected_horizon))
 
     def _start_research(self) -> None:
+        if not self.query.text().strip():
+            QMessageBox.warning(self, "Choose a stock", "Enter a company name or ticker.")
+            return
+        horizon, accepted = QInputDialog.getItem(
+            self,
+            "Investment Horizon",
+            "What time horizon should this analysis target?",
+            [item.value for item in Horizon],
+            1,
+            False,
+        )
+        if not accepted:
+            return
+        self.selected_horizon = horizon
         try:
             request = self._request()
             request.validate()
