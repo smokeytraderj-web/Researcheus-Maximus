@@ -69,9 +69,15 @@ def _styles():
         "table_header": ParagraphStyle("TableHeader", parent=base["BodyText"], fontName=bold, fontSize=7.0, leading=8.6, textColor=colors.white),
         "tiny": ParagraphStyle("Tiny", parent=base["BodyText"], fontName=regular, fontSize=6.1, leading=7.8, textColor=MUTED),
         "rating": ParagraphStyle("Rating", parent=base["Normal"], fontName=display, fontSize=15.5, leading=18, textColor=NAVY, alignment=TA_CENTER),
+        "rating_primary_label": ParagraphStyle("RatingPrimaryLabel", parent=base["Normal"], fontName=bold, fontSize=7.0, leading=8.5, textColor=GOLD, alignment=TA_CENTER),
+        "rating_primary": ParagraphStyle("RatingPrimary", parent=base["Normal"], fontName=display, fontSize=18.5, leading=21, textColor=colors.white, alignment=TA_CENTER),
+        "rating_support_label": ParagraphStyle("RatingSupportLabel", parent=base["Normal"], fontName=bold, fontSize=6.8, leading=8.2, textColor=MUTED, alignment=TA_CENTER),
+        "rating_support": ParagraphStyle("RatingSupport", parent=base["Normal"], fontName=display, fontSize=13.2, leading=16, textColor=NAVY, alignment=TA_CENTER),
+        "question": ParagraphStyle("Question", parent=base["BodyText"], fontName=bold, fontSize=8.0, leading=10.5, textColor=NAVY, spaceAfter=3),
+        "summary_answer": ParagraphStyle("SummaryAnswer", parent=base["BodyText"], fontName=regular, fontSize=9.0, leading=12.3, textColor=INK),
         "action_label": ParagraphStyle("ActionLabel", parent=base["Normal"], fontName=bold, fontSize=7.0, leading=8.5, textColor=GOLD),
-        "action_big": ParagraphStyle("ActionBig", parent=base["Normal"], fontName=display, fontSize=12.5, leading=15, textColor=NAVY),
-        "action_detail": ParagraphStyle("ActionDetail", parent=base["BodyText"], fontName=regular, fontSize=7.7, leading=10.3, textColor=INK),
+        "action_big": ParagraphStyle("ActionBig", parent=base["Normal"], fontName=display, fontSize=13.5, leading=16, textColor=NAVY),
+        "action_detail": ParagraphStyle("ActionDetail", parent=base["BodyText"], fontName=regular, fontSize=8.0, leading=10.8, textColor=INK),
         "action_value": ParagraphStyle("ActionValue", parent=base["Normal"], fontName=bold, fontSize=8.8, leading=10.5, textColor=NAVY, alignment=TA_LEFT),
         "value": ParagraphStyle("Value", parent=base["Normal"], fontName=bold, fontSize=8.0, leading=9.8, textColor=NAVY, alignment=TA_RIGHT),
         "metric_label": ParagraphStyle("MetricLabel", parent=base["BodyText"], fontName=regular, fontSize=7.5, leading=9.5, textColor=INK),
@@ -197,27 +203,28 @@ def _rating_box(result: ResearchResult, styles, *, price_label: str = "CURRENT P
     box = Table(
         [
             [
-                Paragraph("OVERALL RATING", styles["small"]),
-                Paragraph("TECHNICAL SETUP", styles["small"]),
-                Paragraph("FUNDAMENTAL OUTLOOK", styles["small"]),
-                Paragraph(_safe(price_label), styles["small"]),
+                Paragraph("OVERALL RATING", styles["rating_primary_label"]),
+                Paragraph("TECHNICAL SETUP", styles["rating_support_label"]),
+                Paragraph("FUNDAMENTAL OUTLOOK", styles["rating_support_label"]),
+                Paragraph(_safe(price_label), styles["rating_support_label"]),
             ],
             [
-                Paragraph(_safe(result.lead_rating.value), styles["rating"]),
-                Paragraph(_safe(technical_setup(result.technical.rating)), styles["rating"]),
-                Paragraph(_safe(fundamental_outlook(result.fundamental.rating)), styles["rating"]),
-                Paragraph(f"${result.current_price:,.2f}", styles["rating"]),
+                Paragraph(_safe(result.lead_rating.value), styles["rating_primary"]),
+                Paragraph(_safe(technical_setup(result.technical.rating)), styles["rating_support"]),
+                Paragraph(_safe(fundamental_outlook(result.fundamental.rating)), styles["rating_support"]),
+                Paragraph(f"${result.current_price:,.2f}", styles["rating_support"]),
             ],
         ],
-        colWidths=[1.8125 * inch] * 4,
+        colWidths=[2.2 * inch, 1.68 * inch, 1.75 * inch, 1.62 * inch],
     )
     box.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BACKGROUND", (0, 0), (0, -1), NAVY),
+                ("BACKGROUND", (1, 0), (-1, -1), colors.white),
                 ("BOX", (0, 0), (-1, -1), 0.55, LINE),
                 ("LINEABOVE", (0, 0), (-1, 0), 2.0, GOLD),
-                ("INNERGRID", (0, 0), (-1, -1), 0.25, LINE),
+                ("LINEBEFORE", (1, 0), (-1, -1), 0.25, LINE),
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("TOPPADDING", (0, 0), (-1, 0), 5),
@@ -228,6 +235,32 @@ def _rating_box(result: ResearchResult, styles, *, price_label: str = "CURRENT P
         )
     )
     return box
+
+
+def _request_answer_card(result: ResearchResult, request: ResearchRequest, styles) -> Table | None:
+    if not result.request_response:
+        return None
+    question = request.question.strip() or request.query.strip()
+    content = [
+        Paragraph("RESPONSE TO YOUR REQUEST", styles["request_label"]),
+        Paragraph(f"<b>Your question:</b> {_safe(question)}", styles["question"]),
+        Paragraph(_safe(result.request_response), styles["summary_answer"]),
+    ]
+    card = Table([[content]], colWidths=[7.25 * inch], hAlign="LEFT")
+    card.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), PALE),
+                ("LINEBEFORE", (0, 0), (0, -1), 3.0, GOLD),
+                ("BOX", (0, 0), (-1, -1), 0.4, LINE),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+            ]
+        )
+    )
+    return card
 
 
 def _comparison_preference_box(result: ResearchResult, styles, *, historical_range: bool = False) -> Table:
@@ -786,21 +819,47 @@ def _technical_action_plan_story(result: ResearchResult, styles) -> list:
     entry_zone = f"${plan.entry_low:,.2f}-${plan.entry_high:,.2f}"
     stop = f"${plan.stop_level:,.2f}"
     targets = f"${plan.first_target:,.2f} / ${plan.second_target:,.2f}"
-    cards = Table(
+    position_card = Table(
         [[
             [
                 Paragraph("POSITION IDEA", styles["action_label"]),
                 Paragraph(_safe(plan.stance), styles["action_big"]),
                 Paragraph(
-                    f"{_safe(plan.order_type)}<br/><b>Entry:</b> {_safe(entry_zone)}<br/><b>Market:</b> {_safe(plan.market_condition)}",
+                    f"<b>Order approach:</b> {_safe(plan.order_type)}<br/><b>Market condition:</b> {_safe(plan.market_condition)}",
                     styles["action_detail"],
                 ),
             ],
             [
+                Paragraph("PLANNED ENTRY", styles["action_label"]),
+                Paragraph(_safe(entry_zone), styles["action_big"]),
+                Paragraph("Use the range only if the confirmation condition is met.", styles["action_detail"]),
+            ],
+        ]],
+        colWidths=[4.55 * inch, 2.6 * inch],
+        hAlign="LEFT",
+    )
+    position_card.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.45, LINE),
+                ("LINEABOVE", (0, 0), (-1, 0), 2.0, GOLD),
+                ("LINEBEFORE", (1, 0), (1, -1), 0.35, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+            ]
+        )
+    )
+    risk_target_cards = Table(
+        [[
+            [
                 Paragraph("STOP-LOSS IDEA", styles["action_label"]),
                 Paragraph(_safe(stop), styles["action_big"]),
                 Paragraph(
-                    f"{plan.stop_pct:.1%} below entry midpoint<br/><b>Idea fails if:</b> {_safe(plan.invalidation)}",
+                    f"<b>Distance:</b> {plan.stop_pct:.1%} below entry midpoint<br/><b>Idea fails if:</b> {_safe(plan.invalidation)}",
                     styles["action_detail"],
                 ),
             ],
@@ -808,31 +867,46 @@ def _technical_action_plan_story(result: ResearchResult, styles) -> list:
                 Paragraph("TARGETS", styles["action_label"]),
                 Paragraph(_safe(targets), styles["action_big"]),
                 Paragraph(
-                    f"{plan.reward_risk:.2f}x to Target 1<br/><b>Confirm with:</b> {_safe(plan.confirmation)}",
+                    f"<b>Reward/risk:</b> {plan.reward_risk:.2f}x to Target 1<br/><b>Confirm with:</b> {_safe(plan.confirmation)}",
                     styles["action_detail"],
                 ),
             ],
         ]],
-        colWidths=[2.33 * inch, 2.33 * inch, 2.49 * inch],
+        colWidths=[3.575 * inch, 3.575 * inch],
         hAlign="LEFT",
     )
-    cards.setStyle(
+    risk_target_cards.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BACKGROUND", (0, 0), (-1, -1), PALE),
                 ("BOX", (0, 0), (-1, -1), 0.45, LINE),
                 ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
-                ("LINEABOVE", (0, 0), (-1, 0), 2.0, GOLD),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
                 ("TOPPADDING", (0, 0), (-1, -1), 9),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
             ]
         )
     )
-    story = [cards, Spacer(1, 0.08 * inch)]
-    story.append(Paragraph(f"<b>Why these levels:</b> {_safe(' '.join(plan.rationale[:3]))}", styles["body"]))
+    rationale = [
+        Paragraph("WHY THESE LEVELS", styles["action_label"]),
+        *_bullet_text(plan.rationale[:3], styles["compact"]),
+    ]
+    rationale_card = Table([[rationale]], colWidths=[7.15 * inch], hAlign="LEFT")
+    rationale_card.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("LINEBEFORE", (0, 0), (0, -1), 2.5, GOLD),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    story = [position_card, Spacer(1, 0.08 * inch), risk_target_cards, Spacer(1, 0.07 * inch), rationale_card]
     if plan.options_strategy:
         options = Table(
             [
@@ -852,7 +926,7 @@ def _technical_action_plan_story(result: ResearchResult, styles) -> list:
             TableStyle(
                 [
                     ("BACKGROUND", (0, 0), (0, 0), NAVY),
-                    ("BACKGROUND", (1, 0), (1, 0), PALE),
+                    ("BACKGROUND", (1, 0), (1, 0), colors.white),
                     ("BOX", (0, 0), (-1, -1), 0.45, LINE),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
                     ("LEFTPADDING", (0, 0), (-1, -1), 9),
@@ -862,7 +936,7 @@ def _technical_action_plan_story(result: ResearchResult, styles) -> list:
                 ]
             )
         )
-        story.append(options)
+        story += [Spacer(1, 0.07 * inch), options]
     return story
 
 
@@ -1187,15 +1261,11 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
         return destination
 
-    story += [
-        _rating_box(result, styles, price_label="RANGE-END PRICE" if custom_range else "CURRENT PRICE"),
-        Paragraph("Investment Summary", styles["section"]),
-    ]
-    if result.request_response:
-        story += [
-            Paragraph("RESPONSE TO YOUR REQUEST", styles["request_label"]),
-            Paragraph(_safe(result.request_response), styles["request_response"]),
-        ]
+    story += [_rating_box(result, styles, price_label="RANGE-END PRICE" if custom_range else "CURRENT PRICE")]
+    story += [Paragraph("Investment Summary", styles["section"])]
+    request_card = _request_answer_card(result, request, styles)
+    if request_card is not None:
+        story += [request_card, Spacer(1, 0.07 * inch)]
     story += [
         Paragraph(
             f"<b>Overall Conclusion:</b> {_safe(_first_sentence(_overall_conclusion_text(result.executive_summary)))}",
@@ -1203,9 +1273,9 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         ),
     ]
     if result.overview_chart and Path(result.overview_chart.path).is_file():
-        story.append(Paragraph(_safe(result.overview_chart.title), styles["section"]))
+        story += [Spacer(1, 0.04 * inch), Paragraph(_safe(result.overview_chart.title), styles["subsection"])]
         overview_image = Image(result.overview_chart.path)
-        overview_image._restrictSize(7.15 * inch, 4.0 * inch)
+        overview_image._restrictSize(7.25 * inch, 3.55 * inch)
         story.append(overview_image)
     story += [PageBreak(), *_content_header("Position and Risk Plan", page_meta, styles)]
 
