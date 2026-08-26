@@ -37,6 +37,9 @@ class ResearchRequest:
     quantity: float | None = None
     risk_tolerance: str = ""
     question: str = ""
+    deep_analysis: bool = False
+    comparison_symbols: tuple[str, ...] = ()
+    requested_charts: tuple[str, ...] = ()
 
     def validate(self) -> None:
         if not self.query.strip():
@@ -45,6 +48,8 @@ class ResearchRequest:
             raise ValueError("Purchase price must be greater than zero.")
         if self.quantity is not None and self.quantity <= 0:
             raise ValueError("Quantity must be greater than zero.")
+        if len(self.comparison_symbols) > 3:
+            raise ValueError("Deep analysis supports up to three comparison symbols.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +85,13 @@ class Strategy:
 
 
 @dataclass(frozen=True, slots=True)
+class ChartRecord:
+    title: str
+    path: str
+    insight: str
+
+
+@dataclass(frozen=True, slots=True)
 class ResearchResult:
     identity: SecurityIdentity
     horizon: Horizon
@@ -102,6 +114,8 @@ class ResearchResult:
     chart_path: str = ""
     demo_mode: bool = False
     ycharts_audit: tuple[tuple[str, str, str], ...] = ()
+    analysis_mode: str = "Standard Research"
+    chartbook: tuple[ChartRecord, ...] = ()
 
     def validate(self) -> None:
         if self.current_price <= 0:
