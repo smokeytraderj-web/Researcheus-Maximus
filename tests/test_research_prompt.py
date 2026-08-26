@@ -1,6 +1,11 @@
 import unittest
 
-from core.research_prompt import append_revision_instructions, parse_deep_analysis_prompt, parse_research_prompt
+from core.research_prompt import (
+    append_revision_instructions,
+    parse_comparison_prompt,
+    parse_deep_analysis_prompt,
+    parse_research_prompt,
+)
 
 
 class ResearchPromptTests(unittest.TestCase):
@@ -53,6 +58,16 @@ class ResearchPromptTests(unittest.TestCase):
         _query, _brief, comparisons, charts = parse_deep_analysis_prompt(revised)
         self.assertEqual(comparisons, ("SPY", "NVDA"))
         self.assertIn("risk", charts)
+
+    def test_comparison_prompt_extracts_two_tickers_and_preserves_question(self):
+        prompt = "AVGO vs NVDA - Which currently offers better value?"
+        primary, secondary, brief = parse_comparison_prompt(prompt)
+        self.assertEqual((primary, secondary), ("AVGO", "NVDA"))
+        self.assertEqual(brief, prompt)
+
+    def test_comparison_prompt_accepts_company_names(self):
+        primary, secondary, _brief = parse_comparison_prompt("Apple versus Microsoft")
+        self.assertEqual((primary, secondary), ("Apple", "Microsoft"))
 
 
 if __name__ == "__main__":

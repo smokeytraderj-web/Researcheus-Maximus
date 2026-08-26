@@ -8,6 +8,7 @@ from urllib.parse import quote
 
 from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
 from core.models import ChartRecord, Confidence, Horizon, Rating, ResearchRequest, ResearchResult, SecurityIdentity, SourceRecord
+from research.comparison import build_comparison_assessment
 from research.synthesis import deterministic_synthesis, ollama_synthesize, openai_synthesize
 from research.technical import (
     analyze_history,
@@ -336,6 +337,74 @@ class LiveResearchProvider:
         exchange = str(info.get("fullExchangeName") or resolved.get("exchange") or "Unconfirmed")
         currency = str(info.get("currency") or "USD")
         quote_type = str(info.get("quoteType") or resolved.get("quoteType") or "Equity")
+        primary_identity = SecurityIdentity(company, symbol, exchange, currency)
+        comparison_assessment = None
+        comparison_info = {}
+        secondary_snapshot = None
+        secondary_identity = None
+        secondary_technical = None
+        secondary_symbol = ""
+        if request.comparison_analysis:
+            try:
+                secondary_yf, secondary_ticker, secondary_resolved = self._resolve(request.comparison_query)
+                secondary_symbol = str(secondary_resolved.get("symbol") or secondary_ticker.ticker).upper()
+                if secondary_symbol == symbol:
+                    raise ValueError("Choose two different securities or funds to compare.")
+                secondary_history = self._history(
+                    secondary_yf,
+                    secondary_ticker,
+                    secondary_symbol,
+                    self._market_session,
+                )
+                secondary_snapshot = analyze_history(secondary_history)
+                try:
+                    comparison_info = secondary_ticker.get_info() or {}
+                except Exception:
+                    comparison_info = {}
+                if not comparison_info.get("longName") or not comparison_info.get("fullExchangeName"):
+                    try:
+                        secondary_fallback = _nasdaq_quote_metadata(self._market_session, secondary_symbol)
+                    except Exception:
+                        secondary_fallback = {}
+                    for key, value in secondary_fallback.items():
+                        if value and not comparison_info.get(key):
+                            comparison_info[key] = value
+                secondary_identity = SecurityIdentity(
+                    str(
+                        comparison_info.get("longName")
+                        or secondary_resolved.get("longname")
+                        or secondary_resolved.get("shortname")
+                        or secondary_symbol
+                    ),
+                    secondary_symbol,
+                    str(
+                        comparison_info.get("fullExchangeName")
+                        or secondary_resolved.get("exchange")
+                        or "Unconfirmed"
+                    ),
+                    str(comparison_info.get("currency") or "USD"),
+                )
+                secondary_technical = technical_finding(secondary_snapshot)
+                comparison_assessment = build_comparison_assessment(
+                    primary_identity,
+                    snapshot.price,
+                    info,
+                    snapshot,
+                    technical,
+                    secondary_identity,
+                    secondary_snapshot.price,
+                    comparison_info,
+                    secondary_snapshot,
+                    secondary_technical,
+                )
+                comparison_histories[secondary_symbol] = secondary_history
+            except ValueError:
+                raise
+            except Exception as exc:
+                raise RuntimeError(
+                    f"The second security ({request.comparison_query}) could not be retrieved for comparison. "
+                    f"Confirm the company or ticker and try again. Details: {exc}"
+                ) from exc
         now = dt.datetime.now(dt.timezone.utc).astimezone().isoformat(timespec="minutes")
         try:
             raw_news = ticker.get_news(count=10) or []
@@ -372,6 +441,20 @@ class LiveResearchProvider:
                 "question": request.question,
             },
         }
+        if comparison_assessment and secondary_snapshot is not None:
+            market["analysis_mode"] = "Security Comparison"
+            market["comparison_security"] = {
+                "company": comparison_assessment.secondary_identity.company_name,
+                "ticker": comparison_assessment.secondary_identity.ticker,
+                "current_price": comparison_assessment.secondary_price,
+                "forward_pe": comparison_info.get("forwardPE"),
+                "price_to_sales": comparison_info.get("priceToSalesTrailing12Months"),
+                "revenue_growth": comparison_info.get("revenueGrowth"),
+                "earnings_growth": comparison_info.get("earningsGrowth"),
+                "profit_margin": comparison_info.get("profitMargins"),
+                "analyst_target_mean": comparison_info.get("targetMeanPrice"),
+                "technical": dict(secondary_snapshot.as_metrics()),
+            }
         ycharts_values = ()
         ycharts_errors = ()
         ycharts_audit = ()
@@ -382,6 +465,44 @@ class LiveResearchProvider:
             ycharts_audit = ycharts.audit
             if ycharts_values:
                 market["ycharts_excel"] = dict(ycharts_values)
+            if request.comparison_analysis and secondary_symbol:
+                secondary_ycharts = retrieve_ycharts_metrics(secondary_symbol, workspace)
+                ycharts_errors = tuple(ycharts_errors) + tuple(
+                    f"{secondary_symbol}: {error}" for error in secondary_ycharts.errors
+                )
+                ycharts_audit = tuple(
+                    (f"{cell} ({symbol})", formula, status) for cell, formula, status in ycharts_audit
+                ) + tuple(
+                    (f"{cell} ({secondary_symbol})", formula, status)
+                    for cell, formula, status in secondary_ycharts.audit
+                )
+                primary_comparison_info = dict(info)
+                secondary_comparison_info = dict(comparison_info)
+                primary_ycharts = dict(ycharts_values)
+                secondary_ycharts_values = dict(secondary_ycharts.values)
+                for target, evidence in (
+                    (primary_comparison_info, primary_ycharts),
+                    (secondary_comparison_info, secondary_ycharts_values),
+                ):
+                    target.setdefault("forwardPE", evidence.get("YCharts P/E ratio"))
+                    target.setdefault(
+                        "priceToSalesTrailing12Months",
+                        evidence.get("YCharts price/sales ratio"),
+                    )
+                    target.setdefault("targetMeanPrice", evidence.get("YCharts price target"))
+                if secondary_identity and secondary_snapshot and secondary_technical:
+                    comparison_assessment = build_comparison_assessment(
+                        primary_identity,
+                        snapshot.price,
+                        primary_comparison_info,
+                        snapshot,
+                        technical,
+                        secondary_identity,
+                        secondary_snapshot.price,
+                        secondary_comparison_info,
+                        secondary_snapshot,
+                        secondary_technical,
+                    )
         provider = self.synthesis_provider.lower()
         errors = []
         synthesis = None
@@ -417,7 +538,15 @@ class LiveResearchProvider:
         chart_path = ""
         chartbook = []
         if workspace is not None:
-            chart_path = str(render_chart(history, symbol, snapshot, workspace / "technical-chart.png"))
+            if request.comparison_analysis and comparison_histories:
+                chart_path = str(
+                    render_relative_performance_chart(
+                        {symbol: history, **comparison_histories},
+                        workspace / "security-comparison-chart.png",
+                    )
+                )
+            else:
+                chart_path = str(render_chart(history, symbol, snapshot, workspace / "technical-chart.png"))
             if request.deep_analysis:
                 if "momentum" in request.requested_charts:
                     momentum_path = render_momentum_chart(history, symbol, workspace / "momentum-chart.png")
@@ -470,7 +599,7 @@ class LiveResearchProvider:
                     f"{comparison_source} - {comparison_symbol}",
                     comparison_url,
                     now,
-                    "Comparison history used for normalized relative performance and relative-strength analysis",
+                    "Comparison history used for normalized performance and side-by-side analysis",
                 )
             )
         if metadata_fallback_used:
@@ -519,13 +648,36 @@ class LiveResearchProvider:
             f"{technical.summary}"
         )
         result = ResearchResult(
-            SecurityIdentity(company, symbol, exchange, currency), request.horizon, now, snapshot.price,
-            technical, synthesis.fundamental, synthesis.sentiment, lead, confidence, executive,
-            key_metrics, strategies(snapshot, request.horizon), synthesis.risks, synthesis.catalysts,
-            synthesis.change_conditions, tuple(sources), synthesis.provider_label, tuple(limitations), chart_path, False,
-            tuple(ycharts_audit),
-            "Deep Technical Analysis" if request.deep_analysis else "Standard Research",
-            tuple(chartbook),
+            identity=primary_identity,
+            horizon=request.horizon,
+            as_of=now,
+            current_price=snapshot.price,
+            technical=technical,
+            fundamental=synthesis.fundamental,
+            sentiment=synthesis.sentiment,
+            lead_rating=lead,
+            confidence=confidence,
+            executive_summary=executive,
+            key_metrics=key_metrics,
+            strategies=strategies(snapshot, request.horizon),
+            risks=synthesis.risks,
+            catalysts=synthesis.catalysts,
+            change_conditions=synthesis.change_conditions,
+            sources=tuple(sources),
+            provider_label=synthesis.provider_label,
+            limitations=tuple(limitations),
+            chart_path=chart_path,
+            demo_mode=False,
+            ycharts_audit=tuple(ycharts_audit),
+            analysis_mode=(
+                "Security Comparison"
+                if request.comparison_analysis
+                else "Deep Technical Analysis"
+                if request.deep_analysis
+                else "Standard Research"
+            ),
+            chartbook=tuple(chartbook),
+            comparison=comparison_assessment,
         )
         result.validate()
         return result

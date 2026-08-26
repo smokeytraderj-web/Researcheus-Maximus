@@ -6,6 +6,7 @@ The runnable application includes:
 
 - one conversational company/ticker research prompt with an automatic all-horizons framework;
 - a separate Deep Technical Analysis workspace for chart-specific research and benchmark/peer comparisons;
+- a two-security comparison workspace for stocks or funds, with one current evidence preference and a side-by-side report;
 - optional position context;
 - one Overall Rating supported by a Technical Setup, Fundamental Outlook, and plain-language interpretation;
 - a required evidence-review checkpoint;
@@ -35,14 +36,24 @@ Natural-language report modifications are applied by OpenAI or Ollama. Determini
 
 ## Deep Technical Analysis
 
-Choose **Try Deep Analysis** from the right side of the research card. Start the prompt with the primary company or ticker, then name up to three comparison symbols and the technical work you want. For example:
+The landing page presents three clear choices: **Research Overview**, **Deep Analysis**, and **Compare Securities**. Choose **Open Deep Analysis**, start the prompt with the primary company or ticker, then name up to three comparison symbols and the technical work you want. For example:
 
 ```text
 AVGO - Compare against NVDA, SOXX, and SPY. Analyze trend, RSI, MACD,
 relative performance, drawdown, volatility, support, and resistance.
 ```
 
-Every deep report includes the primary price/trend chart, RSI/MACD, and normalized relative performance. SPY is the default comparison when none is named. Asking for drawdown, volatility, or a risk chart adds a drawdown and realized-volatility study. Deep Analysis weights technical evidence 70% and fundamental evidence 30%. Three-month relative strength is disclosed in the metrics and may move the technical assessment by one rating step; the report states when that adjustment occurs. Unavailable comparison data is disclosed and never fabricated.
+Every technical workflow uses a six-month Fibonacci swing range. The 38.2%, 50%, and 61.8% retracement levels are included in the technical score, written signals, strategy context, key metrics, and primary price chart. Every deep report also includes RSI/MACD and normalized relative performance. SPY is the default comparison when none is named. Asking for drawdown, volatility, or a risk chart adds a drawdown and realized-volatility study. Deep Analysis weights technical evidence 70% and fundamental evidence 30%. Three-month relative strength is disclosed in the metrics and may move the technical assessment by one rating step; the report states when that adjustment occurs. Unavailable comparison data is disclosed and never fabricated.
+
+## Compare Securities
+
+Choose **Compare Securities** and name two stocks or funds in one prompt. Company names and tickers are both supported. For example:
+
+```text
+AVGO vs NVDA - Which currently offers better value and risk-adjusted opportunity?
+```
+
+The comparison retrieves both securities and analyzes their technical setups, Fibonacci position, normalized relative performance, valuation, growth, margins, analyst-target upside, and fund expense ratios or three-year returns when those fields are available for both. Current price is shown as context, not treated as a measure of cheapness. The report identifies one **current evidence preference**, explains every metric edge, and states when no clear winner exists. It does not convert missing data into an estimate or claim that the preferred security is universally appropriate; portfolio role, concentration, tax, liquidity, and risk considerations remain part of the decision.
 
 ## Run on Windows
 

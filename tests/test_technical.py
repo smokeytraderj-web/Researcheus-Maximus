@@ -9,6 +9,7 @@ from core.models import Horizon, Rating, SpecialistFinding
 from research.technical import (
     analyze_history,
     incorporate_relative_performance,
+    render_chart,
     render_momentum_chart,
     render_relative_performance_chart,
     render_risk_chart,
@@ -37,11 +38,15 @@ class TechnicalAnalysisTests(unittest.TestCase):
         self.assertIsNotNone(snapshot.sma200)
         self.assertGreater(snapshot.resistance, snapshot.support)
         self.assertGreater(snapshot.atr14, 0)
+        self.assertGreater(snapshot.fib_swing_high, snapshot.fib_swing_low)
+        self.assertGreater(snapshot.fib_38_2, snapshot.fib_50)
+        self.assertGreater(snapshot.fib_50, snapshot.fib_61_8)
 
     def test_finding_uses_fixed_rating_scale(self):
         finding = technical_finding(analyze_history(self._history()))
         self.assertIn(finding.rating.value, {"Strong Buy", "Buy", "Add", "Hold", "Reduce", "Sell", "Avoid"})
         self.assertGreaterEqual(len(finding.signals), 3)
+        self.assertTrue(any("Fibonacci" in signal for signal in finding.signals))
 
     def test_rejects_insufficient_history(self):
         with self.assertRaises(ValueError):
@@ -74,6 +79,7 @@ class TechnicalAnalysisTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             outputs = (
+                render_chart(primary, "AXON", analyze_history(primary), root / "price.png"),
                 render_momentum_chart(primary, "AXON", root / "momentum.png"),
                 render_relative_performance_chart(
                     {"AXON": primary, "SPY": benchmark},

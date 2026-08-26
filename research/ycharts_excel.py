@@ -125,7 +125,7 @@ def retrieve_ycharts_metrics(ticker: str, workspace: Path, timeout: int = 60) ->
             sheet.Cells(row, 7).Value = status
             audit.append((f"F{row}", formula, status))
         sheet.Columns("A:G").AutoFit()
-        output = workspace / "ycharts-evidence.xlsx"
+        output = workspace / f"ycharts-evidence-{ticker}.xlsx"
         workbook.SaveAs(str(output), FileFormat=51)
         if not values:
             addin_note = "The installed YCharts add-in was detected but returned no usable metrics." if addin_found else "No YCharts add-in was detected in the isolated Excel session."

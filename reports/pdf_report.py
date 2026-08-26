@@ -117,6 +117,116 @@ def _rating_box(result: ResearchResult, styles) -> Table:
     return box
 
 
+def _comparison_preference_box(result: ResearchResult, styles) -> Table:
+    comparison = result.comparison
+    assert comparison is not None
+    box = Table(
+        [
+            [
+                Paragraph("CURRENT EVIDENCE PREFERENCE", styles["small"]),
+                Paragraph(result.identity.ticker, styles["small"]),
+                Paragraph(comparison.secondary_identity.ticker, styles["small"]),
+            ],
+            [
+                Paragraph(_safe(comparison.preferred_ticker), styles["rating"]),
+                Paragraph(f"${result.current_price:,.2f}", styles["rating"]),
+                Paragraph(f"${comparison.secondary_price:,.2f}", styles["rating"]),
+            ],
+        ],
+        colWidths=[3.65 * inch, 1.8 * inch, 1.8 * inch],
+    )
+    box.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), PALE),
+                ("BOX", (0, 0), (-1, -1), 0.8, NAVY),
+                ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, 0), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 3),
+                ("TOPPADDING", (0, 1), (-1, 1), 7),
+                ("BOTTOMPADDING", (0, 1), (-1, 1), 7),
+            ]
+        )
+    )
+    return box
+
+
+def _comparison_metric_table(result: ResearchResult, styles) -> Table:
+    comparison = result.comparison
+    assert comparison is not None
+    rows = [[
+        Paragraph("METRIC", styles["small"]),
+        Paragraph(_safe(result.identity.ticker), styles["small"]),
+        Paragraph(_safe(comparison.secondary_identity.ticker), styles["small"]),
+        Paragraph("CURRENT EDGE", styles["small"]),
+    ]]
+    rows.extend(
+        [
+            Paragraph(_safe(label), styles["compact"]),
+            Paragraph(_safe(primary), styles["value"]),
+            Paragraph(_safe(secondary), styles["value"]),
+            Paragraph(_safe(edge), styles["compact"]),
+        ]
+        for label, primary, secondary, edge in comparison.metrics
+    )
+    table = Table(rows, colWidths=[2.15 * inch, 1.65 * inch, 1.65 * inch, 1.8 * inch], repeatRows=1)
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.5, LINE),
+                ("INNERGRID", (0, 0), (-1, -1), 0.25, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 4.5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4.5),
+            ]
+        )
+    )
+    return table
+
+
+def _comparison_technical_cards(result: ResearchResult, styles) -> Table:
+    comparison = result.comparison
+    assert comparison is not None
+    cards = []
+    for identity, finding in (
+        (result.identity, result.technical),
+        (comparison.secondary_identity, comparison.secondary_technical),
+    ):
+        cards.append(
+            [
+                Paragraph(
+                    f"<b>{_safe(identity.ticker)} - {_safe(technical_setup(finding.rating))}</b>",
+                    styles["body"],
+                ),
+                Paragraph(_safe(finding.summary), styles["compact"]),
+                *_bullet_text(finding.signals, styles["small"], 3),
+            ]
+        )
+    table = Table([cards], colWidths=[3.575 * inch, 3.575 * inch])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), PALE),
+                ("BOX", (0, 0), (-1, -1), 0.45, LINE),
+                ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    return table
+
+
 _METRIC_PRIORITY = (
     "User purchase price",
     "Gain/loss from purchase price",
@@ -139,6 +249,8 @@ _METRIC_PRIORITY = (
     "ATR (14)",
     "Volume vs. 20-day avg.",
     "60-day support / resistance",
+    "6-month Fibonacci swing range",
+    "Fibonacci 38.2% / 50% / 61.8%",
 )
 
 
@@ -330,20 +442,73 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         pageCompression=1,
     )
     as_of = result.as_of.replace("T", " ")
+    comparison = result.comparison
+    report_title = (
+        f"{result.identity.ticker} vs {comparison.secondary_identity.ticker}"
+        if comparison
+        else f"{result.identity.company_name} ({result.identity.ticker})"
+    )
+    report_subtitle = (
+        f"Security Comparison | {_safe(result.identity.currency)} | As of {_safe(as_of)} | Confidence: {_safe(result.confidence.value)}"
+        if comparison
+        else f"{_safe(result.analysis_mode if request.deep_analysis else result.horizon.value + ' research')} | {_safe(result.identity.exchange)} | {_safe(result.identity.currency)} | As of {_safe(as_of)} | Confidence: {_safe(result.confidence.value)}"
+    )
     story = [
         Paragraph("GOTTFRIED &amp; SOMBERG WEALTH MANAGEMENT", styles["brand"]),
         Spacer(1, 0.05 * inch),
-        Paragraph(f"{_safe(result.identity.company_name)} ({_safe(result.identity.ticker)})", styles["title"]),
-        Paragraph(
-            f"{_safe(result.analysis_mode if request.deep_analysis else result.horizon.value + ' research')} | {_safe(result.identity.exchange)} | {_safe(result.identity.currency)} | As of {_safe(as_of)} | Confidence: {_safe(result.confidence.value)}",
-            styles["subtitle"],
-        ),
+        Paragraph(_safe(report_title), styles["title"]),
+        Paragraph(report_subtitle, styles["subtitle"]),
         Spacer(1, 0.11 * inch),
     ]
     if result.demo_mode:
         warning = Table([[Paragraph("DEMO MODE - Synthetic values for workflow validation. Not live investment research.", styles["body"])]], colWidths=[7.25 * inch])
         warning.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFF3D8")), ("BOX", (0, 0), (-1, -1), 0.7, GOLD), ("LEFTPADDING", (0, 0), (-1, -1), 8), ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5)]))
         story += [warning, Spacer(1, 0.08 * inch)]
+
+    if comparison:
+        story += [
+            _comparison_preference_box(result, styles),
+            Paragraph("Comparison View", styles["section"]),
+            Paragraph(_safe(comparison.verdict), styles["body"]),
+            *_bullet_text(comparison.rationale, styles["compact"]),
+        ]
+        if request.question:
+            story.append(Paragraph(f"<b>Research question:</b> {_safe(request.question)}", styles["small"]))
+        if result.chart_path and Path(result.chart_path).is_file():
+            comparison_chart = Image(result.chart_path)
+            comparison_chart._restrictSize(7.2 * inch, 4.35 * inch)
+            story += [
+                Spacer(1, 0.07 * inch),
+                comparison_chart,
+                Paragraph(
+                    "Source: attributed live price histories; series normalized to 100 on their first common trading date.",
+                    styles["small"],
+                ),
+            ]
+        story += [
+            PageBreak(),
+            Paragraph("Side-by-Side Evidence", styles["section"]),
+            _comparison_metric_table(result, styles),
+            Paragraph("Technical Setups", styles["section"]),
+            _comparison_technical_cards(result, styles),
+            Paragraph("How to Use This Preference", styles["section"]),
+            Paragraph(
+                "The highlighted preference is a comparison of the evidence available for both securities at the stated time. It is not an absolute recommendation. Portfolio role, concentration, taxes, liquidity needs, and risk capacity can change which security is more appropriate.",
+                styles["body"],
+            ),
+            Paragraph("Sources", styles["section"]),
+            _source_table(result, styles),
+        ]
+        if result.limitations:
+            story.append(Paragraph(f"<b>Limitations:</b> {_safe(' | '.join(result.limitations[:4]))}", styles["tiny"]))
+        story.append(
+            Paragraph(
+                "<b>Disclosure:</b> This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. The comparison is limited to like-for-like available evidence and may omit unavailable factors. Investing involves risk, including possible loss of principal. Firm compliance review is required before client distribution.",
+                styles["tiny"],
+            )
+        )
+        doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
+        return destination
 
     interpretation = assessment_interpretation(result.technical.rating, result.fundamental.rating)
     story += [

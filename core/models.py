@@ -40,6 +40,8 @@ class ResearchRequest:
     deep_analysis: bool = False
     comparison_symbols: tuple[str, ...] = ()
     requested_charts: tuple[str, ...] = ()
+    comparison_analysis: bool = False
+    comparison_query: str = ""
 
     def validate(self) -> None:
         if not self.query.strip():
@@ -50,6 +52,8 @@ class ResearchRequest:
             raise ValueError("Quantity must be greater than zero.")
         if len(self.comparison_symbols) > 3:
             raise ValueError("Deep analysis supports up to three comparison symbols.")
+        if self.comparison_analysis and not self.comparison_query.strip():
+            raise ValueError("Enter two securities or funds to compare.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +96,17 @@ class ChartRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class ComparisonAssessment:
+    secondary_identity: SecurityIdentity
+    secondary_price: float
+    secondary_technical: SpecialistFinding
+    preferred_ticker: str
+    verdict: str
+    rationale: tuple[str, ...]
+    metrics: tuple[tuple[str, str, str, str], ...]
+
+
+@dataclass(frozen=True, slots=True)
 class ResearchResult:
     identity: SecurityIdentity
     horizon: Horizon
@@ -116,6 +131,7 @@ class ResearchResult:
     ycharts_audit: tuple[tuple[str, str, str], ...] = ()
     analysis_mode: str = "Standard Research"
     chartbook: tuple[ChartRecord, ...] = ()
+    comparison: ComparisonAssessment | None = None
 
     def validate(self) -> None:
         if self.current_price <= 0:

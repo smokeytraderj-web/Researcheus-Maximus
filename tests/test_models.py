@@ -21,6 +21,10 @@ class ResearchRequestTests(unittest.TestCase):
                 comparison_symbols=("SPY", "QQQ", "IWM", "DIA"),
             ).validate()
 
+    def test_security_comparison_requires_second_security(self):
+        with self.assertRaisesRegex(ValueError, "two securities"):
+            ResearchRequest("AVGO", Horizon.ALL, comparison_analysis=True).validate()
+
 
 if __name__ == "__main__":
     unittest.main()

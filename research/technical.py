@@ -34,6 +34,11 @@ class TechnicalSnapshot:
     resistance: float
     return_1m: float
     return_3m: float
+    fib_swing_low: float
+    fib_swing_high: float
+    fib_38_2: float
+    fib_50: float
+    fib_61_8: float
     score: int
 
     def as_metrics(self) -> tuple[tuple[str, str], ...]:
@@ -47,6 +52,11 @@ class TechnicalSnapshot:
             ("ATR (14)", f"${self.atr14:,.2f}"),
             ("Volume vs. 20-day avg.", f"{self.volume_ratio:.2f}x"),
             ("60-day support / resistance", f"${self.support:,.2f} / ${self.resistance:,.2f}"),
+            ("6-month Fibonacci swing range", f"${self.fib_swing_low:,.2f} / ${self.fib_swing_high:,.2f}"),
+            (
+                "Fibonacci 38.2% / 50% / 61.8%",
+                f"${self.fib_38_2:,.2f} / ${self.fib_50:,.2f} / ${self.fib_61_8:,.2f}",
+            ),
         )
 
 
@@ -92,6 +102,13 @@ def analyze_history(history: pd.DataFrame) -> TechnicalSnapshot:
     volume_ratio = float(volume.iloc[-1] / vol_avg) if vol_avg > 0 else 1.0
     support = float(low.tail(60).min())
     resistance = float(high.tail(60).max())
+    fibonacci_window = frame.tail(min(126, len(frame)))
+    fib_swing_low = float(fibonacci_window["Low"].astype(float).min())
+    fib_swing_high = float(fibonacci_window["High"].astype(float).max())
+    fib_range = fib_swing_high - fib_swing_low
+    fib_38_2 = fib_swing_high - fib_range * 0.382
+    fib_50 = fib_swing_high - fib_range * 0.500
+    fib_61_8 = fib_swing_high - fib_range * 0.618
     return_1m = float(price / close.iloc[-22] - 1) if len(close) >= 22 else 0.0
     return_3m = float(price / close.iloc[-64] - 1) if len(close) >= 64 else 0.0
     score = 0
@@ -109,7 +126,28 @@ def analyze_history(history: pd.DataFrame) -> TechnicalSnapshot:
     else:
         score -= 1
     score += 1 if return_3m > 0 else -1
-    return TechnicalSnapshot(price, sma20, sma50, sma200, rsi14, macd, macd_signal, atr14, volume_ratio, support, resistance, return_1m, return_3m, score)
+    score += 1 if price >= fib_50 else -1
+    return TechnicalSnapshot(
+        price=price,
+        sma20=sma20,
+        sma50=sma50,
+        sma200=sma200,
+        rsi14=rsi14,
+        macd=macd,
+        macd_signal=macd_signal,
+        atr14=atr14,
+        volume_ratio=volume_ratio,
+        support=support,
+        resistance=resistance,
+        return_1m=return_1m,
+        return_3m=return_3m,
+        fib_swing_low=fib_swing_low,
+        fib_swing_high=fib_swing_high,
+        fib_38_2=fib_38_2,
+        fib_50=fib_50,
+        fib_61_8=fib_61_8,
+        score=score,
+    )
 
 
 def _rating(score: int) -> Rating:
@@ -130,6 +168,14 @@ def technical_finding(snapshot: TechnicalSnapshot) -> SpecialistFinding:
     trend = "above" if snapshot.price > snapshot.sma50 else "below"
     momentum = "positive" if snapshot.macd > snapshot.macd_signal else "negative"
     rsi_text = "overbought" if snapshot.rsi14 >= 70 else "oversold" if snapshot.rsi14 <= 30 else "neutral"
+    if snapshot.price >= snapshot.fib_38_2:
+        fibonacci_text = "above the 38.2% retracement, in the upper portion of the six-month swing range"
+    elif snapshot.price >= snapshot.fib_50:
+        fibonacci_text = "between the 38.2% and 50% retracement levels"
+    elif snapshot.price >= snapshot.fib_61_8:
+        fibonacci_text = "between the 50% and 61.8% retracement levels"
+    else:
+        fibonacci_text = "below the 61.8% retracement, signaling a deeper technical retracement"
     return SpecialistFinding(
         _rating(snapshot.score),
         f"Price is {trend} its 50-day trend measure; MACD momentum is {momentum}, while RSI is {rsi_text} at {snapshot.rsi14:.1f}.",
@@ -138,6 +184,10 @@ def technical_finding(snapshot: TechnicalSnapshot) -> SpecialistFinding:
             f"One-month return {snapshot.return_1m:+.1%}; three-month return {snapshot.return_3m:+.1%}.",
             f"MACD {snapshot.macd:.2f} versus signal {snapshot.macd_signal:.2f}; RSI (14) {snapshot.rsi14:.1f}.",
             f"60-day observed range ${snapshot.support:,.2f} to ${snapshot.resistance:,.2f}; ATR (14) ${snapshot.atr14:,.2f}.",
+            (
+                f"Fibonacci: price is {fibonacci_text}; 38.2%, 50%, and 61.8% levels are "
+                f"${snapshot.fib_38_2:,.2f}, ${snapshot.fib_50:,.2f}, and ${snapshot.fib_61_8:,.2f}."
+            ),
             f"Latest volume is {snapshot.volume_ratio:.2f}x the 20-day average.",
         ),
     )
@@ -200,7 +250,7 @@ def strategies(snapshot: TechnicalSnapshot, horizon: Horizon) -> tuple[Strategy,
     if snapshot.price < snapshot.sma20:
         first = Strategy(
             "Trend reclaim / staged entry",
-            f"Wait for a close back through ${snapshot.sma20 - buffer:,.2f}-${snapshot.sma20 + buffer:,.2f}; the current price is below this zone",
+            f"Wait for a close back through ${snapshot.sma20 - buffer:,.2f}-${snapshot.sma20 + buffer:,.2f}; monitor Fibonacci support at ${snapshot.fib_50:,.2f} and ${snapshot.fib_61_8:,.2f}",
             "The zone is reclaimed on a closing basis and MACD momentum turns higher",
             f"Sustained close below ${snapshot.support - buffer:,.2f}",
             "Buying before trend repair can add exposure while downside momentum remains active",
@@ -208,7 +258,7 @@ def strategies(snapshot: TechnicalSnapshot, horizon: Horizon) -> tuple[Strategy,
     else:
         first = Strategy(
             "Pullback entry or add",
-            f"Monitor ${snapshot.sma20 - buffer:,.2f}-${snapshot.sma20 + buffer:,.2f} around the 20-day trend",
+            f"Monitor ${snapshot.sma20 - buffer:,.2f}-${snapshot.sma20 + buffer:,.2f} around the 20-day trend, with Fibonacci support at ${snapshot.fib_50:,.2f} and ${snapshot.fib_61_8:,.2f}",
             "The zone holds on a closing basis and momentum turns higher",
             f"Sustained close below ${min(snapshot.support, snapshot.sma50) - buffer:,.2f}",
             "Trend support can fail during event-driven or broad-market selling",
@@ -241,10 +291,21 @@ def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot
         ax.plot(frame.index, sma200, color="#8B929A", linewidth=1.1, label="SMA 200")
     ax.axhline(snapshot.support, color="#B65050", linestyle="--", linewidth=0.9, label="60d support")
     ax.axhline(snapshot.resistance, color="#4A8A68", linestyle="--", linewidth=0.9, label="60d resistance")
-    ax.set_title(f"{ticker} - Price, Trend, Support and Resistance", loc="left", color="#14263D", fontweight="bold")
+    for level, label, color in (
+        (snapshot.fib_38_2, "Fib 38.2%", "#8E6BB8"),
+        (snapshot.fib_50, "Fib 50%", "#7D7D7D"),
+        (snapshot.fib_61_8, "Fib 61.8%", "#B06F57"),
+    ):
+        ax.axhline(level, color=color, linestyle=":", linewidth=0.9, label=label)
+    ax.set_title(
+        f"{ticker} - Price, Trend, Fibonacci, Support and Resistance",
+        loc="left",
+        color="#14263D",
+        fontweight="bold",
+    )
     ax.set_ylabel("Price (USD)")
     ax.grid(alpha=0.18)
-    ax.legend(ncol=3, fontsize=8, frameon=False, loc="upper left")
+    ax.legend(ncol=4, fontsize=7.2, frameon=False, loc="upper left")
     volume = frame["Volume"].fillna(0).astype(float)
     colors_v = np.where(close.diff().fillna(0) >= 0, "#6E9D85", "#C77A7A")
     vol.bar(frame.index, volume, color=colors_v, width=1.0, alpha=0.75)

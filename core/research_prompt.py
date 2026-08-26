@@ -99,3 +99,33 @@ def parse_deep_analysis_prompt(value: str) -> tuple[str, str, tuple[str, ...], t
     if any(term in lowered for term in ("drawdown", "volatility", "risk chart", "risk profile")):
         charts.append("risk")
     return query, prompt, comparisons, tuple(charts)
+
+
+def parse_comparison_prompt(value: str) -> tuple[str, str, str]:
+    """Extract two security or fund queries from a conversational comparison brief."""
+    prompt = value.strip()
+    if not prompt:
+        return "", "", ""
+    first_line = next((line.strip() for line in prompt.splitlines() if line.strip()), prompt)
+    versus = re.split(r"\s+(?:vs\.?|versus)\s+", first_line, maxsplit=1, flags=re.IGNORECASE)
+    if len(versus) == 2:
+        primary = re.sub(r"^compare\s+", "", versus[0], flags=re.IGNORECASE).strip(" $:,-")
+        secondary = re.split(r"\s+(?:—|–|-)\s+|\s*\|\s*|:\s+", versus[1], maxsplit=1)[0].strip(" $:,-")
+        return primary, secondary, prompt
+
+    compare = re.match(
+        r"compare\s+(.+?)\s+(?:with|to|and)\s+(.+?)(?:\s+(?:—|–|-)\s+|\s*\|\s*|:\s+|[?.]|$)",
+        first_line,
+        flags=re.IGNORECASE,
+    )
+    if compare:
+        return compare.group(1).strip(" $:,-"), compare.group(2).strip(" $:,-"), prompt
+
+    symbols = []
+    for match in _TICKER.finditer(prompt):
+        symbol = match.group(1).upper()
+        if symbol not in _TICKER_STOPWORDS and symbol not in symbols:
+            symbols.append(symbol)
+    if len(symbols) >= 2:
+        return symbols[0], symbols[1], prompt
+    return "", "", prompt
