@@ -10,7 +10,9 @@ The runnable application includes:
 - a separate Deep Technical Analysis workspace for chart-specific research and benchmark/peer comparisons;
 - a two-security comparison workspace for stocks or funds, with one evidence preference, sector-benchmark performance, and a side-by-side report;
 - optional position context;
-- one prominent Overall Conclusion and Overall Rating, supported by a Technical Setup and Fundamental Outlook;
+- one prominent, technically led Overall Rating, supported by a Technical Setup and Fundamental Outlook;
+- a first-page Technical Action Plan that converts the chart evidence into a stance, market condition, preferred order type, entry zone, technical stop and stop distance, two targets, and estimated reward/risk;
+- a conditional options-planning scenario for eligible stocks and ETFs, with defined-risk structures or stock-acquisition alternatives selected from the technical regime and accompanied by explicit expiration, premium, assignment, and live-chain verification warnings;
 - a first-page **Response to Your Request** that answers the user’s stated focus before the standard analysis; fund-summary prompts lead with a concise provider-grounded description, strategy/category, family, and available fee/asset facts;
 - a required evidence-review checkpoint;
 - Gottfried & Somberg Wealth Management branded PDF generation;
@@ -44,7 +46,11 @@ Is BDMIX good for a 70/30 portfolio?
 Show QQQ trade entries with stop-loss examples and real chart snapshots from the past year.
 ```
 
-The answer distinguishes the one Overall Rating from supporting technical and fundamental assessments, cites the evidence behind the conclusion, and states what would change it. A portfolio-fit question instead leads with the requested allocation, the sleeve the security could fill, and the look-through facts that must be confirmed.
+The answer distinguishes the one Overall Rating from supporting technical and fundamental assessments, cites the evidence behind the conclusion, and states what would change it. In the main all-horizons report, the rating weights technical evidence 70% and fundamental evidence 30% so the displayed decision follows the current setup while retaining business-quality context.
+
+The first page then turns that rating into a conditional Technical Action Plan. It distinguishes a controlled pullback, patient limit order, confirmed breakout, or wait-for-reclaim setup; calculates an entry zone from support, moving averages, and Fibonacci structure; and places the technical stop beyond invalidation with an ATR volatility buffer. The displayed stop percentage is therefore derived from the actual chart rather than fixed at 7%. Targets use nearby resistance and Fibonacci levels, and estimated reward/risk makes the tradeoff visible. When the evidence does not support an attractive or sufficiently tight setup, the plan says to wait instead of manufacturing a trade.
+
+For eligible stocks and ETFs, the plan may also show a defined-risk call spread, cash-secured put, or existing-position protective hedge as a research scenario. It never invents a live premium or executable strike: the user must verify the current option chain, liquidity, expiration, assignment exposure, and maximum loss before acting. A portfolio-fit question instead leads with the requested allocation, the sleeve the security could fill, and the look-through facts that must be confirmed.
 
 Historical trade prompts automatically open the deep-analysis workflow and interpret “past year” as an exact one-year date range. A case qualifies only after price reclaims its 20-day average while the 50-day trend is rising, MACD is improving, RSI is 45-72, and volume is at least 0.8x its 20-day average. The hypothetical entry occurs the next session. Each chart marks the entry, initial protective stop, and exit, and the report states the outcome and exit rule. These are reproducible case studies using attributed market history, not executed trades or fabricated TradingView screenshots; the report includes a direct TradingView link for independent review.
 
