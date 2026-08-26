@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import traceback
 
 from PySide6.QtCore import QSettings, QThread, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
@@ -46,6 +47,7 @@ class ResearchWorker(QThread):
         try:
             self.completed.emit(self.runner.prepare(self.request))
         except Exception as exc:
+            traceback.print_exc()
             self.failed.emit(str(exc) or "Research preparation failed.")
 
 
@@ -105,7 +107,8 @@ class MainWindow(QMainWindow):
         card = QFrame(objectName="Card")
         form = QFormLayout(card)
         form.setContentsMargins(26, 24, 26, 24)
-        form.setVerticalSpacing(16)
+        form.setVerticalSpacing(11)
+        form.setHorizontalSpacing(18)
         self.query = QLineEdit()
         self.query.setPlaceholderText("Company or ticker — e.g., Axon or AXON")
         self.horizon = QComboBox()
@@ -122,6 +125,7 @@ class MainWindow(QMainWindow):
         self.risk.addItems(["Not provided", "Conservative", "Moderate", "Aggressive"])
         self.question = QTextEdit()
         self.question.setPlaceholderText("Optional question or research emphasis")
+        self.question.setMinimumHeight(64)
         self.question.setMaximumHeight(90)
         self.research_mode = QComboBox()
         self.research_mode.addItems(["Live Market Research", "Demo / Offline Test"])
