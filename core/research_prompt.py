@@ -128,6 +128,8 @@ def classify_research_intent(value: str) -> str:
 def parse_overview_chart_request(value: str) -> str:
     """Identify an explicitly requested lead chart; blank means use the YTD SPY comparison."""
     lowered = value.lower()
+    if any(term in lowered for term in ("stop loss chart", "stop-loss chart", "stop evidence chart", "invalidation chart")):
+        return "stop_loss"
     if any(term in lowered for term in ("fibonacci chart", "fib chart", "fibonacci levels chart")):
         return "fibonacci"
     if any(term in lowered for term in ("momentum chart", "rsi chart", "macd chart")):
@@ -237,7 +239,7 @@ def parse_deep_analysis_prompt(value: str) -> tuple[str, str, tuple[str, ...], t
     comparisons = tuple(symbols[:3]) or ("SPY",)
 
     lowered = prompt.lower()
-    charts = ["price_trend", "momentum", "relative_performance"]
+    charts = ["price_trend", "stop_loss", "momentum", "relative_performance"]
     if any(term in lowered for term in ("drawdown", "volatility", "risk chart", "risk profile")):
         charts.append("risk")
     if is_historical_trade_request(prompt):
