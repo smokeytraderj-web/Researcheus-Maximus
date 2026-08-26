@@ -8,7 +8,7 @@ from pathlib import Path
 import traceback
 
 from PySide6.QtCore import QSettings, QThread, QUrl, Signal
-from PySide6.QtGui import QColor, QDesktopServices
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QComboBox,
     QCheckBox,
@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
     QFrame,
-    QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -96,16 +95,16 @@ class MainWindow(QMainWindow):
 
     def _topbar(self) -> QFrame:
         frame = QFrame(objectName="TopBar")
-        frame.setFixedHeight(68)
+        frame.setFixedHeight(56)
         row = QHBoxLayout(frame)
-        row.setContentsMargins(24, 10, 24, 10)
+        row.setContentsMargins(28, 8, 28, 8)
         titles = QVBoxLayout()
-        titles.setSpacing(1)
-        titles.addWidget(QLabel("RESEARCHEUS MAXIMUS", objectName="Brand"))
+        titles.setSpacing(0)
+        titles.addWidget(QLabel("RESEARCHEUS", objectName="Brand"))
         titles.addWidget(QLabel("GOTTFRIED & SOMBERG WEALTH MANAGEMENT", objectName="Firm"))
         row.addLayout(titles)
         row.addStretch()
-        row.addWidget(QLabel("EQUITY RESEARCH WORKSPACE", objectName="Workspace"))
+        row.addWidget(QLabel("INVESTMENT RESEARCH", objectName="Workspace"))
         return frame
 
     def _page_shell(self, title: str, subtitle: str):
@@ -118,122 +117,10 @@ class MainWindow(QMainWindow):
         return page, outer
 
     def _build_intake(self) -> QWidget:
-        page, outer = self._page_shell(
-            "Investment Research",
-            "Ask a decision question, build a technical study, or compare two securities.",
-        )
-        outer.addSpacing(4)
-        card = QFrame(objectName="Card")
-        card.setMinimumWidth(720)
-        card.setMaximumWidth(900)
-        shadow = QGraphicsDropShadowEffect(card)
-        shadow.setBlurRadius(28)
-        shadow.setOffset(0, 8)
-        shadow.setColor(QColor(20, 38, 61, 34))
-        card.setGraphicsEffect(shadow)
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(30, 22, 30, 22)
-        card_layout.setSpacing(8)
-        standard = QVBoxLayout()
-        standard.setSpacing(9)
-        standard.addWidget(QLabel("RESEARCH OVERVIEW", objectName="Eyebrow"))
-        prompt = QLabel("What would you like to research?", objectName="Section")
-        helper = QLabel(
-            "Ask naturally. The answer will lead with the decision, then show the evidence, conditions, and risks.",
-            objectName="FieldHelp",
-        )
-        helper.setWordWrap(True)
-        self.query = QPlainTextEdit()
-        self.query.setPlaceholderText(
-            "Example: Full analysis of TSLA — is it a good opportunity to buy?"
-        )
-        self.query.setObjectName("ResearchQuery")
-        self.query.setMinimumHeight(88)
-        begin = QPushButton("Generate Research", objectName="Gold")
-        begin.setMinimumHeight(44)
-        begin.setFixedWidth(190)
-        begin.clicked.connect(lambda: self._start_research())
-        standard.addWidget(prompt)
-        standard.addWidget(helper)
-        standard.addWidget(self.query)
-        overview_actions = QHBoxLayout()
-        overview_hint = QLabel("Buy  |  Sell  |  Hold  |  Position review  |  Full analysis", objectName="FieldHelp")
-        overview_actions.addWidget(overview_hint)
-        overview_actions.addStretch()
-        overview_actions.addWidget(begin)
-        standard.addLayout(overview_actions)
-        card_layout.addLayout(standard)
-        centered = QHBoxLayout()
-        centered.addStretch()
-        centered.addWidget(card)
-        centered.addStretch()
-        outer.addLayout(centered)
-
-        mode_row = QHBoxLayout()
-        mode_row.setSpacing(16)
-        deep_panel = QFrame(objectName="DeepPanel")
-        deep_layout = QVBoxLayout(deep_panel)
-        deep_layout.setContentsMargins(24, 20, 24, 20)
-        deep_layout.setSpacing(8)
-        deep_layout.addWidget(QLabel("DEEP ANALYSIS", objectName="Eyebrow"))
-        deep_title = QLabel("Deep Technical Analysis", objectName="Section")
-        deep_title.setWordWrap(True)
-        deep_description = QLabel(
-            "Build a chart-led study with custom ranges, Fibonacci, momentum, risk, and benchmarks.",
-            objectName="Subtitle",
-        )
-        deep_description.setWordWrap(True)
-        deep_features = QLabel(
-            "Custom range  •  Fibonacci  •  Momentum  •  Relative strength",
-            objectName="DeepFeatures",
-        )
-        deep_features.setWordWrap(True)
-        deep_button = QPushButton("Open Deep Analysis", objectName="DeepAction")
-        deep_button.setMinimumHeight(42)
-        deep_button.clicked.connect(lambda: self.stack.setCurrentIndex(3))
-        deep_layout.addWidget(deep_title)
-        deep_layout.addWidget(deep_description)
-        deep_layout.addWidget(deep_features)
-        deep_layout.addStretch()
-        deep_layout.addWidget(deep_button)
-
-        compare_panel = QFrame(objectName="ComparePanel")
-        compare_layout = QVBoxLayout(compare_panel)
-        compare_layout.setContentsMargins(24, 20, 24, 20)
-        compare_layout.setSpacing(8)
-        compare_layout.addWidget(QLabel("SECURITY COMPARISON", objectName="Eyebrow"))
-        compare_title = QLabel("Which opportunity looks better?", objectName="Section")
-        compare_title.setWordWrap(True)
-        compare_description = QLabel(
-            "Compare two stocks or funds across value, growth, technical setup, risk, and relative performance.",
-            objectName="Subtitle",
-        )
-        compare_description.setWordWrap(True)
-        compare_features = QLabel(
-            "Side-by-side evidence  •  Current edge  •  Decision context",
-            objectName="DeepFeatures",
-        )
-        compare_features.setWordWrap(True)
-        compare_button = QPushButton("Compare Securities", objectName="CompareAction")
-        compare_button.setMinimumHeight(42)
-        compare_button.clicked.connect(lambda: self.stack.setCurrentIndex(4))
-        compare_layout.addWidget(compare_title)
-        compare_layout.addWidget(compare_description)
-        compare_layout.addWidget(compare_features)
-        compare_layout.addStretch()
-        compare_layout.addWidget(compare_button)
-
-        mode_row.addWidget(deep_panel, 1)
-        mode_row.addWidget(compare_panel, 1)
-        modes_centered = QHBoxLayout()
-        modes_centered.addStretch()
-        modes = QWidget()
-        modes.setMinimumWidth(720)
-        modes.setMaximumWidth(900)
-        modes.setLayout(mode_row)
-        modes_centered.addWidget(modes)
-        modes_centered.addStretch()
-        outer.addLayout(modes_centered)
+        page = QWidget()
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(32, 24, 32, 22)
+        outer.setSpacing(0)
 
         self.research_mode = QComboBox()
         self.research_mode.addItems(["Live Market Research", "Demo / Offline Test"])
@@ -246,15 +133,118 @@ class MainWindow(QMainWindow):
         self.model_name.setPlaceholderText("Optional model override")
         self.use_ycharts = QCheckBox("Query the installed YCharts Excel add-in")
         self.use_ycharts.setChecked(True)
-
         self.settings_dialog = self._build_settings_dialog()
-        outer.addStretch(1)
-        actions = QHBoxLayout()
-        settings_button = QPushButton("Research Settings", objectName="Settings")
+
+        content = QWidget()
+        content.setMinimumWidth(700)
+        content.setMaximumWidth(880)
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(14)
+
+        heading_row = QHBoxLayout()
+        heading = QVBoxLayout()
+        heading.setSpacing(3)
+        heading.addWidget(QLabel("Research Workspace", objectName="Title"))
+        heading.addWidget(QLabel("Research one security, build a chart study, or compare two opportunities.", objectName="Subtitle"))
+        heading_row.addLayout(heading)
+        heading_row.addStretch()
+        settings_button = QPushButton("Settings", objectName="Settings")
         settings_button.clicked.connect(self.settings_dialog.open)
-        actions.addStretch()
-        actions.addWidget(settings_button)
-        outer.addLayout(actions)
+        heading_row.addWidget(settings_button)
+        content_layout.addLayout(heading_row)
+
+        card = QFrame(objectName="PrimaryPanel")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(22, 18, 22, 18)
+        card_layout.setSpacing(9)
+        card_layout.addWidget(QLabel("QUICK RESEARCH", objectName="Eyebrow"))
+        prompt = QLabel("What would you like to know?", objectName="PrimaryTitle")
+        helper = QLabel(
+            "Ask a natural-language question about any stock or fund.",
+            objectName="FieldHelp",
+        )
+        helper.setWordWrap(True)
+        self.query = QPlainTextEdit()
+        self.query.setPlaceholderText(
+            "Example: Full analysis of TSLA — is it a good opportunity to buy?"
+        )
+        self.query.setObjectName("ResearchQuery")
+        self.query.setMinimumHeight(72)
+        begin = QPushButton("Generate Research", objectName="Gold")
+        begin.setMinimumHeight(40)
+        begin.setFixedWidth(176)
+        begin.clicked.connect(lambda: self._start_research())
+        card_layout.addWidget(prompt)
+        card_layout.addWidget(helper)
+        card_layout.addWidget(self.query)
+        overview_actions = QHBoxLayout()
+        overview_hint = QLabel("Buy · Sell · Hold · Position review · Full analysis", objectName="FieldHelp")
+        overview_actions.addWidget(overview_hint)
+        overview_actions.addStretch()
+        overview_actions.addWidget(begin)
+        card_layout.addLayout(overview_actions)
+        content_layout.addWidget(card)
+
+        tools_heading = QHBoxLayout()
+        tools_heading.addWidget(QLabel("Advanced tools", objectName="Section"))
+        tools_heading.addStretch()
+        tools_heading.addWidget(QLabel("For focused technical or side-by-side work", objectName="FieldHelp"))
+        content_layout.addLayout(tools_heading)
+
+        mode_row = QHBoxLayout()
+        mode_row.setSpacing(12)
+        deep_panel = QFrame(objectName="ToolPanel")
+        deep_layout = QVBoxLayout(deep_panel)
+        deep_layout.setContentsMargins(20, 17, 20, 17)
+        deep_layout.setSpacing(6)
+        deep_layout.addWidget(QLabel("TECHNICAL", objectName="Eyebrow"))
+        deep_title = QLabel("Deep Technical Analysis", objectName="Section")
+        deep_title.setWordWrap(True)
+        deep_description = QLabel(
+            "Charts, custom ranges, Fibonacci, momentum, risk, and benchmarks.",
+            objectName="Subtitle",
+        )
+        deep_description.setWordWrap(True)
+        deep_button = QPushButton("Open Technical Analysis", objectName="ToolAction")
+        deep_button.setMinimumHeight(38)
+        deep_button.clicked.connect(lambda: self.stack.setCurrentIndex(3))
+        deep_layout.addWidget(deep_title)
+        deep_layout.addWidget(deep_description)
+        deep_layout.addStretch()
+        deep_layout.addWidget(deep_button)
+
+        compare_panel = QFrame(objectName="ToolPanel")
+        compare_layout = QVBoxLayout(compare_panel)
+        compare_layout.setContentsMargins(20, 17, 20, 17)
+        compare_layout.setSpacing(6)
+        compare_layout.addWidget(QLabel("COMPARISON", objectName="Eyebrow"))
+        compare_title = QLabel("Compare Securities", objectName="Section")
+        compare_title.setWordWrap(True)
+        compare_description = QLabel(
+            "Compare two stocks or funds across value, growth, technical setup, and risk.",
+            objectName="Subtitle",
+        )
+        compare_description.setWordWrap(True)
+        compare_button = QPushButton("Open Comparison", objectName="ToolAction")
+        compare_button.setMinimumHeight(38)
+        compare_button.clicked.connect(lambda: self.stack.setCurrentIndex(4))
+        compare_layout.addWidget(compare_title)
+        compare_layout.addWidget(compare_description)
+        compare_layout.addStretch()
+        compare_layout.addWidget(compare_button)
+
+        mode_row.addWidget(deep_panel, 1)
+        mode_row.addWidget(compare_panel, 1)
+        content_layout.addLayout(mode_row)
+
+        centered = QHBoxLayout()
+        centered.addStretch()
+        centered.addWidget(content)
+        centered.addStretch()
+        outer.addStretch(1)
+        outer.addLayout(centered)
+        outer.addStretch(2)
         return page
 
     def _build_comparison(self) -> QWidget:
