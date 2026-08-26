@@ -26,6 +26,7 @@ from research.technical import (
     relative_performance_returns,
     risk_chart_insight,
     strategies,
+    technical_action_plan,
     technical_finding,
 )
 from research.ycharts_excel import METRICS as YCHARTS_METRICS, retrieve_ycharts_metrics
@@ -107,7 +108,7 @@ def _combine_ratings(
             Horizon.SHORT: (80, 20),
             Horizon.MEDIUM: (50, 50),
             Horizon.LONG: (20, 80),
-            Horizon.ALL: (50, 50),
+            Horizon.ALL: (70, 30),
         }[horizon]
     ratings = list(Rating)
     weighted_index = (
@@ -1147,6 +1148,7 @@ class LiveResearchProvider:
             request.horizon,
             request.deep_analysis,
         )
+        technical_plan = technical_action_plan(snapshot, technical.rating, quote_type)
         limitations = list(synthesis.limitations)
         limitations.extend(ycharts_errors)
         if request.custom_end and request.custom_end < dt.date.today().isoformat():
@@ -1170,7 +1172,15 @@ class LiveResearchProvider:
                     )
                 )
             else:
-                chart_path = str(render_chart(history, symbol, snapshot, workspace / "technical-chart.png"))
+                chart_path = str(
+                    render_chart(
+                        history,
+                        symbol,
+                        snapshot,
+                        workspace / "technical-chart.png",
+                        technical_plan,
+                    )
+                )
             if request.deep_analysis:
                 fibonacci_path = render_fibonacci_chart(
                     history,
@@ -1236,6 +1246,23 @@ class LiveResearchProvider:
             SourceRecord("YCharts", f"https://ycharts.com/companies/{quote(symbol)}", now, "Authenticated supplemental review link; no YCharts values were silently inferred"),
             SourceRecord("SEC EDGAR", f"https://www.sec.gov/edgar/search/#/q={quote(symbol)}", now, "Official filing research link"),
         ]
+        if technical_plan.options_strategy:
+            sources.extend(
+                (
+                    SourceRecord(
+                        "Options Industry Council strategy education",
+                        "https://www.optionseducation.org/strategies",
+                        now,
+                        "Options strategy mechanics and risk education",
+                    ),
+                    SourceRecord(
+                        "FINRA options risks",
+                        "https://www.finra.org/investors/insights/options-z-basics-greeks",
+                        now,
+                        "Options leverage, expiration, assignment, and suitability risks",
+                    ),
+                )
+            )
         for comparison_symbol, comparison_history in comparison_histories.items():
             comparison_source = str(comparison_history.attrs.get("market_data_source") or "Yahoo Finance market data")
             comparison_url = str(
@@ -1325,7 +1352,19 @@ class LiveResearchProvider:
                 if _usable_fund_value(value):
                     rendered = f"{float(value):.2f}{suffix}" if isinstance(value, (int, float)) else str(value)
                     fund_metrics.append((label, rendered))
-        key_metrics = position_metrics + tuple(fund_metrics) + (
+        action_metrics = (
+            ("Planned entry zone", f"${technical_plan.entry_low:,.2f}-${technical_plan.entry_high:,.2f}"),
+            (
+                "Technical stop / invalidation",
+                f"${technical_plan.stop_level:,.2f} ({technical_plan.stop_pct:.1%} below entry midpoint)",
+            ),
+            (
+                "First / second target",
+                f"${technical_plan.first_target:,.2f} / ${technical_plan.second_target:,.2f}",
+            ),
+            ("Estimated reward / risk", f"{technical_plan.reward_risk:.2f}x to first target"),
+        )
+        key_metrics = position_metrics + tuple(fund_metrics) + action_metrics + (
             ("Range-end price" if request.custom_start else "Current price", _metric(snapshot.price, money=True)),
             ("Market capitalization", _metric(info.get("marketCap"), money=True)),
             ("Trailing / forward P/E", f"{_metric(info.get('trailingPE'))} / {_metric(info.get('forwardPE'))}"),
@@ -1391,6 +1430,7 @@ class LiveResearchProvider:
             ycharts_status=ycharts_status,
             historical_trade_cases=tuple(trade_cases),
             portfolio_fit=portfolio_fit,
+            technical_plan=technical_plan,
         )
         result.validate()
         return result
