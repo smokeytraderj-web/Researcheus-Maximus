@@ -26,6 +26,8 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QStackedWidget,
     QTextBrowser,
     QToolTip,
@@ -168,7 +170,7 @@ class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Researcheus Maximus")
-        self.resize(1120, 760)
+        self.resize(1320, 820)
         self.setMinimumSize(900, 640)
         self.runner = ResearchRunner()
         self.prepared: PreparedResearch | None = None
@@ -221,8 +223,8 @@ class MainWindow(QMainWindow):
     def _build_intake(self) -> QWidget:
         page = QWidget()
         outer = QVBoxLayout(page)
-        outer.setContentsMargins(24, 20, 24, 22)
-        outer.setSpacing(14)
+        outer.setContentsMargins(42, 28, 42, 30)
+        outer.setSpacing(16)
 
         self.research_mode = QComboBox()
         self.research_mode.addItems(["Live Market Research", "Demo / Offline Test"])
@@ -238,16 +240,17 @@ class MainWindow(QMainWindow):
         self.settings_dialog = self._build_settings_dialog()
 
         content = QWidget()
-        content.setMinimumWidth(760)
-        content.setMaximumWidth(1040)
+        content.setMinimumWidth(800)
+        content.setMaximumWidth(1480)
+        content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(12)
 
         hero = QFrame(objectName="HeroPanel")
         hero_layout = QVBoxLayout(hero)
-        hero_layout.setContentsMargins(32, 20, 32, 21)
-        hero_layout.setSpacing(7)
+        hero_layout.setContentsMargins(42, 26, 42, 28)
+        hero_layout.setSpacing(8)
         hero_top = QHBoxLayout()
         hero_top.setSpacing(12)
         hero_top.addWidget(QLabel("EQUITY RESEARCH", objectName="HeroEyebrow"))
@@ -272,8 +275,8 @@ class MainWindow(QMainWindow):
 
         card = QFrame(objectName="PrimaryModePanel")
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(24, 14, 24, 16)
-        card_layout.setSpacing(6)
+        card_layout.setContentsMargins(30, 20, 30, 22)
+        card_layout.setSpacing(8)
         card_heading = QHBoxLayout()
         card_heading.addWidget(QLabel("01", objectName="ModeNumber"))
         card_heading.addSpacing(10)
@@ -291,7 +294,7 @@ class MainWindow(QMainWindow):
             "Example: Is TSLA a good opportunity to buy now, and where should I place a stop loss?"
         )
         self.query.setObjectName("ResearchQuery")
-        self.query.setMinimumHeight(84)
+        self.query.setMinimumHeight(120)
         begin = QPushButton("Generate Research", objectName="Gold")
         begin.setMinimumHeight(40)
         begin.setFixedWidth(176)
@@ -309,8 +312,8 @@ class MainWindow(QMainWindow):
         mode_row.setSpacing(12)
         deep_panel = QFrame(objectName="ModePanel")
         deep_layout = QVBoxLayout(deep_panel)
-        deep_layout.setContentsMargins(24, 15, 24, 16)
-        deep_layout.setSpacing(5)
+        deep_layout.setContentsMargins(30, 21, 30, 22)
+        deep_layout.setSpacing(7)
         deep_layout.addWidget(QLabel("02", objectName="ModeNumber"))
         deep_title = QLabel("Deep Technical Analysis", objectName="ModeTitle")
         deep_title.setWordWrap(True)
@@ -329,8 +332,8 @@ class MainWindow(QMainWindow):
 
         compare_panel = QFrame(objectName="ModePanel")
         compare_layout = QVBoxLayout(compare_panel)
-        compare_layout.setContentsMargins(24, 15, 24, 16)
-        compare_layout.setSpacing(5)
+        compare_layout.setContentsMargins(30, 21, 30, 22)
+        compare_layout.setSpacing(7)
         compare_layout.addWidget(QLabel("03", objectName="ModeNumber"))
         compare_title = QLabel("Security Comparison", objectName="ModeTitle")
         compare_title.setWordWrap(True)
@@ -352,12 +355,18 @@ class MainWindow(QMainWindow):
         content_layout.addLayout(mode_row)
 
         centered = QHBoxLayout()
+        centered.setContentsMargins(0, 0, 0, 0)
         centered.addStretch()
-        centered.addWidget(content)
+        centered.addWidget(content, 1)
         centered.addStretch()
         outer.addLayout(centered)
         outer.addStretch(1)
-        return page
+
+        scroll = QScrollArea(objectName="IntakeScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(page)
+        return scroll
 
     def _build_comparison(self) -> QWidget:
         page, outer = self._page_shell(
