@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
 
 from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
 from core.models import Horizon, ResearchRequest
-from core.research_prompt import append_revision_instructions, parse_research_prompt
+from core.research_prompt import append_revision_instructions, parse_deep_analysis_prompt, parse_research_prompt
 from research.demo_provider import DemoResearchProvider
 from research.live_provider import LiveResearchProvider
 from services.research_runner import PreparedResearch, ResearchRunner
@@ -76,9 +76,11 @@ class MainWindow(QMainWindow):
         self.intake_page = self._build_intake()
         self.review_page = self._build_review()
         self.preview_page = self._build_preview()
+        self.deep_analysis_page = self._build_deep_analysis()
         self.stack.addWidget(self.intake_page)
         self.stack.addWidget(self.review_page)
         self.stack.addWidget(self.preview_page)
+        self.stack.addWidget(self.deep_analysis_page)
         layout.addWidget(self.stack, 1)
         self.setCentralWidget(root)
 
@@ -114,10 +116,12 @@ class MainWindow(QMainWindow):
         )
         outer.addStretch(1)
         card = QFrame(objectName="Card")
-        card.setMaximumWidth(760)
-        card_layout = QVBoxLayout(card)
+        card.setMaximumWidth(900)
+        card_layout = QHBoxLayout(card)
         card_layout.setContentsMargins(34, 30, 34, 30)
-        card_layout.setSpacing(14)
+        card_layout.setSpacing(24)
+        standard = QVBoxLayout()
+        standard.setSpacing(14)
         prompt = QLabel("What would you like to research?", objectName="Section")
         self.query = QPlainTextEdit()
         self.query.setPlaceholderText(
@@ -127,10 +131,32 @@ class MainWindow(QMainWindow):
         self.query.setObjectName("ResearchQuery")
         self.query.setMinimumHeight(118)
         begin = QPushButton("Begin Research", objectName="Gold")
-        begin.clicked.connect(self._start_research)
-        card_layout.addWidget(prompt)
-        card_layout.addWidget(self.query)
-        card_layout.addWidget(begin, 0)
+        begin.clicked.connect(lambda: self._start_research())
+        standard.addWidget(prompt)
+        standard.addWidget(self.query)
+        standard.addWidget(begin, 0)
+        card_layout.addLayout(standard, 1)
+
+        deep_panel = QFrame(objectName="DeepPanel")
+        deep_panel.setMaximumWidth(220)
+        deep_layout = QVBoxLayout(deep_panel)
+        deep_layout.setContentsMargins(18, 18, 18, 18)
+        deep_layout.setSpacing(9)
+        deep_layout.addWidget(QLabel("DEEP ANALYSIS", objectName="Eyebrow"))
+        deep_title = QLabel("Need more technical depth?", objectName="Section")
+        deep_title.setWordWrap(True)
+        deep_description = QLabel(
+            "Request benchmark comparisons, momentum studies, drawdown analysis, and a multi-chart technical report.",
+            objectName="Subtitle",
+        )
+        deep_description.setWordWrap(True)
+        deep_button = QPushButton("Try Deep Analysis")
+        deep_button.clicked.connect(lambda: self.stack.setCurrentIndex(3))
+        deep_layout.addWidget(deep_title)
+        deep_layout.addWidget(deep_description)
+        deep_layout.addStretch()
+        deep_layout.addWidget(deep_button)
+        card_layout.addWidget(deep_panel)
         centered = QHBoxLayout()
         centered.addStretch()
         centered.addWidget(card)
@@ -157,6 +183,49 @@ class MainWindow(QMainWindow):
         actions.addWidget(settings_button)
         actions.addStretch()
         outer.addLayout(actions)
+        return page
+
+    def _build_deep_analysis(self) -> QWidget:
+        page, outer = self._page_shell(
+            "Deep Technical Analysis",
+            "Request specific real-market charts, compare a stock with peers or benchmarks, and build a chart-led decision report.",
+        )
+        outer.addStretch(1)
+        card = QFrame(objectName="Card")
+        card.setMaximumWidth(880)
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(34, 28, 34, 28)
+        card_layout.setSpacing(12)
+        card_layout.addWidget(QLabel("What would you like to analyze?", objectName="Section"))
+        self.deep_query = QPlainTextEdit()
+        self.deep_query.setObjectName("DeepResearchQuery")
+        self.deep_query.setMinimumHeight(168)
+        self.deep_query.setPlaceholderText(
+            "Start with the primary ticker, then describe the analysis and comparison symbols.\n\n"
+            "Example: AVGO - Compare against NVDA, SOXX, and SPY. Analyze trend, RSI, MACD, relative performance, drawdown, volatility, support and resistance."
+        )
+        supported = QLabel(
+            "Standard chartbook: price/trend, RSI/MACD, and normalized relative performance. Ask for drawdown or volatility to add a risk chart. SPY is used when no benchmark is named.",
+            objectName="Subtitle",
+        )
+        supported.setWordWrap(True)
+        card_layout.addWidget(self.deep_query)
+        card_layout.addWidget(supported)
+        actions = QHBoxLayout()
+        back = QPushButton("Back to Overview", objectName="Secondary")
+        back.clicked.connect(lambda: self.stack.setCurrentIndex(0))
+        run = QPushButton("Run Deep Analysis", objectName="Gold")
+        run.clicked.connect(lambda: self._start_research(deep=True))
+        actions.addWidget(back)
+        actions.addStretch()
+        actions.addWidget(run)
+        card_layout.addLayout(actions)
+        centered = QHBoxLayout()
+        centered.addStretch()
+        centered.addWidget(card)
+        centered.addStretch()
+        outer.addLayout(centered)
+        outer.addStretch(2)
         return page
 
     def _build_settings_dialog(self) -> QDialog:
@@ -190,7 +259,7 @@ class MainWindow(QMainWindow):
         outer.addWidget(self.review_browser, 1)
         actions = QHBoxLayout()
         back = QPushButton("Back", objectName="Secondary")
-        back.clicked.connect(lambda: self.stack.setCurrentIndex(0))
+        back.clicked.connect(self._back_to_request)
         approve = QPushButton("Approve & Generate PDF", objectName="Gold")
         approve.clicked.connect(self._approve)
         actions.addWidget(back)
@@ -238,19 +307,30 @@ class MainWindow(QMainWindow):
         outer.addLayout(actions)
         return page
 
-    def _request(self) -> ResearchRequest:
+    def _request(self, *, deep: bool = False) -> ResearchRequest:
+        if deep:
+            security_query, brief, comparisons, charts = parse_deep_analysis_prompt(self.deep_query.toPlainText())
+            return ResearchRequest(
+                security_query,
+                Horizon.ALL,
+                question=brief,
+                deep_analysis=True,
+                comparison_symbols=comparisons,
+                requested_charts=charts,
+            )
         security_query, research_brief = parse_research_prompt(self.query.toPlainText())
         return ResearchRequest(security_query, Horizon.ALL, question=research_brief)
 
-    def _start_research(self) -> None:
+    def _start_research(self, *, deep: bool = False) -> None:
         if self.worker and self.worker.isRunning():
             QMessageBox.information(self, "Research in progress", "Please wait for the current research run to finish.")
             return
-        if not self.query.toPlainText().strip():
+        active_query = self.deep_query if deep else self.query
+        if not active_query.toPlainText().strip():
             QMessageBox.warning(self, "Choose a stock", "Enter a company name or ticker.")
             return
         try:
-            request = self._request()
+            request = self._request(deep=deep)
             request.validate()
         except ValueError as exc:
             QMessageBox.warning(self, "Check input", str(exc))
@@ -266,12 +346,17 @@ class MainWindow(QMainWindow):
             )
         else:
             self.runner = ResearchRunner(provider=DemoResearchProvider())
-        self._run_request(request)
+        self._run_request(request, replacing=self.prepared)
 
     def _run_request(self, request: ResearchRequest, *, replacing: PreparedResearch | None = None) -> None:
         progress = QProgressBar()
         progress.setRange(0, 0)
-        progress.setFormat("Applying requested changes…" if replacing else "Preparing evidence…")
+        if replacing:
+            progress.setFormat("Applying requested changes…")
+        elif request.deep_analysis:
+            progress.setFormat("Building technical chartbook…")
+        else:
+            progress.setFormat("Preparing evidence…")
         self.statusBar().addPermanentWidget(progress)
         self.worker = ResearchWorker(self.runner, request, self)
         self.worker.completed.connect(
@@ -281,6 +366,12 @@ class MainWindow(QMainWindow):
             lambda message: self._research_failed(message, progress, keep_preview=bool(replacing))
         )
         self.worker.start()
+
+    def _back_to_request(self) -> None:
+        if self.prepared and self.prepared.request.deep_analysis:
+            self.stack.setCurrentIndex(3)
+        else:
+            self.stack.setCurrentIndex(0)
 
     def _research_ready(
         self,
@@ -314,10 +405,23 @@ class MainWindow(QMainWindow):
                     <tr><th>Result cell</th><th>Exact formula</th><th>Status</th></tr>{ycharts_rows}
                 </table>
             """
+        chartbook_items = "".join(
+            f"<li><b>{escape(chart.title)}</b> - {escape(chart.insight)}</li>" for chart in r.chartbook
+        )
+        deep_analysis = ""
+        if r.chartbook:
+            comparisons = ", ".join(prepared.request.comparison_symbols)
+            deep_analysis = f"""
+                <h3>Deep technical chartbook</h3>
+                <p><b>Comparisons:</b> {escape(comparisons)}<br>
+                <b>Requested charts:</b> {escape(', '.join(prepared.request.requested_charts))}</p>
+                <ul>{chartbook_items}</ul>
+            """
         self.review_browser.setHtml(f"""
             <h2>{r.identity.company_name} ({r.identity.ticker})</h2>
             <p><b>Exchange:</b> {r.identity.exchange} &nbsp; <b>Currency:</b> {r.identity.currency}<br>
             <b>Horizon:</b> {r.horizon.value} &nbsp; <b>As of:</b> {r.as_of}<br>
+            <b>Mode:</b> {r.analysis_mode}<br>
             <b>Illustrative current price:</b> ${r.current_price:,.2f}</p>
             <hr><h3>Preliminary recommendation</h3>
             <p><b>Overall rating:</b> {r.lead_rating.value} ({r.confidence.value} confidence)<br>
@@ -325,6 +429,7 @@ class MainWindow(QMainWindow):
             <b>Fundamental outlook:</b> {fundamental_outlook(r.fundamental.rating)}</p>
             <p><b>Interpretation:</b> {interpretation}</p>
             <h3>Technical signals</h3><ul>{signals}</ul>
+            {deep_analysis}
             <h3>Fundamental signals</h3><ul>{fundamentals}</ul>
             <h3>Sentiment</h3><p>{r.sentiment}</p>
             <h3>Research provider</h3><p>{r.provider_label}</p>
@@ -347,6 +452,8 @@ class MainWindow(QMainWindow):
             return
         path = self.prepared.preview_path
         mode_note = "<p style='color:#8A632B'><b>Demo mode:</b> The report is for application testing only.</p>" if self.prepared.result.demo_mode else "<p><b>Live research:</b> Review every source, limitation, and rating before finalization.</p>"
+        if self.prepared.request.deep_analysis:
+            mode_note += f"<p><b>Deep chartbook:</b> {len(self.prepared.result.chartbook) + 1} analyzed charts, including the primary price/trend chart.</p>"
         self.preview_browser.setHtml(f"<h2>PDF ready for review</h2><p><b>{self.prepared.suggested_filename}</b></p><p>The branded report passed structural PDF validation.</p>{mode_note}<p>Use <b>Open PDF</b> for the complete rendered preview, then finalize it to a folder you select.</p>")
         self.stack.setCurrentIndex(2)
 
@@ -369,10 +476,15 @@ class MainWindow(QMainWindow):
             )
             self.modification_request.setFocus()
             return
-        revised_request = replace(
-            self.prepared.request,
-            question=append_revision_instructions(self.prepared.request.question, revision),
-        )
+        revised_question = append_revision_instructions(self.prepared.request.question, revision)
+        revised_request = replace(self.prepared.request, question=revised_question)
+        if revised_request.deep_analysis:
+            _query, _brief, comparisons, charts = parse_deep_analysis_prompt(revised_question)
+            revised_request = replace(
+                revised_request,
+                comparison_symbols=comparisons,
+                requested_charts=charts,
+            )
         self._run_request(revised_request, replacing=self.prepared)
 
     def _finalize(self) -> None:
