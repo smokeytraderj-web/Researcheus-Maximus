@@ -19,6 +19,7 @@ from research.technical import (
     render_risk_chart,
     render_trade_case_chart,
     strategies,
+    technical_action_plan,
     technical_finding,
     trend_decision_insight,
 )
@@ -101,6 +102,55 @@ class TechnicalAnalysisTests(unittest.TestCase):
         first = strategies(snapshot, Horizon.LONG)[0]
         self.assertEqual(first.name, "Wait for the trend to improve")
         self.assertIn("moves back above", first.action_zone)
+
+    def test_action_plan_builds_entry_stop_targets_and_defined_risk_option(self):
+        snapshot = analyze_history(self._history())
+        plan = technical_action_plan(snapshot, Rating.BUY, "EQUITY")
+        self.assertLess(plan.entry_low, plan.entry_high)
+        self.assertLess(plan.stop_level, plan.entry_low)
+        self.assertGreater(plan.first_target, (plan.entry_low + plan.entry_high) / 2)
+        self.assertGreater(plan.stop_pct, 0)
+        self.assertIn("calculated rather than fixed at 7%", plan.rationale[1])
+        self.assertIn("call spread", plan.options_strategy.lower())
+        self.assertIn("entire debit", plan.options_risk.lower())
+
+    def test_choppy_action_plan_uses_patient_limit_and_cash_secured_put(self):
+        history = self._history()
+        x = np.arange(len(history))
+        history["Close"] = 100 + np.sin(x / 3) * 1.5
+        history["High"] = history["Close"] + 1
+        history["Low"] = history["Close"] - 1
+        snapshot = analyze_history(history)
+        plan = technical_action_plan(snapshot, Rating.HOLD, "ETF")
+        self.assertIn(plan.market_condition, {"Choppy / range-bound", "Volatile and mixed"})
+        self.assertIn("patient", plan.order_type.lower())
+        self.assertIn("cash-secured put", plan.options_strategy.lower())
+        self.assertIn("assignment", plan.options_risk.lower())
+
+    def test_bearish_action_plan_requires_reclaim_and_avoids_new_calls(self):
+        history = self._history()
+        history["Close"] = np.linspace(170, 100, len(history))
+        history["High"] = history["Close"] + 2
+        history["Low"] = history["Close"] - 2
+        snapshot = analyze_history(history)
+        plan = technical_action_plan(snapshot, Rating.REDUCE, "EQUITY")
+        self.assertTrue(plan.stance.startswith("Wait"))
+        self.assertIn("No order", plan.order_type)
+        self.assertIn("protective put", plan.options_strategy.lower())
+
+    def test_mutual_fund_action_plan_does_not_invent_options(self):
+        snapshot = analyze_history(self._history())
+        plan = technical_action_plan(snapshot, Rating.ADD, "MUTUALFUND")
+        self.assertEqual(plan.options_strategy, "")
+
+    def test_action_plan_annotations_render_on_primary_chart(self):
+        history = self._history()
+        snapshot = analyze_history(history)
+        plan = technical_action_plan(snapshot, Rating.BUY, "EQUITY")
+        with tempfile.TemporaryDirectory() as folder:
+            output = render_chart(history, "AXON", snapshot, Path(folder) / "action-plan.png", plan)
+            self.assertTrue(output.is_file())
+            self.assertGreater(output.stat().st_size, 10_000)
 
     def test_relative_outperformance_strengthens_the_technical_rating(self):
         primary = self._history()
