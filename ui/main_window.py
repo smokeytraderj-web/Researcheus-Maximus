@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from html import escape
 from pathlib import Path
 import traceback
 
@@ -263,6 +264,19 @@ class MainWindow(QMainWindow):
         fundamentals = "".join(f"<li>{item}</li>" for item in r.fundamental.signals)
         limitations = "".join(f"<li>{item}</li>" for item in r.limitations)
         source_links = "".join(f"<li><a href='{item.locator}'>{item.name}</a> — {item.supports}</li>" for item in r.sources if item.locator.startswith(("https://", "http://")))
+        ycharts_rows = "".join(
+            f"<tr><td><b>{escape(cell)}</b></td><td><code>{escape(formula)}</code></td><td>{escape(status)}</td></tr>"
+            for cell, formula, status in r.ycharts_audit
+        )
+        ycharts_audit = ""
+        if ycharts_rows:
+            ycharts_audit = f"""
+                <h3>YCharts Excel Formula Audit</h3>
+                <p>The temporary workbook uses columns A:G; calculated results are in F2:F9. Only rows marked <b>Loaded</b> enter the report.</p>
+                <table cellspacing='0' cellpadding='6' border='1'>
+                    <tr><th>Result cell</th><th>Exact formula</th><th>Status</th></tr>{ycharts_rows}
+                </table>
+            """
         self.review_browser.setHtml(f"""
             <h2>{r.identity.company_name} ({r.identity.ticker})</h2>
             <p><b>Exchange:</b> {r.identity.exchange} &nbsp; <b>Currency:</b> {r.identity.currency}<br>
@@ -276,6 +290,7 @@ class MainWindow(QMainWindow):
             <h3>Fundamental signals</h3><ul>{fundamentals}</ul>
             <h3>Sentiment</h3><p>{r.sentiment}</p>
             <h3>Research provider</h3><p>{r.provider_label}</p>
+            {ycharts_audit}
             <h3>Sources and direct review links</h3><ul>{source_links}</ul>
             <h3>Limitations and source gaps</h3><ul>{limitations or '<li>None reported.</li>'}</ul>
             {"<p style='color:#8A632B'><b>Blocking limitation:</b> Demo mode uses synthetic values and contains no live YCharts, TradingView, SEC, news, or social evidence.</p>" if r.demo_mode else ""}
