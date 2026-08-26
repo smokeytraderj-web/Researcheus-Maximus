@@ -13,8 +13,10 @@ from research.comparison import build_comparison_assessment
 from research.synthesis import deterministic_synthesis, ollama_synthesize, openai_synthesize
 from research.technical import (
     analyze_history,
+    fibonacci_decision_insight,
     historical_trade_examples,
     incorporate_relative_performance,
+    momentum_decision_insight,
     render_chart,
     render_fibonacci_chart,
     render_momentum_chart,
@@ -180,11 +182,225 @@ def _direct_decision_answer(
     return f"Overall conclusion: {company} rates {lead.value} on the available evidence, with a {timing} technical setup."
 
 
+def _external_user_context(request: ResearchRequest) -> dict:
+    """Send only research instructions—not private position fields—to external synthesis."""
+    return {
+        "question": request.question,
+        "decision_intent": request.decision_intent,
+        "portfolio_allocation": request.portfolio_allocation or None,
+        "historical_trade_examples": request.historical_trade_examples,
+        "custom_analysis_range": (
+            {"start": request.custom_start, "end": request.custom_end}
+            if request.custom_start
+            else None
+        ),
+    }
+
+
+def _short_provider_description(value: object, limit: int = 520) -> str:
+    """Return up to two complete provider-description sentences for a report opener."""
+    text = " ".join(str(value or "").split())
+    if not text:
+        return ""
+    sentences = []
+    for sentence in text.replace("!", ".").replace("?", ".").split("."):
+        clean = sentence.strip()
+        if clean:
+            sentences.append(clean + ".")
+        if len(sentences) == 2:
+            break
+    summary = " ".join(sentences) or text
+    if len(summary) <= limit:
+        return summary
+    shortened = summary[:limit].rsplit(" ", 1)[0].rstrip(" ,;:")
+    return shortened + "…"
+
+
+def _fund_request_summary(company: str, symbol: str, info: dict) -> str:
+    """Build a factual, concise fund overview from available provider fields."""
+    quote_type = str(info.get("quoteType") or "fund").upper()
+    security_type = "exchange-traded fund" if quote_type == "ETF" else "mutual fund" if quote_type == "MUTUALFUND" else "fund"
+    category = str(info.get("category") or info.get("legalType") or "").strip()
+    family = str(info.get("fundFamily") or "").strip()
+    description = _short_provider_description(info.get("longBusinessSummary"))
+    opener = f"{company} ({symbol}) is a {security_type}"
+    if family:
+        opener += f" from {family}"
+    if category:
+        opener += f" classified as {category}"
+    opener += "."
+    details = []
+    expense = _as_fraction(_first_number(info, "annualReportExpenseRatio", "netExpenseRatio"))
+    if expense is not None:
+        details.append(f"reported expense ratio {expense:.2%}")
+    assets = _first_number(info, "totalAssets", "netAssets")
+    if isinstance(assets, (int, float)):
+        details.append(f"reported net assets {_metric(assets, money=True)}")
+    fund_yield = _as_fraction(info.get("yield"))
+    if fund_yield is not None:
+        details.append(f"reported distribution yield {fund_yield:.2%}")
+    facts = f" Available provider fields show {', '.join(details)}." if details else ""
+    return " ".join(part for part in (opener, description, facts) if part).strip()
+
+
+def _request_specific_response(
+    request: ResearchRequest,
+    company: str,
+    symbol: str,
+    info: dict,
+    lead: Rating,
+    technical: Rating,
+    fundamental_summary: str,
+    portfolio_fit: PortfolioFitAssessment | None = None,
+    historical_case_count: int = 0,
+    comparison_verdict: str = "",
+) -> str:
+    """Answer the user's stated research focus before the standard report framework."""
+    question = request.question.lower()
+    asks_for_overview = any(
+        phrase in question
+        for phrase in ("tell me about", "tell me a little", "about the fund", "fund summary", "summary to start", "what is this fund", "overview of")
+    )
+    quote_type = str(info.get("quoteType") or "").upper()
+    is_fund = quote_type in {"ETF", "MUTUALFUND"} or bool(info.get("category") or info.get("fundFamily"))
+    if asks_for_overview and is_fund:
+        return _fund_request_summary(company, symbol, info)
+    if comparison_verdict:
+        return comparison_verdict
+    direct = _direct_decision_answer(request, company, lead, technical, portfolio_fit, historical_case_count)
+    if request.decision_intent != "research":
+        return direct
+    if request.question.strip() and fundamental_summary.strip():
+        return fundamental_summary.strip()
+    return direct
+
+
 def _as_fraction(value: object) -> float | None:
     if not isinstance(value, (int, float)):
         return None
     number = float(value)
     return number / 100 if number > 1.5 else number
+
+
+def _usable_fund_value(value: object) -> bool:
+    """Return True for provider values that can safely populate fund fields."""
+    if value is None:
+        return False
+    try:
+        import pandas as pd
+
+        if pd.isna(value):
+            return False
+    except (ImportError, TypeError, ValueError):
+        pass
+    return not isinstance(value, str) or value.strip().lower() not in {"", "none", "n/a", "unavailable"}
+
+
+def _set_fund_value(target: dict, key: str, value: object) -> None:
+    if _usable_fund_value(value) and not _usable_fund_value(target.get(key)):
+        target[key] = value
+
+
+def _fund_table_value(table, row: str, symbol: str) -> object:
+    """Read a fund-data row without assuming that Yahoo preserved the ticker column label."""
+    try:
+        if table is None or table.empty or row not in table.index:
+            return None
+        if symbol in table.columns:
+            return table.loc[row, symbol]
+        candidate_columns = [column for column in table.columns if str(column).lower() != "category average"]
+        return table.loc[row, candidate_columns[0]] if candidate_columns else None
+    except Exception:
+        return None
+
+
+def _infer_fund_category(info: dict) -> str:
+    descriptor = " ".join(
+        str(info.get(key) or "")
+        for key in ("longName", "shortName", "longBusinessSummary", "legalType")
+    ).lower()
+    if "market neutral" in descriptor:
+        return "Equity Market Neutral"
+    if any(term in descriptor for term in ("balanced", "allocation", "multi-asset", "target risk")):
+        return "Allocation"
+    if any(term in descriptor for term in ("bond", "fixed income", "municipal", "government income", "credit")):
+        return "Fixed Income"
+    if any(term in descriptor for term in ("equity", "stock", "growth", "value")):
+        return "Equity"
+    return "Other - fact sheet classification required"
+
+
+def _infer_fund_family(info: dict) -> str:
+    descriptor = " ".join(str(info.get(key) or "") for key in ("longName", "shortName")).lower()
+    for needle, family in (
+        ("blackrock", "BlackRock"),
+        ("ishares", "iShares / BlackRock"),
+        ("vanguard", "Vanguard"),
+        ("fidelity", "Fidelity"),
+        ("t. rowe price", "T. Rowe Price"),
+        ("jpmorgan", "J.P. Morgan"),
+        ("pimco", "PIMCO"),
+        ("invesco", "Invesco"),
+        ("franklin", "Franklin Templeton"),
+    ):
+        if needle in descriptor:
+            return family
+    return ""
+
+
+def _enrich_fund_info(ticker, symbol: str, info: dict) -> dict:
+    """Merge yfinance's fund-specific profile, allocation, fee, and risk fields."""
+    enriched = dict(info)
+    try:
+        funds = ticker.funds_data
+        overview = funds.fund_overview or {}
+        _set_fund_value(enriched, "category", overview.get("categoryName"))
+        _set_fund_value(enriched, "fundFamily", overview.get("family"))
+        _set_fund_value(enriched, "legalType", overview.get("legalType"))
+        _set_fund_value(enriched, "longBusinessSummary", funds.description)
+        _set_fund_value(enriched, "quoteType", funds.quote_type())
+
+        for key, value in (funds.asset_classes or {}).items():
+            _set_fund_value(enriched, key, value)
+
+        operations = funds.fund_operations
+        _set_fund_value(
+            enriched,
+            "annualReportExpenseRatio",
+            _fund_table_value(operations, "Annual Report Expense Ratio", symbol),
+        )
+        _set_fund_value(
+            enriched,
+            "annualHoldingsTurnover",
+            _fund_table_value(operations, "Annual Holdings Turnover", symbol),
+        )
+        _set_fund_value(
+            enriched,
+            "totalAssets",
+            _fund_table_value(operations, "Total Net Assets", symbol),
+        )
+
+        bond_holdings = funds.bond_holdings
+        _set_fund_value(enriched, "fundDuration", _fund_table_value(bond_holdings, "Duration", symbol))
+        _set_fund_value(enriched, "fundMaturity", _fund_table_value(bond_holdings, "Maturity", symbol))
+        _set_fund_value(
+            enriched,
+            "fundCreditQuality",
+            _fund_table_value(bond_holdings, "Credit Quality", symbol),
+        )
+        enriched["fundCategorySource"] = "Yahoo Finance fund profile"
+    except Exception:
+        pass
+
+    if not _usable_fund_value(enriched.get("category")):
+        enriched["category"] = _infer_fund_category(enriched)
+        enriched["fundCategorySource"] = "Inferred from the provider name/description"
+    if not _usable_fund_value(enriched.get("fundFamily")):
+        inferred_family = _infer_fund_family(enriched)
+        if inferred_family:
+            enriched["fundFamily"] = inferred_family
+            enriched["fundFamilySource"] = "Inferred from the provider name"
+    return enriched
 
 
 def _build_portfolio_fit(
@@ -195,14 +411,17 @@ def _build_portfolio_fit(
     if not request.portfolio_allocation:
         return None
     equity_target, fixed_income_target = request.portfolio_allocation
-    category = str(info.get("category") or info.get("legalType") or "Unavailable")
+    category = str(info.get("category") or info.get("legalType") or "Other - fact sheet classification required")
+    category_source = str(info.get("fundCategorySource") or "Provider classification")
     descriptor = " ".join(
         str(info.get(key) or "")
         for key in ("category", "legalType", "longBusinessSummary", "longName")
     ).lower()
     stock_weight = _as_fraction(_first_number(info, "stockPosition", "equityPosition"))
     bond_weight = _as_fraction(_first_number(info, "bondPosition", "fixedIncomePosition"))
-    if stock_weight is not None and stock_weight >= 0.65:
+    if "market neutral" in descriptor:
+        role = "Alternative / diversifier sleeve"
+    elif stock_weight is not None and stock_weight >= 0.65:
         role = "Equity sleeve"
     elif bond_weight is not None and bond_weight >= 0.65:
         role = "Fixed-income sleeve"
@@ -215,7 +434,18 @@ def _build_portfolio_fit(
     else:
         role = "Role needs confirmation"
 
-    if role == "Equity sleeve":
+    if role == "Alternative / diversifier sleeve":
+        fit_label = "Potential diversifier - not a direct 70/30 building block"
+        summary = (
+            f"{company} uses a market-neutral equity strategy, so it should not automatically be counted as either "
+            f"the {equity_target}% equity sleeve or the {fixed_income_target}% bond sleeve."
+        )
+        watchouts = (
+            "Confirm long, short, gross, and net exposure in the latest fact sheet.",
+            "Compare beta, volatility, drawdown, and correlation with both stocks and bonds.",
+            "Decide whether the allocation will sit outside the 70/30 core or reduce another sleeve explicitly.",
+        )
+    elif role == "Equity sleeve":
         fit_label = f"Potential fit for part of the {equity_target}% equity sleeve"
         summary = f"{company} should be judged as an equity holding, not as the portfolio's {fixed_income_target}% defensive allocation."
         watchouts = ("Avoid letting one fund create unintended style or manager concentration.", "Confirm overlap with the other equity holdings.")
@@ -232,7 +462,7 @@ def _build_portfolio_fit(
         summary = f"The available provider data does not clearly identify which part of a {equity_target}/{fixed_income_target} portfolio {company} should fill."
         watchouts = ("Review the latest fact sheet and holdings allocation.", "Confirm expenses, liquidity, and the intended portfolio role before purchase.")
 
-    evidence = [f"Provider category: {category}.", f"Proposed role: {role}."]
+    evidence = [f"Fund strategy: {category} ({category_source.lower()}).", f"Proposed role: {role}."]
     if stock_weight is not None:
         evidence.append(f"Reported stock allocation: {stock_weight:.1%}.")
     if bond_weight is not None:
@@ -270,7 +500,9 @@ def _usable_ycharts_metric(label: str, value: object) -> bool:
         return value.strip().lower() not in {"", "n/a", "none", "unavailable", "-"}
     if not isinstance(value, (int, float)):
         return False
-    if "price target" in label.lower() and "upside" not in label.lower():
+    if "price target" in label.lower():
+        if "upside" in label.lower():
+            return value != 0
         return value > 0
     return True
 
@@ -565,6 +797,9 @@ class LiveResearchProvider:
             info = ticker.get_info() or {}
         except Exception:
             info = {}
+        resolved_quote_type = str(info.get("quoteType") or resolved.get("quoteType") or "").upper()
+        if request.portfolio_allocation or resolved_quote_type in {"ETF", "MUTUALFUND", "MUTUAL FUND"}:
+            info = _enrich_fund_info(ticker, symbol, info)
         metadata_fallback_used = False
         if not info.get("longName") or not info.get("fullExchangeName"):
             try:
@@ -757,20 +992,7 @@ class LiveResearchProvider:
             "fund_stock_position": _first_number(info, "stockPosition", "equityPosition"),
             "fund_bond_position": _first_number(info, "bondPosition", "fixedIncomePosition"),
             "comparison_symbols": tuple(comparison_histories),
-            "user_context": {
-                "purchase_price": request.purchase_price,
-                "quantity": request.quantity,
-                "risk_tolerance": request.risk_tolerance,
-                "question": request.question,
-                "decision_intent": request.decision_intent,
-                "portfolio_allocation": request.portfolio_allocation or None,
-                "historical_trade_examples": request.historical_trade_examples,
-                "custom_analysis_range": (
-                    {"start": request.custom_start, "end": request.custom_end}
-                    if request.custom_start
-                    else None
-                ),
-            },
+            "user_context": _external_user_context(request),
         }
         if portfolio_fit is not None:
             market["portfolio_fit"] = {
@@ -960,22 +1182,16 @@ class LiveResearchProvider:
                     ChartRecord(
                         "Fibonacci Structure",
                         str(fibonacci_path),
-                        (
-                            f"The {snapshot.fibonacci_range_label.lower()} swing spans "
-                            f"${snapshot.fib_swing_low:,.2f}-${snapshot.fib_swing_high:,.2f}; "
-                            f"price is ${snapshot.price:,.2f} versus the 38.2%, 50%, and 61.8% levels at "
-                            f"${snapshot.fib_38_2:,.2f}, ${snapshot.fib_50:,.2f}, and ${snapshot.fib_61_8:,.2f}."
-                        ),
+                        fibonacci_decision_insight(snapshot, technical.rating),
                     )
                 )
                 if "momentum" in request.requested_charts:
                     momentum_path = render_momentum_chart(history, symbol, workspace / "momentum-chart.png")
-                    momentum_direction = "positive" if snapshot.macd > snapshot.macd_signal else "negative"
                     chartbook.append(
                         ChartRecord(
                             "Momentum - RSI and MACD",
                             str(momentum_path),
-                            f"RSI is {snapshot.rsi14:.1f}; MACD momentum is {momentum_direction} ({snapshot.macd:.2f} versus {snapshot.macd_signal:.2f}).",
+                            momentum_decision_insight(snapshot, technical.rating),
                         )
                     )
                 if "relative_performance" in request.requested_charts and comparison_histories:
@@ -1065,28 +1281,50 @@ class LiveResearchProvider:
         analyst_upside = analyst_target / snapshot.price - 1 if analyst_target is not None else None
         fund_metrics = []
         if quote_type.upper() in {"ETF", "MUTUALFUND", "MUTUAL FUND"} or portfolio_fit is not None:
-            fund_metrics.extend(
-                [
-                    ("Security type", quote_type.replace("MUTUALFUND", "Mutual fund").title()),
-                    ("Fund category", str(info.get("category") or "Unavailable")),
-                    ("Fund family", str(info.get("fundFamily") or "Unavailable")),
-                ]
-            )
+            fund_metrics.append(("Security type", quote_type.replace("MUTUALFUND", "Mutual fund").title()))
+            if _usable_fund_value(info.get("category")):
+                fund_metrics.append(("Fund strategy", str(info["category"])))
+            if _usable_fund_value(info.get("fundFamily")):
+                fund_metrics.append(("Fund family", str(info["fundFamily"])))
             expense = _as_fraction(_first_number(info, "annualReportExpenseRatio", "netExpenseRatio"))
             fund_yield = _as_fraction(info.get("yield"))
             stock_weight = _as_fraction(_first_number(info, "stockPosition", "equityPosition"))
             bond_weight = _as_fraction(_first_number(info, "bondPosition", "fixedIncomePosition"))
+            cash_weight = _as_fraction(info.get("cashPosition"))
             if expense is not None:
                 fund_metrics.append(("Expense ratio", _metric(expense, percent=True)))
             if fund_yield is not None:
                 fund_metrics.append(("Distribution yield", _metric(fund_yield, percent=True)))
-            if stock_weight is not None or bond_weight is not None:
+            total_assets = _first_number(info, "totalAssets", "totalNetAssets")
+            if total_assets is not None:
+                fund_metrics.append(("Fund net assets", _metric(total_assets, money=True)))
+            turnover = _as_fraction(info.get("annualHoldingsTurnover"))
+            if turnover is not None:
+                fund_metrics.append(("Annual holdings turnover", _metric(turnover, percent=True)))
+            if stock_weight is not None or bond_weight is not None or cash_weight is not None:
+                allocation_parts = []
+                for allocation_label, allocation_value in (
+                    ("Stock", stock_weight),
+                    ("Bond", bond_weight),
+                    ("Cash", cash_weight),
+                ):
+                    if allocation_value is not None:
+                        allocation_parts.append(f"{allocation_label} {_metric(allocation_value, percent=True)}")
                 fund_metrics.append(
                     (
-                        "Reported stock / bond allocation",
-                        f"{_metric(stock_weight, percent=True)} / {_metric(bond_weight, percent=True)}",
+                        "Reported asset allocation",
+                        " | ".join(allocation_parts),
                     )
                 )
+            for label, key, suffix in (
+                ("Fund duration", "fundDuration", " years"),
+                ("Fund maturity", "fundMaturity", " years"),
+                ("Fund credit quality", "fundCreditQuality", ""),
+            ):
+                value = info.get(key)
+                if _usable_fund_value(value):
+                    rendered = f"{float(value):.2f}{suffix}" if isinstance(value, (int, float)) else str(value)
+                    fund_metrics.append((label, rendered))
         key_metrics = position_metrics + tuple(fund_metrics) + (
             ("Range-end price" if request.custom_start else "Current price", _metric(snapshot.price, money=True)),
             ("Market capitalization", _metric(info.get("marketCap"), money=True)),
@@ -1106,6 +1344,18 @@ class LiveResearchProvider:
             f"{fundamental_outlook(synthesis.fundamental.rating).lower()}. {interpretation} "
             f"{technical.summary}"
         )
+        request_response = _request_specific_response(
+            request,
+            company,
+            symbol,
+            info,
+            lead,
+            technical.rating,
+            synthesis.fundamental.summary,
+            portfolio_fit,
+            len(trade_cases),
+            comparison_assessment.verdict if comparison_assessment else "",
+        )
         result = ResearchResult(
             identity=primary_identity,
             horizon=request.horizon,
@@ -1124,6 +1374,7 @@ class LiveResearchProvider:
             change_conditions=synthesis.change_conditions,
             sources=tuple(sources),
             provider_label=synthesis.provider_label,
+            request_response=request_response,
             limitations=tuple(limitations),
             chart_path=chart_path,
             demo_mode=False,
