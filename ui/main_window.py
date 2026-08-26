@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
     QComboBox,
     QCheckBox,
     QDoubleSpinBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -23,7 +25,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QStackedWidget,
     QTextBrowser,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -103,16 +104,33 @@ class MainWindow(QMainWindow):
         return page, outer
 
     def _build_intake(self) -> QWidget:
-        page, outer = self._page_shell("Single Stock Research", "Resolve a security, select a horizon, and prepare client-ready research.")
+        page, outer = self._page_shell("Single Stock Research", "Choose a company and time horizon. The research process is handled automatically.")
         card = QFrame(objectName="Card")
         form = QFormLayout(card)
-        form.setContentsMargins(26, 24, 26, 24)
-        form.setVerticalSpacing(11)
+        form.setContentsMargins(28, 26, 28, 26)
+        form.setVerticalSpacing(14)
         form.setHorizontalSpacing(18)
         self.query = QLineEdit()
         self.query.setPlaceholderText("Company or ticker — e.g., Axon or AXON")
         self.horizon = QComboBox()
         self.horizon.addItems([item.value for item in Horizon])
+        self.question = QLineEdit()
+        self.question.setPlaceholderText("Optional — e.g., Is this an attractive entry point?")
+        form.addRow("Company or ticker *", self.query)
+        form.addRow("Investment horizon *", self.horizon)
+        form.addRow("Research question", self.question)
+        outer.addWidget(card)
+
+        self.position_toggle = QPushButton("+ Add position details", objectName="Secondary")
+        self.position_toggle.setCheckable(True)
+        self.position_toggle.setFixedWidth(190)
+        self.position_toggle.toggled.connect(self._toggle_position_details)
+        outer.addWidget(self.position_toggle)
+
+        self.position_card = QFrame(objectName="Card")
+        position_form = QFormLayout(self.position_card)
+        position_form.setContentsMargins(28, 22, 28, 22)
+        position_form.setVerticalSpacing(12)
         self.purchase = QDoubleSpinBox()
         self.purchase.setRange(0, 1_000_000)
         self.purchase.setDecimals(2)
@@ -123,10 +141,12 @@ class MainWindow(QMainWindow):
         self.quantity.setSpecialValueText("Not provided")
         self.risk = QComboBox()
         self.risk.addItems(["Not provided", "Conservative", "Moderate", "Aggressive"])
-        self.question = QTextEdit()
-        self.question.setPlaceholderText("Optional question or research emphasis")
-        self.question.setMinimumHeight(64)
-        self.question.setMaximumHeight(90)
+        position_form.addRow("Purchase price", self.purchase)
+        position_form.addRow("Quantity", self.quantity)
+        position_form.addRow("Risk tolerance", self.risk)
+        self.position_card.setVisible(False)
+        outer.addWidget(self.position_card)
+
         self.research_mode = QComboBox()
         self.research_mode.addItems(["Live Market Research", "Demo / Offline Test"])
         self.synthesis_provider = QComboBox()
@@ -138,30 +158,61 @@ class MainWindow(QMainWindow):
         self.model_name.setPlaceholderText("Optional model override")
         self.use_ycharts = QCheckBox("Query the installed YCharts Excel add-in")
         self.use_ycharts.setChecked(True)
-        form.addRow("Company or ticker *", self.query)
-        form.addRow("Investment horizon *", self.horizon)
-        form.addRow("Purchase price", self.purchase)
-        form.addRow("Quantity", self.quantity)
-        form.addRow("Risk tolerance", self.risk)
-        form.addRow("Custom question", self.question)
+
+        self.settings_dialog = self._build_settings_dialog()
+        self.research_mode.currentTextChanged.connect(self._update_settings_summary)
+        self.synthesis_provider.currentTextChanged.connect(self._update_settings_summary)
+        self.use_ycharts.toggled.connect(self._update_settings_summary)
+        self.settings_summary = QLabel()
+        self.settings_summary.setObjectName("SettingsSummary")
+        self._update_settings_summary()
+        outer.addWidget(self.settings_summary)
+        outer.addStretch()
+        actions = QHBoxLayout()
+        settings_button = QPushButton("Research Settings", objectName="Secondary")
+        settings_button.clicked.connect(self.settings_dialog.open)
+        actions.addWidget(settings_button)
+        actions.addStretch()
+        run = QPushButton("Start Research")
+        run.clicked.connect(self._start_research)
+        actions.addWidget(run)
+        outer.addLayout(actions)
+        return page
+
+    def _build_settings_dialog(self) -> QDialog:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Research Settings")
+        dialog.setMinimumWidth(560)
+        outer = QVBoxLayout(dialog)
+        title = QLabel("Research Settings", objectName="Section")
+        description = QLabel("These defaults apply automatically to each research session. API keys are used in memory only and are never saved.")
+        description.setWordWrap(True)
+        description.setObjectName("Subtitle")
+        outer.addWidget(title)
+        outer.addWidget(description)
+        form = QFormLayout()
+        form.setVerticalSpacing(12)
         form.addRow("Research mode", self.research_mode)
         form.addRow("Synthesis provider", self.synthesis_provider)
         form.addRow("OpenAI API key", self.api_key)
         form.addRow("Model override", self.model_name)
         form.addRow("YCharts", self.use_ycharts)
-        outer.addWidget(card)
-        note = QLabel("Live mode retrieves market history and fundamentals, calculates indicators locally, builds an annotated chart, and uses OpenAI web research or local Ollama when configured. YCharts and TradingView links remain visible for source review.")
-        note.setWordWrap(True)
-        note.setStyleSheet("color: #8A632B; padding: 4px;")
-        outer.addWidget(note)
-        outer.addStretch()
-        actions = QHBoxLayout()
-        actions.addStretch()
-        run = QPushButton("Prepare Evidence Review")
-        run.clicked.connect(self._start_research)
-        actions.addWidget(run)
-        outer.addLayout(actions)
-        return page
+        outer.addLayout(form)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dialog.close)
+        outer.addWidget(buttons)
+        return dialog
+
+    def _toggle_position_details(self, visible: bool) -> None:
+        self.position_card.setVisible(visible)
+        self.position_toggle.setText("− Hide position details" if visible else "+ Add position details")
+
+    def _update_settings_summary(self, *_args) -> None:
+        if not hasattr(self, "settings_summary"):
+            return
+        mode = "Live research" if self.research_mode.currentText().startswith("Live") else "Demo mode"
+        ycharts = "YCharts on" if self.use_ycharts.isChecked() else "YCharts off"
+        self.settings_summary.setText(f"{mode}  •  {self.synthesis_provider.currentText()} synthesis  •  {ycharts}")
 
     def _build_review(self) -> QWidget:
         page, outer = self._page_shell("Evidence Review", "Confirm the resolved security and preliminary analysis before creating the PDF.")
@@ -205,7 +256,7 @@ class MainWindow(QMainWindow):
         purchase = self.purchase.value() or None
         quantity = self.quantity.value() or None
         risk = "" if self.risk.currentIndex() == 0 else self.risk.currentText()
-        return ResearchRequest(self.query.text(), Horizon(self.horizon.currentText()), purchase, quantity, risk, self.question.toPlainText().strip())
+        return ResearchRequest(self.query.text(), Horizon(self.horizon.currentText()), purchase, quantity, risk, self.question.text().strip())
 
     def _start_research(self) -> None:
         try:
