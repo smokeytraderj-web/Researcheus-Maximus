@@ -114,7 +114,7 @@ class LiveResearchProvider:
             original = str(resolved.get("originalQuery") or request.query).upper()
             correction = f" The search resolved {original} to {symbol}; confirm that correction." if original != symbol else ""
             if original == "SPCX":
-                correction = " Did you mean SPXC (SPX Technologies)?"
+                correction = " SPCX is not a conventional exchange-listed Yahoo Finance symbol. If you meant SPX Technologies, use SPXC; private or pre-IPO securities are outside the current live-price workflow."
             raise RuntimeError(f"Live price history for {symbol} could not be retrieved.{correction} Details: {exc}") from exc
         snapshot = analyze_history(history)
         try:
