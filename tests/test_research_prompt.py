@@ -57,6 +57,7 @@ class ResearchPromptTests(unittest.TestCase):
 
     def test_lead_chart_request_is_explicit_or_defaults_to_relative_performance(self):
         self.assertEqual(parse_overview_chart_request("AXON - show a Fibonacci chart"), "fibonacci")
+        self.assertEqual(parse_overview_chart_request("AXON - show a stop-loss chart"), "stop_loss")
         self.assertEqual(parse_overview_chart_request("AXON - show an RSI chart"), "momentum")
         self.assertEqual(parse_overview_chart_request("AXON - show a price chart"), "price_trend")
         self.assertEqual(parse_overview_chart_request("AXON - show a total return chart"), "relative_performance")
@@ -76,7 +77,7 @@ class ResearchPromptTests(unittest.TestCase):
         query, _brief, comparisons, charts = parse_deep_analysis_prompt("AXON - Analyze RSI, MACD, ATR, and SMA trends.")
         self.assertEqual(query, "AXON")
         self.assertEqual(comparisons, ("SPY",))
-        self.assertEqual(charts, ("price_trend", "momentum", "relative_performance"))
+        self.assertEqual(charts, ("price_trend", "stop_loss", "momentum", "relative_performance"))
 
     def test_revision_can_add_comparisons_and_chart_types(self):
         revised = append_revision_instructions(
