@@ -112,6 +112,7 @@ class DemoResearchProvider:
             provider_label="Deterministic demo provider",
             limitations=("Synthetic values only; no live research sources were contacted.",),
             demo_mode=True,
+            analysis_mode="Deep Technical Analysis" if request.deep_analysis else "Standard Research",
         )
         result.validate()
         return result
