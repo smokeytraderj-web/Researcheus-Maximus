@@ -16,7 +16,13 @@ class ResearchRunnerTests(unittest.TestCase):
             prepared = runner.prepare(ResearchRequest("AXON", Horizon.MEDIUM, 300, 10))
             session_path = prepared.session.root
             self.assertTrue(prepared.preview_path.is_file())
-            self.assertGreaterEqual(len(PdfReader(prepared.preview_path).pages), 2)
+            reader = PdfReader(prepared.preview_path)
+            self.assertGreaterEqual(len(reader.pages), 2)
+            report_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            self.assertIn("OVERALL RATING", report_text)
+            self.assertIn("TECHNICAL SETUP", report_text)
+            self.assertIn("FUNDAMENTAL OUTLOOK", report_text)
+            self.assertNotIn("LEAD\n", report_text)
             final = runner.finalize(prepared, root / "output")
             self.assertTrue(final.is_file())
             self.assertFalse(session_path.exists())
@@ -43,4 +49,3 @@ class ResearchRunnerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
