@@ -227,7 +227,7 @@ def _comparison_performance_summary(result: ResearchResult, styles) -> Table | N
         [
             Paragraph(_safe(comparison.benchmark_ticker), styles["body"]),
             Paragraph(f"{comparison.benchmark_return:+.1%}", styles["value"]),
-            Paragraph("Benchmark", styles["compact"]),
+            Paragraph("Benchmark", styles["value"]),
         ],
     ]
     table = Table(rows, colWidths=[2.7 * inch, 2.1 * inch, 2.45 * inch])
@@ -581,6 +581,115 @@ def _chartbook_story(result: ResearchResult, styles) -> list:
     return story
 
 
+def _portfolio_fit_box(result: ResearchResult, styles) -> Table | None:
+    fit = result.portfolio_fit
+    if fit is None:
+        return None
+    evidence = "<br/>".join(f"- {_safe(item)}" for item in fit.evidence[:4])
+    watchouts = "<br/>".join(f"- {_safe(item)}" for item in fit.watchouts[:3])
+    table = Table(
+        [
+            [
+                Paragraph(
+                    f"<b>{fit.equity_target_pct}/{fit.fixed_income_target_pct} PORTFOLIO FIT</b><br/>"
+                    f"<font size='10'><b>{_safe(fit.fit_label)}</b></font><br/>{_safe(fit.summary)}",
+                    styles["body"],
+                ),
+                Paragraph(
+                    f"<b>Role and evidence</b><br/>{evidence}<br/><br/><b>What to confirm</b><br/>{watchouts}",
+                    styles["compact"],
+                ),
+            ]
+        ],
+        colWidths=[3.58 * inch, 3.57 * inch],
+    )
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), PALE),
+                ("BOX", (0, 0), (-1, -1), 0.6, NAVY),
+                ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+        )
+    )
+    return table
+
+
+def _historical_trade_story(result: ResearchResult, styles) -> list:
+    story = [PageBreak(), Paragraph("Historical Trade Case Studies", styles["section"])]
+    story.append(
+        Paragraph(
+            "Hypothetical, rules-based examples using real daily market history. These are not executed trades, reconstructed TradingView orders, or proof that the same rule will work in the future. The signal is evaluated after the close and the entry is the next session, which prevents look-ahead bias.",
+            styles["small"],
+        )
+    )
+    if not result.historical_trade_cases:
+        story.append(
+            Paragraph(
+                "No trade met every entry rule in the selected period. The report intentionally does not manufacture an example.",
+                styles["body"],
+            )
+        )
+        story.append(PageBreak())
+        return story
+    for index, case in enumerate(result.historical_trade_cases, start=1):
+        if index > 1:
+            story.append(PageBreak())
+        story.append(Paragraph(f"Example {index} - Signal on {_safe(case.signal_date)}", styles["section"]))
+        summary = Table(
+            [
+                [
+                    Paragraph("ENTRY", styles["table_header"]),
+                    Paragraph("INITIAL STOP", styles["table_header"]),
+                    Paragraph("EXIT", styles["table_header"]),
+                    Paragraph("OUTCOME", styles["table_header"]),
+                ],
+                [
+                    Paragraph(f"{_safe(case.entry_date)}<br/><b>${case.entry_price:,.2f}</b>", styles["compact"]),
+                    Paragraph(f"${case.initial_stop:,.2f}", styles["value"]),
+                    Paragraph(f"{_safe(case.exit_date)}<br/><b>${case.exit_price:,.2f}</b>", styles["compact"]),
+                    Paragraph(f"{_safe(case.outcome)}<br/><b>{case.return_pct:+.1%}</b>", styles["value"]),
+                ],
+            ],
+            colWidths=[1.8 * inch, 1.75 * inch, 1.8 * inch, 1.8 * inch],
+        )
+        summary.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+                    ("BOX", (0, 0), (-1, -1), 0.5, LINE),
+                    ("INNERGRID", (0, 0), (-1, -1), 0.25, LINE),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
+        story += [summary, Spacer(1, 0.08 * inch)]
+        if case.chart_path and Path(case.chart_path).is_file():
+            image = Image(case.chart_path)
+            image._restrictSize(7.15 * inch, 4.1 * inch)
+            story.append(image)
+        story += [
+            Paragraph(f"<b>Why the entry qualified:</b> {_safe(case.rationale)}", styles["compact"]),
+            Paragraph(f"<b>Why the case ended:</b> {_safe(case.exit_reason)}", styles["compact"]),
+            Paragraph(
+                "Source: attributed real daily market history. Entry, stop, and exit annotations were calculated by Researcheus Maximus; use the TradingView source link for independent chart review.",
+                styles["small"],
+            ),
+        ]
+    story.append(PageBreak())
+    return story
+
+
 def build_research_pdf(result: ResearchResult, request: ResearchRequest, destination: Path) -> Path:
     result.validate()
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -611,9 +720,9 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         else f"{result.identity.company_name} ({result.identity.ticker})"
     )
     report_subtitle = (
-        f"Security Comparison | {range_text + ' | ' if range_text else ''}{_safe(result.identity.currency)} | Produced {_safe(as_of)} | Confidence: {_safe(result.confidence.value)}"
+        f"Security Comparison | {range_text + ' | ' if range_text else ''}{_safe(result.identity.currency)} | Produced {_safe(as_of)}"
         if comparison
-        else f"{_safe(result.analysis_mode if request.deep_analysis else result.horizon.value + ' research')} | {range_text + ' | ' if range_text else ''}{_safe(result.identity.exchange)} | {_safe(result.identity.currency)} | Produced {_safe(as_of)} | Confidence: {_safe(result.confidence.value)}"
+        else f"{_safe(result.analysis_mode if request.deep_analysis else result.horizon.value + ' research')} | {range_text + ' | ' if range_text else ''}{_safe(result.identity.exchange)} | {_safe(result.identity.currency)} | Produced {_safe(as_of)}"
     )
     story = [
         Paragraph("GOTTFRIED &amp; SOMBERG WEALTH MANAGEMENT", styles["brand"]),
@@ -671,6 +780,12 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
                 "The highlighted preference is a comparison of the evidence available for both securities at the stated time. It is not an absolute recommendation. Portfolio role, concentration, taxes, liquidity needs, and risk capacity can change which security is more appropriate.",
                 styles["body"],
             ),
+            PageBreak(),
+            Paragraph("Sources and Disclosure", styles["section"]),
+            Paragraph(
+                "Source links below support the market history, security facts, benchmarks, and research evidence used in this comparison.",
+                styles["body"],
+            ),
             Paragraph("Sources", styles["section"]),
             _source_table(result, styles),
         ]
@@ -693,6 +808,9 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         Paragraph(f"<b>Interpretation:</b> {_safe(interpretation)}", styles["body"]),
         Paragraph(_safe(result.executive_summary), styles["body"]),
     ]
+    portfolio_fit_box = _portfolio_fit_box(result, styles)
+    if portfolio_fit_box is not None:
+        story += [Paragraph("Portfolio Role", styles["section"]), portfolio_fit_box]
     if result.chart_path and Path(result.chart_path).is_file():
         story += [
             Spacer(1, 0.06 * inch),
@@ -701,10 +819,12 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         ]
     if request.deep_analysis and result.chartbook:
         story += _chartbook_story(result, styles)
-        if len(result.chartbook) % 2 == 0:
+        if len(result.chartbook) % 2 == 0 and not request.historical_trade_examples:
             story.append(PageBreak())
-    else:
+    elif not request.historical_trade_examples:
         story.append(PageBreak())
+    if request.historical_trade_examples:
+        story += _historical_trade_story(result, styles)
     story.append(
         KeepTogether(
             [
