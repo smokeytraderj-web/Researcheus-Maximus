@@ -8,12 +8,14 @@ import pandas as pd
 from core.models import Horizon, Rating, SpecialistFinding
 from research.technical import (
     analyze_history,
+    historical_trade_examples,
     incorporate_relative_performance,
     render_chart,
     render_fibonacci_chart,
     render_momentum_chart,
     render_relative_performance_chart,
     render_risk_chart,
+    render_trade_case_chart,
     strategies,
     technical_finding,
 )
@@ -101,6 +103,30 @@ class TechnicalAnalysisTests(unittest.TestCase):
             for output in outputs:
                 self.assertTrue(output.is_file())
                 self.assertGreater(output.stat().st_size, 10_000)
+
+    def test_historical_trade_cases_are_rules_based_and_rendered(self):
+        count = 260
+        x = np.arange(count)
+        close = 100 + x * 0.2 + np.sin(x / 10) * 5
+        history = pd.DataFrame(
+            {
+                "Open": close + 0.1,
+                "Close": close,
+                "High": close + 1,
+                "Low": close - 1,
+                "Volume": np.full(count, 1_000_000),
+            },
+            index=pd.date_range("2025-01-01", periods=count, freq="B"),
+        )
+        cases = historical_trade_examples(history)
+        self.assertGreaterEqual(len(cases), 2)
+        for case in cases:
+            self.assertLess(case.signal_date, case.entry_date)
+            self.assertLess(case.initial_stop, case.entry_price)
+        with tempfile.TemporaryDirectory() as folder:
+            output = render_trade_case_chart(history, "QQQ", cases[0], Path(folder) / "trade.png")
+            self.assertTrue(output.is_file())
+            self.assertGreater(output.stat().st_size, 10_000)
 
 
 if __name__ == "__main__":
