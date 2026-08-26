@@ -17,7 +17,7 @@ class ResearchRunnerTests(unittest.TestCase):
             session_path = prepared.session.root
             self.assertTrue(prepared.preview_path.is_file())
             reader = PdfReader(prepared.preview_path)
-            self.assertGreaterEqual(len(reader.pages), 2)
+            self.assertEqual(len(reader.pages), 2)
             report_text = "\n".join(page.extract_text() or "" for page in reader.pages)
             self.assertIn("OVERALL RATING", report_text)
             self.assertIn("TECHNICAL SETUP", report_text)
@@ -45,6 +45,21 @@ class ResearchRunnerTests(unittest.TestCase):
             second_path = runner.finalize(second, root / "output")
             self.assertNotEqual(first_path, second_path)
             self.assertTrue(second_path.stem.endswith("_v2"))
+
+    def test_deep_analysis_uses_distinct_filename(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = ResearchRunner(session_root=Path(folder))
+            prepared = runner.prepare(
+                ResearchRequest(
+                    "AXON",
+                    Horizon.ALL,
+                    deep_analysis=True,
+                    comparison_symbols=("SPY",),
+                    requested_charts=("price_trend", "momentum", "relative_performance"),
+                )
+            )
+            self.assertEqual(prepared.suggested_filename, "AXON_Deep_Technical_Analysis.pdf")
+            runner.cancel(prepared)
 
 
 if __name__ == "__main__":
