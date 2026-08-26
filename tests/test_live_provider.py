@@ -7,6 +7,7 @@ from core.models import Horizon, Rating, ResearchRequest
 from research.live_provider import (
     LiveResearchProvider,
     _combine_ratings,
+    _build_portfolio_fit,
     _comparison_benchmark,
     _direct_chart_history,
     _direct_decision_answer,
@@ -175,6 +176,24 @@ class HistoryFallbackTests(unittest.TestCase):
         )
         self.assertTrue(answer.startswith("Direct answer:"))
         self.assertIn("not a clear buy", answer)
+
+    def test_portfolio_fit_identifies_fixed_income_sleeve(self):
+        request = ResearchRequest(
+            "BDMIX",
+            Horizon.ALL,
+            decision_intent="portfolio_fit",
+            portfolio_allocation=(70, 30),
+        )
+        fit = _build_portfolio_fit(
+            request,
+            {"category": "Intermediate Core-Plus Bond", "bondPosition": 0.92, "annualReportExpenseRatio": 0.0065},
+            "Example Bond Fund",
+        )
+        self.assertIsNotNone(fit)
+        self.assertEqual(fit.security_role, "Fixed-income sleeve")
+        self.assertIn("30%", fit.fit_label)
+        answer = _direct_decision_answer(request, "Example Bond Fund", Rating.HOLD, Rating.HOLD, fit)
+        self.assertTrue(answer.startswith("Portfolio-fit answer:"))
 
     def test_historical_range_is_not_presented_as_current_advice(self):
         answer = _direct_decision_answer(
