@@ -112,6 +112,26 @@ class Strategy:
 
 
 @dataclass(frozen=True, slots=True)
+class TechnicalActionPlan:
+    stance: str
+    market_condition: str
+    order_type: str
+    entry_low: float
+    entry_high: float
+    stop_level: float
+    stop_pct: float
+    first_target: float
+    second_target: float
+    reward_risk: float
+    confirmation: str
+    invalidation: str
+    rationale: tuple[str, ...]
+    options_strategy: str = ""
+    options_structure: str = ""
+    options_risk: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class ChartRecord:
     title: str
     path: str
@@ -190,6 +210,7 @@ class ResearchResult:
     ycharts_status: str = ""
     historical_trade_cases: tuple[HistoricalTradeCase, ...] = ()
     portfolio_fit: PortfolioFitAssessment | None = None
+    technical_plan: TechnicalActionPlan | None = None
 
     def validate(self) -> None:
         if self.current_price <= 0:
