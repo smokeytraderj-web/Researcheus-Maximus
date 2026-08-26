@@ -59,7 +59,7 @@ class ResearchRequest:
             raise ValueError("Quantity must be greater than zero.")
         if len(self.comparison_symbols) > 3:
             raise ValueError("Deep analysis supports up to three comparison symbols.")
-        if self.overview_chart not in {"", "relative_performance", "price_trend", "fibonacci", "momentum"}:
+        if self.overview_chart not in {"", "relative_performance", "price_trend", "stop_loss", "fibonacci", "momentum"}:
             raise ValueError("The requested overview chart is not supported.")
         if self.portfolio_allocation:
             if len(self.portfolio_allocation) != 2 or sum(self.portfolio_allocation) != 100:
