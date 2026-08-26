@@ -163,6 +163,11 @@ class DemoResearchProvider:
                 SourceRecord("Researcheus Demo Provider", "synthetic://demo", now, "Workflow validation only"),
             ),
             provider_label="Deterministic demo provider",
+            request_response=(
+                f"This demo report addresses the request about {company}. Live provider facts are required for a client-ready answer."
+                if request.question.strip()
+                else ""
+            ),
             limitations=("Synthetic values only; no live research sources were contacted.",),
             demo_mode=True,
             analysis_mode=(
