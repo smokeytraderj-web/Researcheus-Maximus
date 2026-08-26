@@ -8,6 +8,7 @@ from core.research_prompt import (
     parse_comparison_prompt,
     parse_custom_range,
     parse_deep_analysis_prompt,
+    parse_overview_chart_request,
     parse_portfolio_allocation,
     parse_research_prompt,
 )
@@ -53,6 +54,13 @@ class ResearchPromptTests(unittest.TestCase):
         self.assertIn("Research WMT", revised)
         self.assertIn("Requested modifications to the revised report", revised)
         self.assertIn("entry strategy conservative", revised)
+
+    def test_lead_chart_request_is_explicit_or_defaults_to_relative_performance(self):
+        self.assertEqual(parse_overview_chart_request("AXON - show a Fibonacci chart"), "fibonacci")
+        self.assertEqual(parse_overview_chart_request("AXON - show an RSI chart"), "momentum")
+        self.assertEqual(parse_overview_chart_request("AXON - show a price chart"), "price_trend")
+        self.assertEqual(parse_overview_chart_request("AXON - show a total return chart"), "relative_performance")
+        self.assertEqual(parse_overview_chart_request("Give me a report on AXON"), "")
 
     def test_deep_prompt_extracts_comparisons_and_requested_risk_chart(self):
         query, brief, comparisons, charts = parse_deep_analysis_prompt(
