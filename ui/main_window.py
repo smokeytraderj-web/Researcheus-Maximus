@@ -199,9 +199,9 @@ class MainWindow(QMainWindow):
 
     def _topbar(self) -> QFrame:
         frame = QFrame(objectName="TopBar")
-        frame.setFixedHeight(56)
+        frame.setFixedHeight(64)
         row = QHBoxLayout(frame)
-        row.setContentsMargins(28, 8, 28, 8)
+        row.setContentsMargins(36, 9, 36, 9)
         titles = QVBoxLayout()
         titles.setSpacing(0)
         titles.addWidget(QLabel("RESEARCHEUS MAXIMUS", objectName="Brand"))
@@ -223,8 +223,8 @@ class MainWindow(QMainWindow):
     def _build_intake(self) -> QWidget:
         page = QWidget()
         outer = QVBoxLayout(page)
-        outer.setContentsMargins(42, 28, 42, 30)
-        outer.setSpacing(16)
+        outer.setContentsMargins(48, 32, 48, 36)
+        outer.setSpacing(18)
 
         self.research_mode = QComboBox()
         self.research_mode.addItems(["Live Market Research", "Demo / Offline Test"])
@@ -240,17 +240,17 @@ class MainWindow(QMainWindow):
         self.settings_dialog = self._build_settings_dialog()
 
         content = QWidget()
-        content.setMinimumWidth(800)
-        content.setMaximumWidth(1480)
+        content.setMinimumWidth(820)
+        content.setMaximumWidth(1560)
         content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(12)
+        content_layout.setSpacing(16)
 
         hero = QFrame(objectName="HeroPanel")
         hero_layout = QVBoxLayout(hero)
-        hero_layout.setContentsMargins(42, 26, 42, 28)
-        hero_layout.setSpacing(8)
+        hero_layout.setContentsMargins(48, 30, 48, 32)
+        hero_layout.setSpacing(10)
         hero_top = QHBoxLayout()
         hero_top.setSpacing(12)
         hero_top.addWidget(QLabel("EQUITY RESEARCH", objectName="HeroEyebrow"))
@@ -275,8 +275,8 @@ class MainWindow(QMainWindow):
 
         card = QFrame(objectName="PrimaryModePanel")
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(30, 20, 30, 22)
-        card_layout.setSpacing(8)
+        card_layout.setContentsMargins(40, 26, 40, 28)
+        card_layout.setSpacing(10)
         card_heading = QHBoxLayout()
         card_heading.addWidget(QLabel("01", objectName="ModeNumber"))
         card_heading.addSpacing(10)
@@ -294,10 +294,10 @@ class MainWindow(QMainWindow):
             "Example: Is TSLA a good opportunity to buy now, and where should I place a stop loss?"
         )
         self.query.setObjectName("ResearchQuery")
-        self.query.setMinimumHeight(120)
+        self.query.setMinimumHeight(136)
         begin = QPushButton("Generate Research", objectName="Gold")
-        begin.setMinimumHeight(40)
-        begin.setFixedWidth(176)
+        begin.setMinimumHeight(44)
+        begin.setFixedWidth(190)
         begin.clicked.connect(lambda: self._start_research())
         card_layout.addWidget(self.query)
         overview_actions = QHBoxLayout()
@@ -309,16 +309,16 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(card)
 
         mode_row = QHBoxLayout()
-        mode_row.setSpacing(12)
+        mode_row.setSpacing(16)
         deep_panel = QFrame(objectName="ModePanel")
         deep_layout = QVBoxLayout(deep_panel)
-        deep_layout.setContentsMargins(30, 21, 30, 22)
-        deep_layout.setSpacing(7)
+        deep_layout.setContentsMargins(34, 24, 34, 26)
+        deep_layout.setSpacing(9)
         deep_layout.addWidget(QLabel("02", objectName="ModeNumber"))
         deep_title = QLabel("Deep Technical Analysis", objectName="ModeTitle")
         deep_title.setWordWrap(True)
         deep_description = QLabel(
-            "Build a chart-led study with custom ranges, Fibonacci, momentum, risk, and benchmarks.",
+            "Build a chart-led study with custom ranges, Fibonacci, stop-loss evidence, momentum, risk, and benchmarks.",
             objectName="ModeDescription",
         )
         deep_description.setWordWrap(True)
@@ -332,8 +332,8 @@ class MainWindow(QMainWindow):
 
         compare_panel = QFrame(objectName="ModePanel")
         compare_layout = QVBoxLayout(compare_panel)
-        compare_layout.setContentsMargins(30, 21, 30, 22)
-        compare_layout.setSpacing(7)
+        compare_layout.setContentsMargins(34, 24, 34, 26)
+        compare_layout.setSpacing(9)
         compare_layout.addWidget(QLabel("03", objectName="ModeNumber"))
         compare_title = QLabel("Security Comparison", objectName="ModeTitle")
         compare_title.setWordWrap(True)
@@ -428,7 +428,7 @@ class MainWindow(QMainWindow):
         self.deep_query.setMinimumHeight(168)
         self.deep_query.setPlaceholderText(
             "Start with the primary ticker, then describe the analysis and comparison symbols.\n\n"
-            "Example: AVGO - Compare with NVDA and SPY from 2024-01-01 to 2026-08-26. Analyze Fibonacci, trend, RSI, MACD, relative performance, drawdown, and volatility."
+            "Example: AVGO - Compare with NVDA and SPY from 2024-01-01 to 2026-08-26. Analyze Fibonacci, stop-loss evidence, trend, RSI, MACD, relative performance, drawdown, and volatility."
         )
         supported = QLabel(
             "Use phrases such as “from 2024-01-01 to 2025-12-31,” “from January 2024 to June 2025,” or “since March 2024.” Fibonacci automatically uses the selected range. SPY is used when no benchmark is named.",
@@ -594,7 +594,7 @@ class MainWindow(QMainWindow):
         historical_trades = is_historical_trade_request(research_brief)
         comparisons = ("SPY",) if historical_trades else ()
         requested_charts = (
-            ("price_trend", "momentum", "relative_performance", "historical_trades")
+            ("price_trend", "stop_loss", "momentum", "relative_performance", "historical_trades")
             if historical_trades
             else ()
         )
