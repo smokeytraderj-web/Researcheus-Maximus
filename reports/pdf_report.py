@@ -10,6 +10,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import (
+    Image,
     KeepTogether,
     PageBreak,
     Paragraph,
@@ -105,6 +106,13 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         block = [Paragraph(f"{heading} — {finding.rating.value}", styles["section"]), Paragraph(finding.summary, styles["body"])] + _bullets(finding.signals, styles["body"])
         story.append(KeepTogether(block))
 
+    if result.chart_path and Path(result.chart_path).is_file():
+        story += [
+            Paragraph("Annotated Technical Chart", styles["section"]),
+            Image(result.chart_path, width=7.2 * inch, height=4.25 * inch),
+            Paragraph("Source: live market-price history; indicators and annotations calculated deterministically by Researcheus Maximus.", styles["small"]),
+        ]
+
     story += [Paragraph("News, Analyst Commentary, and Sentiment", styles["section"]), Paragraph(result.sentiment, styles["body"]), PageBreak(), Paragraph("Potential Investment Strategies", styles["section"])]
     for strategy in result.strategies:
         rows = [
@@ -123,6 +131,8 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
     story += [Paragraph("Sources", styles["section"])]
     for source in result.sources:
         story.append(Paragraph(f"{source.name} — {source.locator} — Retrieved {source.retrieved_at} — Supports: {source.supports}", styles["small"]))
+    if result.limitations:
+        story += [Paragraph("Limitations", styles["section"])] + _bullets(result.limitations, styles["small"])
     story += [
         Paragraph("Disclosure", styles["section"]),
         Paragraph(
@@ -132,4 +142,3 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
     ]
     doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
     return destination
-
