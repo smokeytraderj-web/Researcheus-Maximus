@@ -81,14 +81,14 @@ def _bullet_text(items: tuple[str, ...], style, limit: int | None = None) -> lis
     return [Paragraph(f"- {_safe(item)}", style) for item in selected]
 
 
-def _rating_box(result: ResearchResult, styles) -> Table:
+def _rating_box(result: ResearchResult, styles, *, price_label: str = "CURRENT PRICE") -> Table:
     box = Table(
         [
             [
                 Paragraph("OVERALL RATING", styles["small"]),
                 Paragraph("TECHNICAL SETUP", styles["small"]),
                 Paragraph("FUNDAMENTAL OUTLOOK", styles["small"]),
-                Paragraph("CURRENT PRICE", styles["small"]),
+                Paragraph(_safe(price_label), styles["small"]),
             ],
             [
                 Paragraph(_safe(result.lead_rating.value), styles["rating"]),
@@ -117,13 +117,16 @@ def _rating_box(result: ResearchResult, styles) -> Table:
     return box
 
 
-def _comparison_preference_box(result: ResearchResult, styles) -> Table:
+def _comparison_preference_box(result: ResearchResult, styles, *, historical_range: bool = False) -> Table:
     comparison = result.comparison
     assert comparison is not None
     box = Table(
         [
             [
-                Paragraph("CURRENT EVIDENCE PREFERENCE", styles["small"]),
+                Paragraph(
+                    "RANGE-END EVIDENCE PREFERENCE" if historical_range else "CURRENT EVIDENCE PREFERENCE",
+                    styles["small"],
+                ),
                 Paragraph(result.identity.ticker, styles["small"]),
                 Paragraph(comparison.secondary_identity.ticker, styles["small"]),
             ],
@@ -232,6 +235,7 @@ _METRIC_PRIORITY = (
     "Gain/loss from purchase price",
     "User quantity",
     "Illustrative current position value",
+    "Range-end price",
     "Market capitalization",
     "Trailing / forward P/E",
     "Revenue / earnings growth",
@@ -241,6 +245,8 @@ _METRIC_PRIORITY = (
     "YCharts consensus rating",
     "YCharts price target",
     "YCharts price target upside",
+    "Analysis-range return",
+    "Three-month return",
     "20-day moving average",
     "50-day moving average",
     "200-day moving average",
@@ -403,6 +409,25 @@ def _source_table(result: ResearchResult, styles) -> Table:
     return table
 
 
+def _client_visible_limitations(result: ResearchResult) -> tuple[str, ...]:
+    """Keep operational provider diagnostics in Evidence Review, not the client PDF."""
+    hidden_fragments = (
+        "no ai research provider was available",
+        "automatic provider fallback",
+        "ycharts",
+        "excel returned",
+        "excel automation",
+        "addin",
+        "add-in",
+        "formula error",
+        "#name?",
+    )
+    return tuple(
+        item for item in result.limitations
+        if not any(fragment in item.lower() for fragment in hidden_fragments)
+    )
+
+
 def _chartbook_story(result: ResearchResult, styles) -> list:
     story = []
     for index, chart in enumerate(result.chartbook):
@@ -442,6 +467,13 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         pageCompression=1,
     )
     as_of = result.as_of.replace("T", " ")
+    custom_range = bool(request.custom_start and request.custom_end)
+    historical_range = bool(custom_range and request.custom_end < result.as_of[:10])
+    range_text = (
+        f"Custom range {_safe(request.custom_start)} to {_safe(request.custom_end)}"
+        if custom_range
+        else ""
+    )
     comparison = result.comparison
     report_title = (
         f"{result.identity.ticker} vs {comparison.secondary_identity.ticker}"
@@ -449,9 +481,9 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         else f"{result.identity.company_name} ({result.identity.ticker})"
     )
     report_subtitle = (
-        f"Security Comparison | {_safe(result.identity.currency)} | As of {_safe(as_of)} | Confidence: {_safe(result.confidence.value)}"
+        f"Security Comparison | {range_text + ' | ' if range_text else ''}{_safe(result.identity.currency)} | Produced {_safe(as_of)} | Confidence: {_safe(result.confidence.value)}"
         if comparison
-        else f"{_safe(result.analysis_mode if request.deep_analysis else result.horizon.value + ' research')} | {_safe(result.identity.exchange)} | {_safe(result.identity.currency)} | As of {_safe(as_of)} | Confidence: {_safe(result.confidence.value)}"
+        else f"{_safe(result.analysis_mode if request.deep_analysis else result.horizon.value + ' research')} | {range_text + ' | ' if range_text else ''}{_safe(result.identity.exchange)} | {_safe(result.identity.currency)} | Produced {_safe(as_of)} | Confidence: {_safe(result.confidence.value)}"
     )
     story = [
         Paragraph("GOTTFRIED &amp; SOMBERG WEALTH MANAGEMENT", styles["brand"]),
@@ -467,7 +499,7 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
 
     if comparison:
         story += [
-            _comparison_preference_box(result, styles),
+            _comparison_preference_box(result, styles, historical_range=historical_range),
             Paragraph("Comparison View", styles["section"]),
             Paragraph(_safe(comparison.verdict), styles["body"]),
             *_bullet_text(comparison.rationale, styles["compact"]),
@@ -499,8 +531,9 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
             Paragraph("Sources", styles["section"]),
             _source_table(result, styles),
         ]
-        if result.limitations:
-            story.append(Paragraph(f"<b>Limitations:</b> {_safe(' | '.join(result.limitations[:4]))}", styles["tiny"]))
+        visible_limitations = _client_visible_limitations(result)
+        if visible_limitations:
+            story.append(Paragraph(f"<b>Limitations:</b> {_safe(' | '.join(visible_limitations[:4]))}", styles["tiny"]))
         story.append(
             Paragraph(
                 "<b>Disclosure:</b> This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. The comparison is limited to like-for-like available evidence and may omit unavailable factors. Investing involves risk, including possible loss of principal. Firm compliance review is required before client distribution.",
@@ -512,7 +545,7 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
 
     interpretation = assessment_interpretation(result.technical.rating, result.fundamental.rating)
     story += [
-        _rating_box(result, styles),
+        _rating_box(result, styles, price_label="RANGE-END PRICE" if custom_range else "CURRENT PRICE"),
         Paragraph("Investment View", styles["section"]),
         Paragraph(f"<b>Interpretation:</b> {_safe(interpretation)}", styles["body"]),
         Paragraph(_safe(result.executive_summary), styles["body"]),
@@ -544,8 +577,9 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
     if strategy_table is not None:
         story.append(strategy_table)
     story += [Paragraph("Research Watchlist", styles["section"]), _research_watchlist(result, styles), Paragraph("Sources", styles["section"]), _source_table(result, styles)]
-    if result.limitations:
-        limitations = " | ".join(result.limitations[:3])
+    visible_limitations = _client_visible_limitations(result)
+    if visible_limitations:
+        limitations = " | ".join(visible_limitations[:3])
         story.append(Paragraph(f"<b>Limitations:</b> {_safe(limitations)}", styles["tiny"]))
     story.append(
         Paragraph(

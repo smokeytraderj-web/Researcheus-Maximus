@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import calendar
+import datetime as dt
 import re
 
 
@@ -33,6 +35,21 @@ _TICKER_STOPWORDS = {
 }
 
 
+def _clean_security_candidate(value: str) -> str:
+    candidate = value.strip().lstrip("$")
+    for match in _TICKER.finditer(candidate):
+        ticker = match.group(1)
+        if ticker not in _TICKER_STOPWORDS:
+            return ticker
+    candidate = re.sub(
+        r"^(?:please\s+)?(?:(?:full|complete|detailed)\s+)?(?:research|analysis|analyze)\s+(?:of\s+)?",
+        "",
+        candidate,
+        flags=re.IGNORECASE,
+    ).strip()
+    return candidate
+
+
 def parse_research_prompt(value: str) -> tuple[str, str]:
     """Extract a resolvable security query while preserving the user's full brief."""
     prompt = value.strip()
@@ -43,23 +60,34 @@ def parse_research_prompt(value: str) -> tuple[str, str]:
     first_line = lines[0]
     for separator in (" — ", " – ", " - ", " | ", ": "):
         if separator in first_line:
-            candidate = first_line.split(separator, 1)[0].strip().lstrip("$")
+            candidate = _clean_security_candidate(first_line.split(separator, 1)[0])
             if candidate:
                 return candidate, prompt
 
     if len(lines) > 1:
-        return first_line.lstrip("$"), prompt
+        return _clean_security_candidate(first_line), prompt
 
     company = re.search(
         r"\b(?:research|analyze|buy|sell|hold|add)\s+"
-        r"(?:shares?\s+(?:of|in)\s+)?"
+        r"(?:my\s+)?(?:shares?\s+(?:of|in)\s+)?"
         r"([A-Z][A-Za-z0-9.&' -]{1,60}?)"
         r"(?=\s+(?:after|before|near|at|following|for|because)\b|[?!.,]|$)",
         first_line,
         flags=re.IGNORECASE,
     )
     if company:
-        return company.group(1).strip(), prompt
+        candidate = re.sub(r"\s+position$", "", company.group(1).strip(), flags=re.IGNORECASE)
+        return _clean_security_candidate(candidate), prompt
+
+    open_ended_company_patterns = (
+        r"\b(?:full|complete|detailed)?\s*analysis\s+of\s+([A-Z][A-Za-z0-9.&' -]{1,60}?)(?=\s+(?:and|to|from|since|with)\b|[?!.,]|$)",
+        r"\bwhat\s+about\s+(?:my\s+)?([A-Z][A-Za-z0-9.&' -]{1,60}?)(?:\s+position)?(?=[?!.,]|$)",
+        r"\bevaluate\s+(?:my\s+)?([A-Z][A-Za-z0-9.&' -]{1,60}?)(?:\s+position)?(?=[?!.,]|$)",
+    )
+    for pattern in open_ended_company_patterns:
+        match = re.search(pattern, first_line, flags=re.IGNORECASE)
+        if match:
+            return match.group(1).strip(), prompt
 
     for match in _TICKER.finditer(first_line):
         ticker = match.group(1)
@@ -77,6 +105,74 @@ def append_revision_instructions(original: str, revision: str) -> str:
         return clean_original
     prefix = f"{clean_original}\n\n" if clean_original else ""
     return f"{prefix}Requested modifications to the revised report:\n{clean_revision}"
+
+
+def classify_research_intent(value: str) -> str:
+    """Classify the decision being asked without changing the user's wording."""
+    lowered = value.lower()
+    if any(term in lowered for term in ("should i sell", "time to sell", "exit", "reduce my position")):
+        return "sell"
+    if any(term in lowered for term in ("should i buy", "good opportunity to buy", "good entry", "worth buying")):
+        return "buy"
+    if any(term in lowered for term in ("my position", "this position", "what about my", "should i hold", "should i add")):
+        return "position"
+    if any(term in lowered for term in ("full analysis", "complete analysis", "deep dive", "everything about")):
+        return "full_analysis"
+    return "research"
+
+
+def _month_date(value: str, *, end_of_month: bool) -> dt.date | None:
+    clean = re.sub(r"\s+", " ", value.strip())
+    for pattern in ("%B %Y", "%b %Y"):
+        try:
+            parsed = dt.datetime.strptime(clean.title(), pattern).date()
+            day = calendar.monthrange(parsed.year, parsed.month)[1] if end_of_month else 1
+            return parsed.replace(day=day)
+        except ValueError:
+            continue
+    return None
+
+
+def parse_custom_range(value: str, *, today: dt.date | None = None) -> tuple[str, str]:
+    """Parse an optional ISO or month-name analysis range from a research brief."""
+    prompt = value.strip()
+    if not prompt:
+        return "", ""
+    today = today or dt.date.today()
+    iso = re.search(
+        r"(?:from|between|range\s*:?)?\s*(\d{4}-\d{2}-\d{2})\s+(?:to|through|until|and)\s+(\d{4}-\d{2}-\d{2}|today|now)",
+        prompt,
+        flags=re.IGNORECASE,
+    )
+    if iso:
+        end = today.isoformat() if iso.group(2).lower() in {"today", "now"} else iso.group(2)
+        return iso.group(1), end
+
+    month = re.search(
+        r"(?:from|between|range\s*:?)\s+([A-Za-z]{3,9}\s+\d{4})\s+(?:to|through|until|and)\s+([A-Za-z]{3,9}\s+\d{4}|today|now)",
+        prompt,
+        flags=re.IGNORECASE,
+    )
+    if month:
+        start = _month_date(month.group(1), end_of_month=False)
+        end = today if month.group(2).lower() in {"today", "now"} else _month_date(month.group(2), end_of_month=True)
+        if start and end:
+            return start.isoformat(), end.isoformat()
+
+    since = re.search(
+        r"\bsince\s+(\d{4}-\d{2}-\d{2}|[A-Za-z]{3,9}\s+\d{4})",
+        prompt,
+        flags=re.IGNORECASE,
+    )
+    if since:
+        raw = since.group(1)
+        try:
+            start = dt.date.fromisoformat(raw)
+        except ValueError:
+            start = _month_date(raw, end_of_month=False)
+        if start:
+            return start.isoformat(), today.isoformat()
+    return "", ""
 
 
 def parse_deep_analysis_prompt(value: str) -> tuple[str, str, tuple[str, ...], tuple[str, ...]]:
@@ -110,7 +206,12 @@ def parse_comparison_prompt(value: str) -> tuple[str, str, str]:
     versus = re.split(r"\s+(?:vs\.?|versus)\s+", first_line, maxsplit=1, flags=re.IGNORECASE)
     if len(versus) == 2:
         primary = re.sub(r"^compare\s+", "", versus[0], flags=re.IGNORECASE).strip(" $:,-")
-        secondary = re.split(r"\s+(?:—|–|-)\s+|\s*\|\s*|:\s+", versus[1], maxsplit=1)[0].strip(" $:,-")
+        secondary = re.split(
+            r"\s+(?:—|–|-)\s+|\s*\|\s*|:\s+|\s+(?=which\b|what\b|from\b|since\b)",
+            versus[1],
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[0].strip(" $:,-")
         return primary, secondary, prompt
 
     compare = re.match(

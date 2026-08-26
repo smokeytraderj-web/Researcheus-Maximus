@@ -1,8 +1,11 @@
 import unittest
+import datetime as dt
 
 from core.research_prompt import (
     append_revision_instructions,
+    classify_research_intent,
     parse_comparison_prompt,
+    parse_custom_range,
     parse_deep_analysis_prompt,
     parse_research_prompt,
 )
@@ -68,6 +71,39 @@ class ResearchPromptTests(unittest.TestCase):
     def test_comparison_prompt_accepts_company_names(self):
         primary, secondary, _brief = parse_comparison_prompt("Apple versus Microsoft")
         self.assertEqual((primary, secondary), ("Apple", "Microsoft"))
+
+    def test_full_analysis_question_resolves_ticker_and_buy_intent(self):
+        prompt = "Full analysis of TSLA — is it a good opportunity to buy?"
+        query, brief = parse_research_prompt(prompt)
+        self.assertEqual(query, "TSLA")
+        self.assertEqual(classify_research_intent(brief), "buy")
+
+    def test_open_ended_position_and_sell_questions_are_classified(self):
+        query, brief = parse_research_prompt("Should I sell my TSLA position?")
+        self.assertEqual(query, "TSLA")
+        self.assertEqual(classify_research_intent(brief), "sell")
+        self.assertEqual(classify_research_intent("What about my Apple position?"), "position")
+
+    def test_custom_range_accepts_iso_dates_months_and_since(self):
+        today = dt.date(2026, 8, 26)
+        self.assertEqual(
+            parse_custom_range("Analyze TSLA from 2024-01-01 to 2025-12-31", today=today),
+            ("2024-01-01", "2025-12-31"),
+        )
+        self.assertEqual(
+            parse_custom_range("Analyze TSLA from January 2024 to June 2025", today=today),
+            ("2024-01-01", "2025-06-30"),
+        )
+        self.assertEqual(
+            parse_custom_range("Analyze TSLA since March 2024", today=today),
+            ("2024-03-01", "2026-08-26"),
+        )
+
+    def test_comparison_prompt_stops_before_custom_range(self):
+        primary, secondary, _brief = parse_comparison_prompt(
+            "AVGO vs NVDA from January 2024 to June 2025"
+        )
+        self.assertEqual((primary, secondary), ("AVGO", "NVDA"))
 
 
 if __name__ == "__main__":

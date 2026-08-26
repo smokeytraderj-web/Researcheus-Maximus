@@ -1,11 +1,26 @@
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from pypdf import PdfReader
 
 from core.models import Horizon, ResearchRequest
 from services.research_runner import ResearchRunner
+from research.demo_provider import DemoResearchProvider
+
+
+class _OperationalLimitationProvider:
+    def run(self, request, workspace=None):
+        result = DemoResearchProvider().run(request, workspace)
+        return replace(
+            result,
+            limitations=(
+                "No AI research provider was available; fundamental and sentiment coverage is reduced.",
+                "The installed YCharts add-in was detected but returned no usable metrics.",
+                'YCharts consensus rating was unavailable: Excel returned #NAME?. Cell F2: =YCI("TSLA","consensus_recommendation_label")',
+            ),
+        )
 
 
 class ResearchRunnerTests(unittest.TestCase):
@@ -79,6 +94,21 @@ class ResearchRunnerTests(unittest.TestCase):
             report_text = "\n".join(page.extract_text() or "" for page in reader.pages)
             self.assertIn("CURRENT EVIDENCE PREFERENCE", report_text)
             self.assertIn("Side-by-Side Evidence", report_text)
+            runner.cancel(prepared)
+
+    def test_client_pdf_omits_operational_provider_and_excel_errors(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runner = ResearchRunner(
+                provider=_OperationalLimitationProvider(),
+                session_root=Path(folder),
+            )
+            prepared = runner.prepare(ResearchRequest("TSLA", Horizon.ALL))
+            report_text = "\n".join(
+                page.extract_text() or "" for page in PdfReader(prepared.preview_path).pages
+            )
+            self.assertNotIn("No AI research provider", report_text)
+            self.assertNotIn("YCharts add-in", report_text)
+            self.assertNotIn("#NAME?", report_text)
             runner.cancel(prepared)
 
 

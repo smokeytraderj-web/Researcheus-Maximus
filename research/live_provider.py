@@ -21,7 +21,7 @@ from research.technical import (
     strategies,
     technical_finding,
 )
-from research.ycharts_excel import retrieve_ycharts_metrics
+from research.ycharts_excel import METRICS as YCHARTS_METRICS, retrieve_ycharts_metrics
 from security.certificates import verified_market_session
 
 
@@ -82,6 +82,57 @@ def _combine_ratings(
     return ratings[max(0, min(len(ratings) - 1, index))], technical_weight, fundamental_weight
 
 
+def _direct_decision_answer(
+    request: ResearchRequest,
+    company: str,
+    lead: Rating,
+    technical: Rating,
+) -> str:
+    """Answer the user's decision directly while keeping the conclusion conditional."""
+    positive = {Rating.STRONG_BUY, Rating.BUY, Rating.ADD}
+    negative = {Rating.REDUCE, Rating.SELL, Rating.AVOID}
+    historical = bool(request.custom_end and request.custom_end < dt.date.today().isoformat())
+    timing = technical_setup(technical).lower()
+    if historical:
+        return (
+            f"Historical conclusion: at the {request.custom_end} range end, {company} rated {lead.value} "
+            f"with a {timing} technical setup. This describes that period and is not a current buy or sell conclusion."
+        )
+    if request.decision_intent == "buy":
+        if lead in positive:
+            return (
+                f"Direct answer: {company} is a conditional {lead.value.lower()} candidate on the available evidence, "
+                f"but the {timing} setup means entry timing and the stated confirmation levels still matter."
+            )
+        if lead in negative:
+            return (
+                f"Direct answer: the available evidence does not support a new purchase of {company} now; "
+                f"the overall view is {lead.value} and the technical setup is {timing}."
+            )
+        return (
+            f"Direct answer: {company} is not a clear buy at this setup. The evidence supports Hold, "
+            f"with a {timing} technical picture and better entry conditions listed below."
+        )
+    if request.decision_intent == "sell":
+        if lead in negative:
+            return (
+                f"Direct answer: the evidence supports considering a reduction or sale of {company}, "
+                "subject to taxes, position size, and the investor's original thesis."
+            )
+        if lead in positive:
+            return (
+                f"Direct answer: the available evidence does not support an outright sale of {company}; "
+                f"the overall view is {lead.value}, though the listed invalidation levels should be monitored."
+            )
+        return (
+            f"Direct answer: the evidence supports holding or trimming selectively rather than an automatic full sale of {company}."
+        )
+    if request.decision_intent == "position":
+        action = "hold or add only on confirmation" if lead in positive else "review for reduction" if lead in negative else "hold and monitor"
+        return f"Position answer: the current evidence supports {action}; the overall view is {lead.value} with a {timing} setup."
+    return f"Overall conclusion: {company} rates {lead.value} on the available evidence, with a {timing} technical setup."
+
+
 def _format_ycharts_metric(label: str, value: object) -> str:
     if not isinstance(value, (int, float)):
         return str(value)
@@ -93,16 +144,28 @@ def _format_ycharts_metric(label: str, value: object) -> str:
     return _metric(value)
 
 
-def _direct_chart_history(session, symbol: str):
+def _direct_chart_history(session, symbol: str, start_date: str = "", end_date: str = ""):
     """Retrieve Yahoo's public chart JSON without the cookie/crumb workflow."""
     import pandas as pd
 
     if session is None:
         raise RuntimeError("verified market session was unavailable")
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{quote(symbol, safe='')}"
+    params = {"interval": "1d", "events": "div,splits", "includeAdjustedClose": "true"}
+    if start_date and end_date:
+        start = dt.date.fromisoformat(start_date)
+        end = dt.date.fromisoformat(end_date) + dt.timedelta(days=1)
+        params.update(
+            {
+                "period1": int(dt.datetime.combine(start, dt.time.min, tzinfo=dt.timezone.utc).timestamp()),
+                "period2": int(dt.datetime.combine(end, dt.time.min, tzinfo=dt.timezone.utc).timestamp()),
+            }
+        )
+    else:
+        params["range"] = "2y"
     response = session.get(
         url,
-        params={"range": "2y", "interval": "1d", "events": "div,splits", "includeAdjustedClose": "true"},
+        params=params,
         timeout=20,
     )
     response.raise_for_status()
@@ -131,14 +194,14 @@ def _direct_chart_history(session, symbol: str):
     return frame
 
 
-def _nasdaq_history(session, symbol: str):
+def _nasdaq_history(session, symbol: str, start_date: str = "", end_date: str = ""):
     """Retrieve a second, attributed US-market history when Yahoo is throttled."""
     import pandas as pd
 
     if session is None:
         raise RuntimeError("verified market session was unavailable")
-    end = dt.date.today()
-    start = end - dt.timedelta(days=740)
+    end = dt.date.fromisoformat(end_date) if end_date else dt.date.today()
+    start = dt.date.fromisoformat(start_date) if start_date else end - dt.timedelta(days=740)
     api_url = f"https://api.nasdaq.com/api/quote/{quote(symbol, safe='')}/historical"
     response = session.get(
         api_url,
@@ -240,18 +303,43 @@ class LiveResearchProvider:
         return yf, yf.Ticker(symbol, session=self._market_session), selected
 
     @staticmethod
-    def _history(yf, ticker, symbol: str, session=None):
+    def _history(
+        yf,
+        ticker,
+        symbol: str,
+        session=None,
+        start_date: str = "",
+        end_date: str = "",
+    ):
         """Retrieve normalized daily history across yfinance API variations."""
         import pandas as pd
 
         failures = []
-        attempts = (
-            lambda: _direct_chart_history(session, symbol),
-            lambda: _nasdaq_history(session, symbol),
-            lambda: ticker.history(period="2y", interval="1d", auto_adjust=True),
-            lambda: ticker.history(period="5y", interval="1d", auto_adjust=True),
-            lambda: yf.download(symbol, period="2y", interval="1d", auto_adjust=True, progress=False, threads=False, session=session),
-        )
+        if start_date and end_date:
+            inclusive_end = (dt.date.fromisoformat(end_date) + dt.timedelta(days=1)).isoformat()
+            attempts = (
+                lambda: _direct_chart_history(session, symbol, start_date, end_date),
+                lambda: _nasdaq_history(session, symbol, start_date, end_date),
+                lambda: ticker.history(start=start_date, end=inclusive_end, interval="1d", auto_adjust=True),
+                lambda: yf.download(
+                    symbol,
+                    start=start_date,
+                    end=inclusive_end,
+                    interval="1d",
+                    auto_adjust=True,
+                    progress=False,
+                    threads=False,
+                    session=session,
+                ),
+            )
+        else:
+            attempts = (
+                lambda: _direct_chart_history(session, symbol),
+                lambda: _nasdaq_history(session, symbol),
+                lambda: ticker.history(period="2y", interval="1d", auto_adjust=True),
+                lambda: ticker.history(period="5y", interval="1d", auto_adjust=True),
+                lambda: yf.download(symbol, period="2y", interval="1d", auto_adjust=True, progress=False, threads=False, session=session),
+            )
         for attempt in attempts:
             try:
                 history = attempt()
@@ -264,6 +352,15 @@ class LiveResearchProvider:
                     else:
                         history.columns = history.columns.get_level_values(0)
                 if {"Close", "High", "Low", "Volume"}.issubset(history.columns):
+                    if start_date and end_date:
+                        history = history.loc[
+                            (history.index >= start_date) & (history.index <= end_date)
+                        ].copy()
+                        history.attrs["custom_range"] = True
+                        history.attrs["analysis_range_label"] = f"{start_date} to {end_date}"
+                        if len(history) < 60:
+                            failures.append("custom range returned fewer than 60 trading sessions")
+                            continue
                     return history
                 failures.append("provider returned incomplete OHLCV columns")
             except Exception as exc:
@@ -276,7 +373,14 @@ class LiveResearchProvider:
         yf, ticker, resolved = self._resolve(request.query)
         symbol = str(resolved.get("symbol") or ticker.ticker).upper()
         try:
-            history = self._history(yf, ticker, symbol, self._market_session)
+            history = self._history(
+                yf,
+                ticker,
+                symbol,
+                self._market_session,
+                request.custom_start,
+                request.custom_end,
+            )
         except Exception as exc:
             original = str(resolved.get("originalQuery") or request.query).upper()
             correction = f" The search resolved {original} to {symbol}; confirm that correction." if original != symbol else ""
@@ -307,6 +411,8 @@ class LiveResearchProvider:
                         comparison_ticker,
                         cleaned_comparison,
                         self._market_session,
+                        request.custom_start,
+                        request.custom_end,
                     )
                 except Exception:
                     comparison_failures.append(f"{cleaned_comparison}: live comparison history was unavailable")
@@ -355,6 +461,8 @@ class LiveResearchProvider:
                     secondary_ticker,
                     secondary_symbol,
                     self._market_session,
+                    request.custom_start,
+                    request.custom_end,
                 )
                 secondary_snapshot = analyze_history(secondary_history)
                 try:
@@ -439,6 +547,12 @@ class LiveResearchProvider:
                 "quantity": request.quantity,
                 "risk_tolerance": request.risk_tolerance,
                 "question": request.question,
+                "decision_intent": request.decision_intent,
+                "custom_analysis_range": (
+                    {"start": request.custom_start, "end": request.custom_end}
+                    if request.custom_start
+                    else None
+                ),
             },
         }
         if comparison_assessment and secondary_snapshot is not None:
@@ -458,6 +572,7 @@ class LiveResearchProvider:
         ycharts_values = ()
         ycharts_errors = ()
         ycharts_audit = ()
+        ycharts_status = "YCharts disabled - supplemental YCharts data is not included in this report."
         if self.use_ycharts and workspace is not None:
             ycharts = retrieve_ycharts_metrics(symbol, workspace)
             ycharts_values = ycharts.values
@@ -465,6 +580,20 @@ class LiveResearchProvider:
             ycharts_audit = ycharts.audit
             if ycharts_values:
                 market["ycharts_excel"] = dict(ycharts_values)
+            primary_loaded = len(ycharts_values)
+            primary_expected = len(YCHARTS_METRICS)
+            if primary_loaded == primary_expected:
+                ycharts_status = f"YCharts connected - all {primary_expected} supplemental metrics loaded."
+            elif primary_loaded:
+                ycharts_status = (
+                    f"YCharts partially available - {primary_loaded} of {primary_expected} metrics loaded for {symbol}. "
+                    "The report can continue, but some YCharts evidence is missing."
+                )
+            else:
+                ycharts_status = (
+                    f"YCharts unavailable - no supplemental metrics loaded for {symbol}. "
+                    "The report can continue, but it will be missing YCharts ratings, targets, and valuation data."
+                )
             if request.comparison_analysis and secondary_symbol:
                 secondary_ycharts = retrieve_ycharts_metrics(secondary_symbol, workspace)
                 ycharts_errors = tuple(ycharts_errors) + tuple(
@@ -480,6 +609,21 @@ class LiveResearchProvider:
                 secondary_comparison_info = dict(comparison_info)
                 primary_ycharts = dict(ycharts_values)
                 secondary_ycharts_values = dict(secondary_ycharts.values)
+                secondary_loaded = len(secondary_ycharts.values)
+                total_loaded = primary_loaded + secondary_loaded
+                total_expected = primary_expected * 2
+                if total_loaded == total_expected:
+                    ycharts_status = f"YCharts connected - all {total_expected} comparison metrics loaded."
+                elif total_loaded:
+                    ycharts_status = (
+                        f"YCharts partially available - {total_loaded} of {total_expected} comparison metrics loaded. "
+                        "The comparison can continue, but some YCharts evidence is missing."
+                    )
+                else:
+                    ycharts_status = (
+                        "YCharts unavailable - no supplemental comparison metrics loaded. The comparison can continue, "
+                        "but it will be missing YCharts ratings, targets, and valuation data."
+                    )
                 for target, evidence in (
                     (primary_comparison_info, primary_ycharts),
                     (secondary_comparison_info, secondary_ycharts_values),
@@ -530,6 +674,10 @@ class LiveResearchProvider:
         )
         limitations = list(synthesis.limitations)
         limitations.extend(ycharts_errors)
+        if request.custom_end and request.custom_end < dt.date.today().isoformat():
+            limitations.append(
+                f"Technical evidence and price end on {request.custom_end}; fundamental, news, and consensus fields may reflect later provider updates."
+            )
         if comparison_failures:
             limitations.append("Comparison data unavailable: " + " | ".join(comparison_failures))
         if errors and self.synthesis_provider.lower() == "automatic":
@@ -631,7 +779,7 @@ class LiveResearchProvider:
         analyst_target = info.get("targetMeanPrice")
         analyst_upside = analyst_target / snapshot.price - 1 if isinstance(analyst_target, (int, float)) and analyst_target > 0 else None
         key_metrics = position_metrics + (
-            ("Current price", _metric(snapshot.price, money=True)),
+            ("Range-end price" if request.custom_start else "Current price", _metric(snapshot.price, money=True)),
             ("Market capitalization", _metric(info.get("marketCap"), money=True)),
             ("Trailing / forward P/E", f"{_metric(info.get('trailingPE'))} / {_metric(info.get('forwardPE'))}"),
             ("Revenue / earnings growth", f"{_metric(info.get('revenueGrowth'), percent=True)} / {_metric(info.get('earningsGrowth'), percent=True)}"),
@@ -641,6 +789,7 @@ class LiveResearchProvider:
         ) + ycharts_metrics + snapshot.as_metrics() + relative_metrics
         interpretation = assessment_interpretation(technical.rating, synthesis.fundamental.rating)
         executive = (
+            f"{_direct_decision_answer(request, company, lead, technical.rating)} "
             f"{company} receives a {lead.value} rating for the {request.horizon.value.lower()} horizon. "
             f"The lead framework weights fundamental evidence {fundamental_weight}% and technical evidence {technical_weight}% for this horizon. "
             f"The technical setup is {technical_setup(technical.rating).lower()}, and the fundamental outlook is "
@@ -678,6 +827,7 @@ class LiveResearchProvider:
             ),
             chartbook=tuple(chartbook),
             comparison=comparison_assessment,
+            ycharts_status=ycharts_status,
         )
         result.validate()
         return result

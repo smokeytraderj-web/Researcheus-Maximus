@@ -57,6 +57,10 @@ Research {company} ({ticker}) for a {horizon.value} decision. Separate reported 
 
 The user's full research brief and any requested report modifications appear in user_context.question below. Address those instructions directly in the fundamental summary, signals, risks, catalysts, and change conditions while preserving factual accuracy and the required schema.
 
+If the brief asks whether to buy, sell, hold, add, reduce, or evaluate an existing position, answer that decision directly in the first sentence of fundamental_summary. Use decisive but conditional language such as “the evidence supports,” “does not support,” or “is not yet a clear buy.” Do not evade the question, promise an outcome, invent personalization, or present a historical custom-range conclusion as current advice. State what evidence would change the conclusion.
+
+If custom_analysis_range is present, analyze the technical evidence over exactly that interval. When the range ends before today, clearly label conclusions as historical range-end assessments rather than current recommendations.
+
 When analysis_mode is Deep Technical Analysis, keep the fundamental section focused on catalysts, event risk, valuation, and business evidence that could confirm or invalidate the technical setup. Use the supplied relative-performance fields as calculated evidence; do not invent or visually infer chart values.
 
 Deterministic market/fundamental snapshot from the application:

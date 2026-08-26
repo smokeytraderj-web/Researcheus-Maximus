@@ -48,6 +48,15 @@ class TechnicalAnalysisTests(unittest.TestCase):
         self.assertGreaterEqual(len(finding.signals), 3)
         self.assertTrue(any("Fibonacci" in signal for signal in finding.signals))
 
+    def test_custom_range_drives_fibonacci_and_performance_window(self):
+        frame = self._history()
+        frame.attrs["custom_range"] = True
+        frame.attrs["analysis_range_label"] = "2025-01-01 to 2025-12-31"
+        snapshot = analyze_history(frame)
+        self.assertEqual(snapshot.fibonacci_range_label, "2025-01-01 to 2025-12-31")
+        self.assertEqual(snapshot.performance_label, "Analysis-range")
+        self.assertAlmostEqual(snapshot.fib_swing_low, float(frame["Low"].min()))
+
     def test_rejects_insufficient_history(self):
         with self.assertRaises(ValueError):
             analyze_history(self._history(30))

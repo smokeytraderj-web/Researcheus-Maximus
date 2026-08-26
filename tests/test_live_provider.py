@@ -3,8 +3,14 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from core.models import Horizon, Rating
-from research.live_provider import LiveResearchProvider, _combine_ratings, _direct_chart_history, _nasdaq_history
+from core.models import Horizon, Rating, ResearchRequest
+from research.live_provider import (
+    LiveResearchProvider,
+    _combine_ratings,
+    _direct_chart_history,
+    _direct_decision_answer,
+    _nasdaq_history,
+)
 
 
 class _Ticker:
@@ -82,6 +88,21 @@ class HistoryFallbackTests(unittest.TestCase):
         result = LiveResearchProvider._history(_YF(pd.DataFrame()), _Ticker([pd.DataFrame(), _history()]), "AXON")
         self.assertEqual(len(result), 260)
 
+    def test_custom_range_filters_history_and_marks_analysis_context(self):
+        frame = _history(320)
+        result = LiveResearchProvider._history(
+            _YF(pd.DataFrame()),
+            _Ticker([frame]),
+            "TSLA",
+            None,
+            "2025-03-01",
+            "2025-12-01",
+        )
+        self.assertTrue(result.attrs["custom_range"])
+        self.assertEqual(result.attrs["analysis_range_label"], "2025-03-01 to 2025-12-01")
+        self.assertGreaterEqual(result.index.min(), pd.Timestamp("2025-03-01"))
+        self.assertLessEqual(result.index.max(), pd.Timestamp("2025-12-01"))
+
     def test_uses_download_after_history_errors(self):
         result = LiveResearchProvider._history(_YF(_history()), _Ticker([RuntimeError("one"), RuntimeError("two")]), "AXON")
         self.assertIn("Close", result.columns)
@@ -120,6 +141,32 @@ class HistoryFallbackTests(unittest.TestCase):
         )
         self.assertEqual(lead, Rating.REDUCE)
         self.assertEqual((technical_weight, fundamental_weight), (70, 30))
+
+    def test_buy_question_gets_a_direct_conditional_answer(self):
+        answer = _direct_decision_answer(
+            ResearchRequest("TSLA", Horizon.ALL, decision_intent="buy"),
+            "Tesla",
+            Rating.HOLD,
+            Rating.REDUCE,
+        )
+        self.assertTrue(answer.startswith("Direct answer:"))
+        self.assertIn("not a clear buy", answer)
+
+    def test_historical_range_is_not_presented_as_current_advice(self):
+        answer = _direct_decision_answer(
+            ResearchRequest(
+                "TSLA",
+                Horizon.ALL,
+                decision_intent="buy",
+                custom_start="2024-01-01",
+                custom_end="2025-01-01",
+            ),
+            "Tesla",
+            Rating.BUY,
+            Rating.BUY,
+        )
+        self.assertTrue(answer.startswith("Historical conclusion:"))
+        self.assertIn("not a current buy or sell conclusion", answer)
 
 
 if __name__ == "__main__":

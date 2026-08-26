@@ -1,4 +1,4 @@
-"""Runnable single-stock research desktop flow."""
+"""Runnable investment-research desktop flow."""
 
 from __future__ import annotations
 
@@ -36,7 +36,9 @@ from core.assessments import assessment_interpretation, fundamental_outlook, tec
 from core.models import Horizon, ResearchRequest
 from core.research_prompt import (
     append_revision_instructions,
+    classify_research_intent,
     parse_comparison_prompt,
+    parse_custom_range,
     parse_deep_analysis_prompt,
     parse_research_prompt,
 )
@@ -94,9 +96,9 @@ class MainWindow(QMainWindow):
 
     def _topbar(self) -> QFrame:
         frame = QFrame(objectName="TopBar")
-        frame.setFixedHeight(76)
+        frame.setFixedHeight(68)
         row = QHBoxLayout(frame)
-        row.setContentsMargins(28, 12, 28, 12)
+        row.setContentsMargins(24, 10, 24, 10)
         titles = QVBoxLayout()
         titles.setSpacing(1)
         titles.addWidget(QLabel("RESEARCHEUS MAXIMUS", objectName="Brand"))
@@ -109,7 +111,7 @@ class MainWindow(QMainWindow):
     def _page_shell(self, title: str, subtitle: str):
         page = QWidget()
         outer = QVBoxLayout(page)
-        outer.setContentsMargins(42, 32, 42, 32)
+        outer.setContentsMargins(32, 24, 32, 24)
         outer.setSpacing(10)
         outer.addWidget(QLabel(title, objectName="Title"))
         outer.addWidget(QLabel(subtitle, objectName="Subtitle"))
@@ -117,39 +119,49 @@ class MainWindow(QMainWindow):
 
     def _build_intake(self) -> QWidget:
         page, outer = self._page_shell(
-            "Single Stock Research",
-            "Choose the research format that fits the decision in front of you.",
+            "Investment Research",
+            "Ask a decision question, build a technical study, or compare two securities.",
         )
         outer.addSpacing(4)
         card = QFrame(objectName="Card")
-        card.setMaximumWidth(940)
+        card.setMinimumWidth(720)
+        card.setMaximumWidth(900)
         shadow = QGraphicsDropShadowEffect(card)
         shadow.setBlurRadius(28)
         shadow.setOffset(0, 8)
         shadow.setColor(QColor(20, 38, 61, 34))
         card.setGraphicsEffect(shadow)
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(34, 26, 34, 26)
-        card_layout.setSpacing(10)
+        card_layout.setContentsMargins(30, 22, 30, 22)
+        card_layout.setSpacing(8)
         standard = QVBoxLayout()
         standard.setSpacing(9)
         standard.addWidget(QLabel("RESEARCH OVERVIEW", objectName="Eyebrow"))
         prompt = QLabel("What would you like to research?", objectName="Section")
-        helper = QLabel("Enter a company or ticker and optionally add the decision you are considering.", objectName="FieldHelp")
+        helper = QLabel(
+            "Ask naturally. The answer will lead with the decision, then show the evidence, conditions, and risks.",
+            objectName="FieldHelp",
+        )
         helper.setWordWrap(True)
         self.query = QPlainTextEdit()
         self.query.setPlaceholderText(
-            "Example: WMT - Is this an attractive entry after the recent pullback?"
+            "Example: Full analysis of TSLA — is it a good opportunity to buy?"
         )
         self.query.setObjectName("ResearchQuery")
-        self.query.setMinimumHeight(104)
+        self.query.setMinimumHeight(88)
         begin = QPushButton("Generate Research", objectName="Gold")
         begin.setMinimumHeight(44)
+        begin.setFixedWidth(190)
         begin.clicked.connect(lambda: self._start_research())
         standard.addWidget(prompt)
         standard.addWidget(helper)
         standard.addWidget(self.query)
-        standard.addWidget(begin, 0)
+        overview_actions = QHBoxLayout()
+        overview_hint = QLabel("Buy  |  Sell  |  Hold  |  Position review  |  Full analysis", objectName="FieldHelp")
+        overview_actions.addWidget(overview_hint)
+        overview_actions.addStretch()
+        overview_actions.addWidget(begin)
+        standard.addLayout(overview_actions)
         card_layout.addLayout(standard)
         centered = QHBoxLayout()
         centered.addStretch()
@@ -164,15 +176,15 @@ class MainWindow(QMainWindow):
         deep_layout.setContentsMargins(24, 20, 24, 20)
         deep_layout.setSpacing(8)
         deep_layout.addWidget(QLabel("DEEP ANALYSIS", objectName="Eyebrow"))
-        deep_title = QLabel("Build a technical chartbook", objectName="Section")
+        deep_title = QLabel("Deep Technical Analysis", objectName="Section")
         deep_title.setWordWrap(True)
         deep_description = QLabel(
-            "Go beyond the overview with real charts and evidence tied directly to the decision.",
+            "Build a chart-led study with custom ranges, Fibonacci, momentum, risk, and benchmarks.",
             objectName="Subtitle",
         )
         deep_description.setWordWrap(True)
         deep_features = QLabel(
-            "Fibonacci  |  momentum  |  benchmark context  |  technical evidence",
+            "Custom range  •  Fibonacci  •  Momentum  •  Relative strength",
             objectName="DeepFeatures",
         )
         deep_features.setWordWrap(True)
@@ -193,12 +205,12 @@ class MainWindow(QMainWindow):
         compare_title = QLabel("Which opportunity looks better?", objectName="Section")
         compare_title.setWordWrap(True)
         compare_description = QLabel(
-            "Compare two stocks or funds across valuation, growth, technical setup, and relative performance.",
+            "Compare two stocks or funds across value, growth, technical setup, risk, and relative performance.",
             objectName="Subtitle",
         )
         compare_description.setWordWrap(True)
         compare_features = QLabel(
-            "Side-by-side metrics  |  current evidence edge  |  decision context",
+            "Side-by-side evidence  •  Current edge  •  Decision context",
             objectName="DeepFeatures",
         )
         compare_features.setWordWrap(True)
@@ -216,7 +228,8 @@ class MainWindow(QMainWindow):
         modes_centered = QHBoxLayout()
         modes_centered.addStretch()
         modes = QWidget()
-        modes.setMaximumWidth(940)
+        modes.setMinimumWidth(720)
+        modes.setMaximumWidth(900)
         modes.setLayout(mode_row)
         modes_centered.addWidget(modes)
         modes_centered.addStretch()
@@ -261,7 +274,7 @@ class MainWindow(QMainWindow):
         self.comparison_query.setMinimumHeight(168)
         self.comparison_query.setPlaceholderText(
             "Name two securities, then add the decision you are considering.\n\n"
-            "Example: AVGO vs NVDA - Which currently offers better value and risk-adjusted opportunity?"
+            "Example: AVGO vs NVDA - Which currently offers better value and risk-adjusted opportunity from January 2024 to today?"
         )
         explanation = QLabel(
             "The report compares only like-for-like available evidence, including Fibonacci-based technical setup, relative performance, valuation, growth, margins, analyst-target upside, and fund costs when applicable.",
@@ -304,10 +317,10 @@ class MainWindow(QMainWindow):
         self.deep_query.setMinimumHeight(168)
         self.deep_query.setPlaceholderText(
             "Start with the primary ticker, then describe the analysis and comparison symbols.\n\n"
-            "Example: AVGO - Compare against NVDA, SOXX, and SPY. Analyze trend, RSI, MACD, relative performance, drawdown, volatility, support and resistance."
+            "Example: AVGO - Compare with NVDA and SPY from 2024-01-01 to 2026-08-26. Analyze Fibonacci, trend, RSI, MACD, relative performance, drawdown, and volatility."
         )
         supported = QLabel(
-            "Every technical review includes a six-month Fibonacci swing with 38.2%, 50%, and 61.8% levels. The standard chartbook also includes price/trend, RSI/MACD, and normalized relative performance. Ask for drawdown or volatility to add a risk chart. SPY is used when no benchmark is named.",
+            "Use phrases such as “from 2024-01-01 to 2025-12-31,” “from January 2024 to June 2025,” or “since March 2024.” Fibonacci automatically uses the selected range. SPY is used when no benchmark is named.",
             objectName="Subtitle",
         )
         supported.setWordWrap(True)
@@ -412,15 +425,20 @@ class MainWindow(QMainWindow):
     def _request(self, *, deep: bool = False, comparison: bool = False) -> ResearchRequest:
         if comparison:
             primary, secondary, brief = parse_comparison_prompt(self.comparison_query.toPlainText())
+            custom_start, custom_end = parse_custom_range(brief)
             return ResearchRequest(
                 primary,
                 Horizon.ALL,
                 question=brief,
                 comparison_analysis=True,
                 comparison_query=secondary,
+                custom_start=custom_start,
+                custom_end=custom_end,
+                decision_intent=classify_research_intent(brief),
             )
         if deep:
             security_query, brief, comparisons, charts = parse_deep_analysis_prompt(self.deep_query.toPlainText())
+            custom_start, custom_end = parse_custom_range(brief)
             return ResearchRequest(
                 security_query,
                 Horizon.ALL,
@@ -428,9 +446,20 @@ class MainWindow(QMainWindow):
                 deep_analysis=True,
                 comparison_symbols=comparisons,
                 requested_charts=charts,
+                custom_start=custom_start,
+                custom_end=custom_end,
+                decision_intent=classify_research_intent(brief),
             )
         security_query, research_brief = parse_research_prompt(self.query.toPlainText())
-        return ResearchRequest(security_query, Horizon.ALL, question=research_brief)
+        custom_start, custom_end = parse_custom_range(research_brief)
+        return ResearchRequest(
+            security_query,
+            Horizon.ALL,
+            question=research_brief,
+            custom_start=custom_start,
+            custom_end=custom_end,
+            decision_intent=classify_research_intent(research_brief),
+        )
 
     def _start_research(self, *, deep: bool = False, comparison: bool = False) -> None:
         if self.worker and self.worker.isRunning():
@@ -502,20 +531,36 @@ class MainWindow(QMainWindow):
             self.modification_request.clear()
         self.prepared = prepared
         r = prepared.result
+        ycharts_alert = ""
+        if r.ycharts_status and not r.ycharts_status.startswith("YCharts connected") and not r.demo_mode:
+            ycharts_alert = f"""
+                <div style='background:#FFF4D6; border:1px solid #D7A84B; padding:10px; margin-bottom:10px;'>
+                    <b>YCharts data alert</b><br>{escape(r.ycharts_status)}
+                    <br><span style='font-size:10px'>Open desktop Excel, confirm both YCharts add-ins are active and signed in, then retry if these fields are important to the decision.</span>
+                </div>
+            """
         interpretation = assessment_interpretation(r.technical.rating, r.fundamental.rating)
         signals = "".join(f"<li>{item}</li>" for item in r.technical.signals)
         fundamentals = "".join(f"<li>{item}</li>" for item in r.fundamental.signals)
-        limitations = "".join(f"<li>{item}</li>" for item in r.limitations)
+        operational_ycharts_terms = ("ycharts", "excel returned", "excel automation", "add-in", "addin", "#name?")
+        display_limitations = tuple(
+            item for item in r.limitations
+            if not any(term in item.lower() for term in operational_ycharts_terms)
+        )
+        limitations = "".join(f"<li>{escape(item)}</li>" for item in display_limitations)
         source_links = "".join(f"<li><a href='{item.locator}'>{item.name}</a> — {item.supports}</li>" for item in r.sources if item.locator.startswith(("https://", "http://")))
+        loaded_ycharts_audit = tuple(
+            row for row in r.ycharts_audit if row[2].startswith("Loaded")
+        )
         ycharts_rows = "".join(
             f"<tr><td><b>{escape(cell)}</b></td><td><code>{escape(formula)}</code></td><td>{escape(status)}</td></tr>"
-            for cell, formula, status in r.ycharts_audit
+            for cell, formula, status in loaded_ycharts_audit
         )
         ycharts_audit = ""
         if ycharts_rows:
             ycharts_audit = f"""
                 <h3>YCharts Excel Formula Audit</h3>
-                <p>The temporary workbook uses columns A:G; calculated results are in F2:F9. Only rows marked <b>Loaded</b> enter the report.</p>
+                <p>The temporary workbook uses columns A:G; calculated results are in F2:F9. These are the rows that loaded and entered the analysis.</p>
                 <table cellspacing='0' cellpadding='6' border='1'>
                     <tr><th>Result cell</th><th>Exact formula</th><th>Status</th></tr>{ycharts_rows}
                 </table>
@@ -534,6 +579,13 @@ class MainWindow(QMainWindow):
             """
         if r.comparison:
             comparison = r.comparison
+            custom_range = bool(prepared.request.custom_start and prepared.request.custom_end)
+            range_line = (
+                f"<b>Analysis range:</b> {escape(prepared.request.custom_start)} to {escape(prepared.request.custom_end)}<br>"
+                if custom_range
+                else ""
+            )
+            preference_label = "Range-end evidence preference" if custom_range else "Current evidence preference"
             metric_rows = "".join(
                 f"<tr><td>{escape(label)}</td><td>{escape(primary)}</td><td>{escape(secondary)}</td><td><b>{escape(edge)}</b></td></tr>"
                 for label, primary, secondary, edge in comparison.metrics
@@ -542,10 +594,11 @@ class MainWindow(QMainWindow):
             primary_setup = technical_setup(r.technical.rating)
             secondary_setup = technical_setup(comparison.secondary_technical.rating)
             self.review_browser.setHtml(f"""
+                {ycharts_alert}
                 <h2>{escape(r.identity.ticker)} vs {escape(comparison.secondary_identity.ticker)}</h2>
                 <p><b>{escape(r.identity.company_name)}</b> compared with <b>{escape(comparison.secondary_identity.company_name)}</b><br>
-                <b>As of:</b> {escape(r.as_of)} &nbsp; <b>Mode:</b> Security Comparison</p>
-                <hr><h3>Current evidence preference</h3>
+                {range_line}<b>Produced:</b> {escape(r.as_of)} &nbsp; <b>Mode:</b> Security Comparison</p>
+                <hr><h3>{preference_label}</h3>
                 <p style='font-size:18px'><b>{escape(comparison.preferred_ticker)}</b></p>
                 <p>{escape(comparison.verdict)}</p><ul>{rationale}</ul>
                 <p><b>Technical setup:</b> {escape(r.identity.ticker)} - {escape(primary_setup)} &nbsp; | &nbsp;
@@ -563,11 +616,13 @@ class MainWindow(QMainWindow):
             self.stack.setCurrentIndex(1)
             return
         self.review_browser.setHtml(f"""
+            {ycharts_alert}
             <h2>{r.identity.company_name} ({r.identity.ticker})</h2>
             <p><b>Exchange:</b> {r.identity.exchange} &nbsp; <b>Currency:</b> {r.identity.currency}<br>
             <b>Horizon:</b> {r.horizon.value} &nbsp; <b>As of:</b> {r.as_of}<br>
             <b>Mode:</b> {r.analysis_mode}<br>
-            <b>Illustrative current price:</b> ${r.current_price:,.2f}</p>
+            {f'<b>Analysis range:</b> {escape(prepared.request.custom_start)} to {escape(prepared.request.custom_end)}<br>' if prepared.request.custom_start else ''}
+            <b>{'Range-end price' if prepared.request.custom_start else 'Current price'}:</b> ${r.current_price:,.2f}</p>
             <hr><h3>Preliminary recommendation</h3>
             <p><b>Overall rating:</b> {r.lead_rating.value} ({r.confidence.value} confidence)<br>
             <b>Technical setup:</b> {technical_setup(r.technical.rating)}<br>
@@ -624,7 +679,14 @@ class MainWindow(QMainWindow):
             self.modification_request.setFocus()
             return
         revised_question = append_revision_instructions(self.prepared.request.question, revision)
-        revised_request = replace(self.prepared.request, question=revised_question)
+        custom_start, custom_end = parse_custom_range(revised_question)
+        revised_request = replace(
+            self.prepared.request,
+            question=revised_question,
+            custom_start=custom_start or self.prepared.request.custom_start,
+            custom_end=custom_end or self.prepared.request.custom_end,
+            decision_intent=classify_research_intent(revised_question),
+        )
         if revised_request.deep_analysis:
             _query, _brief, comparisons, charts = parse_deep_analysis_prompt(revised_question)
             revised_request = replace(

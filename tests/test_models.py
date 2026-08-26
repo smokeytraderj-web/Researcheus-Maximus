@@ -25,6 +25,22 @@ class ResearchRequestTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "two securities"):
             ResearchRequest("AVGO", Horizon.ALL, comparison_analysis=True).validate()
 
+    def test_custom_range_requires_valid_order_and_minimum_length(self):
+        with self.assertRaisesRegex(ValueError, "before"):
+            ResearchRequest(
+                "TSLA",
+                Horizon.ALL,
+                custom_start="2025-12-31",
+                custom_end="2025-01-01",
+            ).validate()
+        with self.assertRaisesRegex(ValueError, "90-day"):
+            ResearchRequest(
+                "TSLA",
+                Horizon.ALL,
+                custom_start="2025-01-01",
+                custom_end="2025-02-01",
+            ).validate()
+
 
 if __name__ == "__main__":
     unittest.main()

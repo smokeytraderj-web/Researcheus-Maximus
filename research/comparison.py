@@ -72,7 +72,12 @@ def build_comparison_assessment(
     primary_edges: list[str] = []
     secondary_edges: list[str] = []
 
-    rows.append(("Current price", _money(primary_price), _money(secondary_price), "Reference only"))
+    price_label = (
+        "Range-end price"
+        if primary_snapshot.fibonacci_range_label != "Six-month"
+        else "Current price"
+    )
+    rows.append((price_label, _money(primary_price), _money(secondary_price), "Reference only"))
 
     ratings = list(Rating)
     primary_rating_index = ratings.index(primary_technical.rating)
@@ -137,9 +142,9 @@ def build_comparison_assessment(
         rows.append((label, formatter(primary_value), formatter(secondary_value), edge))
 
     add_metric(
-        "Three-month return",
-        primary_snapshot.return_3m,
-        secondary_snapshot.return_3m,
+        f"{primary_snapshot.performance_label} return",
+        primary_snapshot.analysis_return if primary_snapshot.analysis_return is not None else primary_snapshot.return_3m,
+        secondary_snapshot.analysis_return if secondary_snapshot.analysis_return is not None else secondary_snapshot.return_3m,
         _percent,
         higher_is_better=True,
         reason="stronger three-month performance",
@@ -218,16 +223,21 @@ def build_comparison_assessment(
         minimum_gap=0.10,
     )
 
+    evidence_context = (
+        "range-end"
+        if primary_snapshot.fibonacci_range_label != "Six-month"
+        else "current"
+    )
     if primary_score > secondary_score:
         preferred = primary_identity.ticker
         verdict = (
-            f"{primary_identity.ticker} has the stronger current evidence profile, scoring "
+            f"{primary_identity.ticker} has the stronger {evidence_context} evidence profile, scoring "
             f"{primary_score} category edges to {secondary_score}."
         )
     elif secondary_score > primary_score:
         preferred = secondary_identity.ticker
         verdict = (
-            f"{secondary_identity.ticker} has the stronger current evidence profile, scoring "
+            f"{secondary_identity.ticker} has the stronger {evidence_context} evidence profile, scoring "
             f"{secondary_score} category edges to {primary_score}."
         )
     else:

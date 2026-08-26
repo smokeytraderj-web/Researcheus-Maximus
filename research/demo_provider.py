@@ -48,13 +48,18 @@ class DemoResearchProvider:
         digest = hashlib.sha256(ticker.encode("utf-8")).digest()
         price = round(40 + int.from_bytes(digest[:2], "big") % 360 + digest[2] / 255, 2)
         now = dt.datetime.now(dt.timezone.utc).astimezone().isoformat(timespec="minutes")
+        range_label = (
+            f"{request.custom_start} to {request.custom_end}"
+            if request.custom_start
+            else "six-month"
+        )
         technical = SpecialistFinding(
             Rating.ADD,
             "The synthetic multi-timeframe setup is constructive but requires confirmation.",
             (
                 "Price is modeled above a rising intermediate trend average.",
                 "Momentum is positive without an extreme synthetic reading.",
-                f"Synthetic Fibonacci retracement levels: 38.2% ${price * 0.94:,.2f}, 50% ${price * 0.90:,.2f}, and 61.8% ${price * 0.86:,.2f}.",
+                f"Synthetic {range_label} Fibonacci retracement levels: 38.2% ${price * 0.94:,.2f}, 50% ${price * 0.90:,.2f}, and 61.8% ${price * 0.86:,.2f}.",
                 "Volume confirmation remains incomplete in demo mode.",
             ),
         )
@@ -77,7 +82,7 @@ class DemoResearchProvider:
                 secondary_price=second_price,
                 secondary_technical=secondary_technical,
                 preferred_ticker=ticker,
-                verdict=f"{ticker} has the stronger synthetic evidence profile for workflow testing.",
+                verdict=f"{ticker} has the stronger synthetic {'range-end' if request.custom_start else 'current'} evidence profile for workflow testing.",
                 rationale=(
                     f"{ticker} leads on the modeled technical setup and three-month return.",
                     "Demo values are synthetic and cannot support an investment decision.",
@@ -114,6 +119,7 @@ class DemoResearchProvider:
             lead_rating=Rating.ADD,
             confidence=Confidence.LOW,
             executive_summary=(
+                f"Direct answer: the synthetic workflow rates {company} Add, but demo evidence cannot support a real buy or sell decision. "
                 f"{company} receives an illustrative Add rating for the {request.horizon.value.lower()} horizon. "
                 "The demo technical setup is constructive, while the demo fundamental view is more balanced. "
                 "This result validates the application workflow and is not live investment research."
@@ -167,6 +173,7 @@ class DemoResearchProvider:
                 else "Standard Research"
             ),
             comparison=comparison,
+            ycharts_status="YCharts is not queried in Demo / Offline Test mode.",
         )
         result.validate()
         return result

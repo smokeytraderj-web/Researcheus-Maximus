@@ -1,6 +1,6 @@
 # Researcheus Maximus
 
-A Windows desktop application for client-ready, evidence-grounded single-stock research.
+A Windows desktop application for client-ready, evidence-grounded investment research.
 
 The runnable application includes:
 
@@ -13,7 +13,7 @@ The runnable application includes:
 - Gottfried & Somberg Wealth Management branded PDF generation;
 - embedded PDF preview, requested-modification regeneration, versioned export, and temporary-session cleanup;
 - live security resolution, market history, fundamentals, news metadata, and deterministic technical indicators;
-- a compact two-page, chart-led report with trend, support, resistance, and volume;
+- a compact, chart-led report with trend, support, resistance, volume, and Fibonacci levels;
 - an optional multi-page technical chartbook with RSI/MACD, normalized relative performance, and requested drawdown/volatility analysis;
 - an Evidence Review audit showing the exact YCharts Excel result cells and formulas;
 - secure Windows certificate-store support for live market connections;
@@ -21,9 +21,21 @@ The runnable application includes:
 
 Live mode links directly to YCharts, TradingView, SEC EDGAR, and the underlying market-data page. Authenticated YCharts values are never guessed when an account session cannot be read. Demo mode remains labeled throughout the UI and PDF and never claims that live research occurred.
 
-On Windows, live mode also attempts to query the installed YCharts Excel Add-In through a temporary workbook. Excel/YCharts credentials remain inside the existing add-in session. Unavailable formulas or add-in failures are disclosed in the Evidence Review and final report rather than silently replaced.
+On Windows, live mode queries the installed YCharts Excel Add-In through a temporary workbook. Keep desktop Excel open and signed in to YCharts so the app can reuse the active authenticated session. The bridge checks and activates both the YCharts Excel Add-In and YCharts COM Add-In. Excel/YCharts credentials remain inside Excel.
 
-The YCharts workbook uses columns A:G and calculates live results in F2:F9. Excel formula errors such as `#NAME?` are rejected and disclosed; they can never be formatted as market values or ratings.
+The YCharts workbook uses columns A:G and calculates live results in F2:F9. Excel formula errors such as `#NAME?` are rejected and can never be formatted as market values or ratings. When YCharts is unavailable, Evidence Review shows one concise amber data alert and keeps raw setup errors out of the client PDF.
+
+## Ask a research question
+
+The main workspace accepts natural-language decision questions and gives the direct, conditional conclusion first. Examples:
+
+```text
+Full analysis of TSLA - is it a good opportunity to buy?
+Should I sell my AVGO position?
+What about my WMT position?
+```
+
+The answer distinguishes the one Overall Rating from supporting technical and fundamental assessments, cites the evidence behind the conclusion, and states what would change it.
 
 ## Provider setup
 
@@ -43,7 +55,14 @@ AVGO - Compare against NVDA, SOXX, and SPY. Analyze trend, RSI, MACD,
 relative performance, drawdown, volatility, support, and resistance.
 ```
 
-Every technical workflow uses a six-month Fibonacci swing range. The 38.2%, 50%, and 61.8% retracement levels are included in the technical score, written signals, strategy context, key metrics, and primary price chart. Every deep report also includes RSI/MACD and normalized relative performance. SPY is the default comparison when none is named. Asking for drawdown, volatility, or a risk chart adds a drawdown and realized-volatility study. Deep Analysis weights technical evidence 70% and fundamental evidence 30%. Three-month relative strength is disclosed in the metrics and may move the technical assessment by one rating step; the report states when that adjustment occurs. Unavailable comparison data is disclosed and never fabricated.
+Every technical workflow includes Fibonacci analysis. By default it uses a six-month swing range; when the prompt includes a custom range, Fibonacci, return, relative performance, and chart evidence use that selected range. The 38.2%, 50%, and 61.8% retracement levels are included in the technical score, written signals, strategy context, key metrics, and primary price chart. Every deep report also includes RSI/MACD and normalized relative performance. SPY is the default comparison when none is named. Asking for drawdown, volatility, or a risk chart adds a drawdown and realized-volatility study. Deep Analysis weights technical evidence 70% and fundamental evidence 30%. Relative strength is disclosed in the metrics and may move the technical assessment by one rating step; the report states when that adjustment occurs. Unavailable comparison data is disclosed and never fabricated.
+
+Custom date ranges can be written directly in Overview, Deep Analysis, or Comparison prompts:
+
+```text
+Analyze TSLA from 2024-01-01 to 2025-12-31. Was that a good entry setup?
+AVGO vs NVDA from January 2024 to June 2025 - which performed better technically?
+```
 
 ## Compare Securities
 

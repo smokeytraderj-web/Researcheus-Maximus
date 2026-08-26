@@ -1,8 +1,9 @@
-"""Typed boundaries for the single-stock research workflow."""
+"""Typed boundaries for the investment-research workflow."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+import datetime as dt
 from enum import Enum
 
 
@@ -42,6 +43,9 @@ class ResearchRequest:
     requested_charts: tuple[str, ...] = ()
     comparison_analysis: bool = False
     comparison_query: str = ""
+    custom_start: str = ""
+    custom_end: str = ""
+    decision_intent: str = "research"
 
     def validate(self) -> None:
         if not self.query.strip():
@@ -54,6 +58,20 @@ class ResearchRequest:
             raise ValueError("Deep analysis supports up to three comparison symbols.")
         if self.comparison_analysis and not self.comparison_query.strip():
             raise ValueError("Enter two securities or funds to compare.")
+        if bool(self.custom_start) != bool(self.custom_end):
+            raise ValueError("A custom analysis range requires both a start and end date.")
+        if self.custom_start and self.custom_end:
+            try:
+                start = dt.date.fromisoformat(self.custom_start)
+                end = dt.date.fromisoformat(self.custom_end)
+            except ValueError as exc:
+                raise ValueError("Custom analysis dates must use YYYY-MM-DD format.") from exc
+            if start >= end:
+                raise ValueError("The custom analysis start date must be before the end date.")
+            if end > dt.date.today():
+                raise ValueError("The custom analysis end date cannot be in the future.")
+            if (end - start).days < 90:
+                raise ValueError("Choose at least a 90-day custom range for reliable technical analysis.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +150,7 @@ class ResearchResult:
     analysis_mode: str = "Standard Research"
     chartbook: tuple[ChartRecord, ...] = ()
     comparison: ComparisonAssessment | None = None
+    ycharts_status: str = ""
 
     def validate(self) -> None:
         if self.current_price <= 0:

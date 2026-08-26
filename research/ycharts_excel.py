@@ -40,28 +40,48 @@ def _audit_rows(ticker: str, status: str) -> tuple[tuple[str, str, str], ...]:
 
 
 def _is_excel_error(value: object, displayed_text: str) -> bool:
-    if displayed_text.startswith("#"):
+    normalized = displayed_text.strip().upper()
+    if normalized.startswith(("#", "ERR:")):
         return True
     return isinstance(value, int) and (value & 0xFFFF0000) == 0x800A0000
+
+
+def _safe_addin_value(addin, field: str) -> object:
+    """Read a COM property without aborting the entire add-in scan."""
+    try:
+        return getattr(addin, field)
+    except Exception:
+        return ""
 
 
 def _enable_ycharts_addin(excel) -> bool:
     """Connect an installed YCharts COM/Excel add-in in this Excel instance."""
     found = False
+    registered_paths = set()
     for collection_name, enabled_property in (("COMAddIns", "Connect"), ("AddIns", "Installed")):
         try:
             collection = getattr(excel, collection_name)
             for index in range(1, int(collection.Count) + 1):
                 addin = collection.Item(index)
                 name = " ".join(
-                    str(getattr(addin, field, "") or "")
+                    str(_safe_addin_value(addin, field) or "")
                     for field in ("Description", "ProgId", "Name", "Title")
                 )
                 if "ycharts" not in name.lower():
                     continue
                 found = True
-                if not bool(getattr(addin, enabled_property)):
-                    setattr(addin, enabled_property, True)
+                try:
+                    if not bool(getattr(addin, enabled_property)):
+                        setattr(addin, enabled_property, True)
+                except Exception:
+                    pass
+                full_name = str(_safe_addin_value(addin, "FullName") or "")
+                if full_name.lower().endswith(".xll") and full_name.lower() not in registered_paths:
+                    try:
+                        excel.RegisterXLL(full_name)
+                        registered_paths.add(full_name.lower())
+                    except Exception:
+                        pass
         except Exception:
             continue
     return found
@@ -80,11 +100,24 @@ def retrieve_ycharts_metrics(ticker: str, workspace: Path, timeout: int = 60) ->
     pythoncom.CoInitialize()
     excel = None
     workbook = None
+    owns_excel = False
+    original_alerts = None
     try:
-        excel = win32com.client.DispatchEx("Excel.Application")
-        excel.Visible = False
+        try:
+            excel = win32com.client.GetActiveObject("Excel.Application")
+        except Exception:
+            excel = win32com.client.DispatchEx("Excel.Application")
+            excel.Visible = False
+            owns_excel = True
+        original_alerts = bool(excel.DisplayAlerts)
         excel.DisplayAlerts = False
         addin_found = _enable_ycharts_addin(excel)
+        if not addin_found:
+            message = (
+                "YCharts Excel functions were not available. Open desktop Excel and confirm both the "
+                "YCharts Excel Add-In and YCharts COM Add-In are active and signed in."
+            )
+            return YChartsEvidence((), (message,), _audit_rows(ticker, "Not run - YCharts add-ins inactive"))
         workbook = excel.Workbooks.Add()
         sheet = workbook.Worksheets(1)
         headers = ("Metric", "Ticker", "Function", "Metric code", "Exact formula", "Live result", "Status")
@@ -100,6 +133,10 @@ def retrieve_ycharts_metrics(ticker: str, workspace: Path, timeout: int = 60) ->
             sheet.Cells(row, 5).Value = formula
             sheet.Cells(row, 6).Formula = formula
         excel.CalculateFullRebuild()
+        try:
+            excel.CalculateUntilAsyncQueriesDone()
+        except Exception:
+            pass
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if int(excel.CalculationState) == 0:
@@ -128,8 +165,19 @@ def retrieve_ycharts_metrics(ticker: str, workspace: Path, timeout: int = 60) ->
         output = workspace / f"ycharts-evidence-{ticker}.xlsx"
         workbook.SaveAs(str(output), FileFormat=51)
         if not values:
-            addin_note = "The installed YCharts add-in was detected but returned no usable metrics." if addin_found else "No YCharts add-in was detected in the isolated Excel session."
-            errors.insert(0, f"{addin_note} Confirm Excel is signed in to YCharts and the add-in is enabled.")
+            name_error = any("#NAME?" in status.upper() for _cell, _formula_text, status in audit)
+            if name_error:
+                errors.insert(
+                    0,
+                    "YCharts functions were not recognized by Excel. Open desktop Excel, confirm both "
+                    "YCharts add-ins are active, sign in on the YCharts ribbon, and retry.",
+                )
+            else:
+                errors.insert(
+                    0,
+                    "YCharts was active but returned no usable metrics. Confirm the YCharts ribbon shows "
+                    "an active login and that the subscription includes the requested data.",
+                )
         return YChartsEvidence(tuple(values), tuple(errors), tuple(audit))
     except Exception as exc:
         message = f"YCharts Excel automation did not complete: {exc}"
@@ -140,7 +188,12 @@ def retrieve_ycharts_metrics(ticker: str, workspace: Path, timeout: int = 60) ->
                 workbook.Close(SaveChanges=False)
             except Exception:
                 pass
-        if excel is not None:
+        if excel is not None and original_alerts is not None:
+            try:
+                excel.DisplayAlerts = original_alerts
+            except Exception:
+                pass
+        if excel is not None and owns_excel:
             try:
                 excel.Quit()
             except Exception:

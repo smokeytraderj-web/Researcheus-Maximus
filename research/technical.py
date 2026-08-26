@@ -40,10 +40,17 @@ class TechnicalSnapshot:
     fib_50: float
     fib_61_8: float
     score: int
+    fibonacci_range_label: str = "Six-month"
+    analysis_return: float | None = None
+    performance_label: str = "Three-month"
 
     def as_metrics(self) -> tuple[tuple[str, str], ...]:
         sma200 = "Unavailable" if self.sma200 is None else f"${self.sma200:,.2f}"
         return (
+            (
+                f"{self.performance_label} return",
+                f"{(self.analysis_return if self.analysis_return is not None else self.return_3m):+.1%}",
+            ),
             ("20-day moving average", f"${self.sma20:,.2f}"),
             ("50-day moving average", f"${self.sma50:,.2f}"),
             ("200-day moving average", sma200),
@@ -52,7 +59,10 @@ class TechnicalSnapshot:
             ("ATR (14)", f"${self.atr14:,.2f}"),
             ("Volume vs. 20-day avg.", f"{self.volume_ratio:.2f}x"),
             ("60-day support / resistance", f"${self.support:,.2f} / ${self.resistance:,.2f}"),
-            ("6-month Fibonacci swing range", f"${self.fib_swing_low:,.2f} / ${self.fib_swing_high:,.2f}"),
+            (
+                f"{self.fibonacci_range_label} Fibonacci swing range",
+                f"${self.fib_swing_low:,.2f} / ${self.fib_swing_high:,.2f}",
+            ),
             (
                 "Fibonacci 38.2% / 50% / 61.8%",
                 f"${self.fib_38_2:,.2f} / ${self.fib_50:,.2f} / ${self.fib_61_8:,.2f}",
@@ -102,7 +112,9 @@ def analyze_history(history: pd.DataFrame) -> TechnicalSnapshot:
     volume_ratio = float(volume.iloc[-1] / vol_avg) if vol_avg > 0 else 1.0
     support = float(low.tail(60).min())
     resistance = float(high.tail(60).max())
-    fibonacci_window = frame.tail(min(126, len(frame)))
+    custom_range = bool(history.attrs.get("custom_range"))
+    fibonacci_window = frame if custom_range else frame.tail(min(126, len(frame)))
+    fibonacci_range_label = str(history.attrs.get("analysis_range_label") or "Six-month")
     fib_swing_low = float(fibonacci_window["Low"].astype(float).min())
     fib_swing_high = float(fibonacci_window["High"].astype(float).max())
     fib_range = fib_swing_high - fib_swing_low
@@ -111,6 +123,8 @@ def analyze_history(history: pd.DataFrame) -> TechnicalSnapshot:
     fib_61_8 = fib_swing_high - fib_range * 0.618
     return_1m = float(price / close.iloc[-22] - 1) if len(close) >= 22 else 0.0
     return_3m = float(price / close.iloc[-64] - 1) if len(close) >= 64 else 0.0
+    analysis_return = float(price / close.iloc[0] - 1) if custom_range else return_3m
+    performance_label = "Analysis-range" if custom_range else "Three-month"
     score = 0
     score += 1 if price > sma20 else -1
     score += 1 if price > sma50 else -1
@@ -125,7 +139,7 @@ def analyze_history(history: pd.DataFrame) -> TechnicalSnapshot:
         score += 0
     else:
         score -= 1
-    score += 1 if return_3m > 0 else -1
+    score += 1 if analysis_return > 0 else -1
     score += 1 if price >= fib_50 else -1
     return TechnicalSnapshot(
         price=price,
@@ -147,6 +161,9 @@ def analyze_history(history: pd.DataFrame) -> TechnicalSnapshot:
         fib_50=fib_50,
         fib_61_8=fib_61_8,
         score=score,
+        fibonacci_range_label=fibonacci_range_label,
+        analysis_return=analysis_return,
+        performance_label=performance_label,
     )
 
 
@@ -169,7 +186,7 @@ def technical_finding(snapshot: TechnicalSnapshot) -> SpecialistFinding:
     momentum = "positive" if snapshot.macd > snapshot.macd_signal else "negative"
     rsi_text = "overbought" if snapshot.rsi14 >= 70 else "oversold" if snapshot.rsi14 <= 30 else "neutral"
     if snapshot.price >= snapshot.fib_38_2:
-        fibonacci_text = "above the 38.2% retracement, in the upper portion of the six-month swing range"
+        fibonacci_text = f"above the 38.2% retracement, in the upper portion of the {snapshot.fibonacci_range_label.lower()} swing range"
     elif snapshot.price >= snapshot.fib_50:
         fibonacci_text = "between the 38.2% and 50% retracement levels"
     elif snapshot.price >= snapshot.fib_61_8:
@@ -181,7 +198,10 @@ def technical_finding(snapshot: TechnicalSnapshot) -> SpecialistFinding:
         f"Price is {trend} its 50-day trend measure; MACD momentum is {momentum}, while RSI is {rsi_text} at {snapshot.rsi14:.1f}.",
         (
             f"Price ${snapshot.price:,.2f} versus 20-day SMA ${snapshot.sma20:,.2f} and 50-day SMA ${snapshot.sma50:,.2f}.",
-            f"One-month return {snapshot.return_1m:+.1%}; three-month return {snapshot.return_3m:+.1%}.",
+            (
+                f"One-month return {snapshot.return_1m:+.1%}; "
+                f"{snapshot.performance_label.lower()} return {(snapshot.analysis_return if snapshot.analysis_return is not None else snapshot.return_3m):+.1%}."
+            ),
             f"MACD {snapshot.macd:.2f} versus signal {snapshot.macd_signal:.2f}; RSI (14) {snapshot.rsi14:.1f}.",
             f"60-day observed range ${snapshot.support:,.2f} to ${snapshot.resistance:,.2f}; ATR (14) ${snapshot.atr14:,.2f}.",
             (
@@ -200,22 +220,25 @@ def incorporate_relative_performance(
 ) -> tuple[SpecialistFinding, tuple[tuple[str, str], ...], str]:
     """Add transparent three-month relative strength evidence to the technical view."""
     primary = primary_history["Close"].dropna().astype(float)
-    if len(primary) < 64 or not comparison_histories:
+    custom_range = bool(primary_history.attrs.get("custom_range"))
+    minimum_sessions = 20 if custom_range else 64
+    if len(primary) < minimum_sessions or not comparison_histories:
         return finding, (), "Relative-performance evidence was unavailable."
 
-    primary_return = float(primary.iloc[-1] / primary.iloc[-64] - 1)
+    primary_return = float(primary.iloc[-1] / primary.iloc[0 if custom_range else -64] - 1)
+    return_label = "analysis range" if custom_range else "three months"
     relative_results = []
     metrics = []
     for symbol, history in comparison_histories.items():
         comparison = history["Close"].dropna().astype(float)
-        if len(comparison) < 64:
+        if len(comparison) < minimum_sessions:
             continue
-        comparison_return = float(comparison.iloc[-1] / comparison.iloc[-64] - 1)
+        comparison_return = float(comparison.iloc[-1] / comparison.iloc[0 if custom_range else -64] - 1)
         relative = primary_return - comparison_return
         relative_results.append(relative)
         metrics.append(
             (
-                f"3-month return vs. {symbol}",
+                f"{'Analysis-range' if custom_range else '3-month'} return vs. {symbol}",
                 f"{primary_return:+.1%} vs. {comparison_return:+.1%} ({relative:+.1%} relative)",
             )
         )
@@ -230,7 +253,7 @@ def incorporate_relative_performance(
     direction = "outperforming" if average_relative > 0 else "underperforming" if average_relative < 0 else "matching"
     symbols = ", ".join(comparison_histories)
     insight = (
-        f"The stock returned {primary_return:+.1%} over three months and is {direction} the comparison set "
+        f"The stock returned {primary_return:+.1%} over the {return_label} and is {direction} the comparison set "
         f"({symbols}) by {average_relative:+.1%} on average."
     )
     if adjustment:
@@ -277,7 +300,9 @@ def strategies(snapshot: TechnicalSnapshot, horizon: Horizon) -> tuple[Strategy,
 
 def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot, destination: Path) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    frame = history.dropna(subset=["Close"]).tail(260).copy()
+    frame = history.dropna(subset=["Close"]).copy()
+    if not history.attrs.get("custom_range"):
+        frame = frame.tail(260)
     close = frame["Close"].astype(float)
     sma20 = close.rolling(20).mean()
     sma50 = close.rolling(50).mean()
@@ -322,7 +347,9 @@ def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot
 def render_momentum_chart(history: pd.DataFrame, ticker: str, destination: Path) -> Path:
     """Render RSI and MACD panels from the same verified history used in the rating."""
     destination.parent.mkdir(parents=True, exist_ok=True)
-    close = history["Close"].dropna().astype(float).tail(260)
+    close = history["Close"].dropna().astype(float)
+    if not history.attrs.get("custom_range"):
+        close = close.tail(260)
     rsi = _rsi(close)
     ema12 = close.ewm(span=12, adjust=False).mean()
     ema26 = close.ewm(span=26, adjust=False).mean()
@@ -366,7 +393,9 @@ def render_relative_performance_chart(
         for symbol, history in histories.items()
         if not history.empty and "Close" in history.columns
     }
-    frame = pd.concat(closes.values(), axis=1, join="inner").dropna().tail(260)
+    frame = pd.concat(closes.values(), axis=1, join="inner").dropna()
+    if not any(history.attrs.get("custom_range") for history in histories.values()):
+        frame = frame.tail(260)
     if len(frame) < 20:
         raise ValueError("At least 20 common trading sessions are required for a comparison chart.")
     normalized = frame.divide(frame.iloc[0]).multiply(100)
@@ -395,12 +424,14 @@ def render_relative_performance_chart(
 
 
 def risk_chart_insight(history: pd.DataFrame, ticker: str) -> str:
-    close = history["Close"].dropna().astype(float).tail(260)
+    close = history["Close"].dropna().astype(float)
+    if not history.attrs.get("custom_range"):
+        close = close.tail(260)
     returns = close.pct_change().dropna()
     drawdown = close / close.cummax() - 1
     annualized_volatility = float(returns.tail(63).std() * np.sqrt(252)) if len(returns) >= 20 else 0.0
     return (
-        f"{ticker}'s one-year maximum drawdown was {float(drawdown.min()):.1%}; current drawdown is "
+        f"{ticker}'s analysis-range maximum drawdown was {float(drawdown.min()):.1%}; ending drawdown is "
         f"{float(drawdown.iloc[-1]):.1%}, with three-month annualized volatility of {annualized_volatility:.1%}."
     )
 
@@ -408,7 +439,9 @@ def risk_chart_insight(history: pd.DataFrame, ticker: str) -> str:
 def render_risk_chart(history: pd.DataFrame, ticker: str, destination: Path) -> Path:
     """Render one-year drawdown and rolling realized volatility."""
     destination.parent.mkdir(parents=True, exist_ok=True)
-    close = history["Close"].dropna().astype(float).tail(260)
+    close = history["Close"].dropna().astype(float)
+    if not history.attrs.get("custom_range"):
+        close = close.tail(260)
     returns = close.pct_change()
     drawdown = close / close.cummax() - 1
     volatility = returns.rolling(20).std() * np.sqrt(252)
