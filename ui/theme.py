@@ -8,6 +8,7 @@ QLabel#Firm { color: #C9AE79; font-size: 10px; font-weight: 600; }
 QLabel#Title { color: #14263D; font-size: 27px; font-weight: 700; }
 QLabel#Subtitle { color: #657386; font-size: 12px; }
 QLabel#Section { color: #14263D; font-size: 15px; font-weight: 700; }
+QLabel#SettingsSummary { color: #657386; font-size: 11px; padding: 5px 2px; }
 QFrame#Card { background: #FFFFFF; border: 1px solid #DCE1E6; border-radius: 10px; }
 QLineEdit, QComboBox, QDoubleSpinBox {
     background: #FFFFFF;
@@ -15,14 +16,6 @@ QLineEdit, QComboBox, QDoubleSpinBox {
     border-radius: 6px;
     padding: 4px 8px;
     min-height: 26px;
-    color: #24364A;
-}
-QTextEdit {
-    background: #FFFFFF;
-    border: 1px solid #C9D0D8;
-    border-radius: 6px;
-    padding: 6px 8px;
-    min-height: 54px;
     color: #24364A;
 }
 QComboBox::drop-down, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
