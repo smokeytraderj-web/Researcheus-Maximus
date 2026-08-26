@@ -101,6 +101,7 @@ class ResearchResult:
     limitations: tuple[str, ...] = ()
     chart_path: str = ""
     demo_mode: bool = False
+    ycharts_audit: tuple[tuple[str, str, str], ...] = ()
 
     def validate(self) -> None:
         if self.current_price <= 0:
