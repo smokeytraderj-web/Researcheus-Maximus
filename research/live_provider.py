@@ -46,6 +46,33 @@ def _tradingview_exchange(exchange: str) -> str:
     return value or "NASDAQ"
 
 
+def _combine_ratings(technical: Rating, fundamental: Rating, horizon: Horizon) -> tuple[Rating, int, int]:
+    """Return one horizon-weighted lead rating and transparent component weights."""
+    technical_weight, fundamental_weight = {
+        Horizon.SHORT: (80, 20),
+        Horizon.MEDIUM: (50, 50),
+        Horizon.LONG: (20, 80),
+        Horizon.ALL: (50, 50),
+    }[horizon]
+    ratings = list(Rating)
+    weighted_index = (
+        ratings.index(technical) * technical_weight + ratings.index(fundamental) * fundamental_weight
+    ) / 100
+    index = int(weighted_index + 0.5)
+    return ratings[max(0, min(len(ratings) - 1, index))], technical_weight, fundamental_weight
+
+
+def _format_ycharts_metric(label: str, value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return str(value)
+    lowered = label.lower()
+    if "upside" in lowered:
+        return _metric(value, percent=True)
+    if "price target" in lowered or "capitalization" in lowered:
+        return _metric(value, money=True)
+    return _metric(value)
+
+
 def _direct_chart_history(session, symbol: str):
     """Retrieve Yahoo's public chart JSON without the cookie/crumb workflow."""
     import pandas as pd
@@ -130,6 +157,33 @@ def _nasdaq_history(session, symbol: str):
     frame.attrs["market_data_source"] = "Nasdaq historical prices"
     frame.attrs["market_data_url"] = f"https://www.nasdaq.com/market-activity/stocks/{quote(symbol.lower(), safe='')}/historical"
     return frame
+
+
+def _nasdaq_quote_metadata(session, symbol: str) -> dict:
+    """Return basic identity metadata when Yahoo quote metadata is unavailable."""
+    if session is None:
+        return {}
+    response = session.get(
+        f"https://api.nasdaq.com/api/quote/{quote(symbol, safe='')}/info",
+        params={"assetclass": "stocks"},
+        headers={
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://www.nasdaq.com",
+            "Referer": f"https://www.nasdaq.com/market-activity/stocks/{quote(symbol.lower(), safe='')}",
+        },
+        timeout=20,
+    )
+    response.raise_for_status()
+    data = response.json().get("data") or {}
+    if not data:
+        return {}
+    company_name = str(data.get("companyName") or "").removesuffix(" Common Stock")
+    return {
+        "longName": company_name,
+        "fullExchangeName": data.get("exchange"),
+        "currency": (data.get("primaryData") or {}).get("currency") or "USD",
+        "quoteType": data.get("stockType") or "Equity",
+    }
 
 
 class LiveResearchProvider:
@@ -223,6 +277,16 @@ class LiveResearchProvider:
             info = ticker.get_info() or {}
         except Exception:
             info = {}
+        metadata_fallback_used = False
+        if not info.get("longName") or not info.get("fullExchangeName"):
+            try:
+                fallback_info = _nasdaq_quote_metadata(self._market_session, symbol)
+            except Exception:
+                fallback_info = {}
+            for key, value in fallback_info.items():
+                if value and not info.get(key):
+                    info[key] = value
+                    metadata_fallback_used = True
         company = str(info.get("longName") or resolved.get("longname") or resolved.get("shortname") or symbol)
         exchange = str(info.get("fullExchangeName") or resolved.get("exchange") or "Unconfirmed")
         currency = str(info.get("currency") or "USD")
@@ -263,10 +327,12 @@ class LiveResearchProvider:
         }
         ycharts_values = ()
         ycharts_errors = ()
+        ycharts_audit = ()
         if self.use_ycharts and workspace is not None:
             ycharts = retrieve_ycharts_metrics(symbol, workspace)
             ycharts_values = ycharts.values
             ycharts_errors = ycharts.errors
+            ycharts_audit = ycharts.audit
             if ycharts_values:
                 market["ycharts_excel"] = dict(ycharts_values)
         provider = self.synthesis_provider.lower()
@@ -287,14 +353,9 @@ class LiveResearchProvider:
                 if provider == "ollama":
                     raise
         if synthesis is None:
-            synthesis = deterministic_synthesis(info, news, now)
+            synthesis = deterministic_synthesis(info, news, now, snapshot.price, dict(ycharts_values))
         technical = technical_finding(snapshot)
-        rating_value = (list(Rating).index(technical.rating) + list(Rating).index(synthesis.fundamental.rating)) / 2
-        if request.horizon == Horizon.SHORT:
-            rating_value = list(Rating).index(technical.rating) * 0.7 + list(Rating).index(synthesis.fundamental.rating) * 0.3
-        elif request.horizon == Horizon.LONG:
-            rating_value = list(Rating).index(technical.rating) * 0.3 + list(Rating).index(synthesis.fundamental.rating) * 0.7
-        lead = list(Rating)[max(0, min(len(Rating) - 1, round(rating_value)))]
+        lead, technical_weight, fundamental_weight = _combine_ratings(technical.rating, synthesis.fundamental.rating, request.horizon)
         limitations = list(synthesis.limitations)
         limitations.extend(ycharts_errors)
         if errors and self.synthesis_provider.lower() == "automatic":
@@ -312,6 +373,8 @@ class LiveResearchProvider:
             SourceRecord("YCharts", f"https://ycharts.com/companies/{quote(symbol)}", now, "Authenticated supplemental review link; no YCharts values were silently inferred"),
             SourceRecord("SEC EDGAR", f"https://www.sec.gov/edgar/search/#/q={quote(symbol)}", now, "Official filing research link"),
         ]
+        if metadata_fallback_used:
+            sources.insert(1, SourceRecord("Nasdaq company information", f"https://www.nasdaq.com/market-activity/stocks/{quote(symbol.lower())}", now, "Company identity and exchange metadata"))
         sources.extend(synthesis.sources)
         position_metrics = ()
         if request.purchase_price is not None:
@@ -324,25 +387,45 @@ class LiveResearchProvider:
                 ("User quantity", f"{request.quantity:,.4f}".rstrip("0").rstrip(".")),
                 ("Illustrative current position value", _metric(snapshot.price * request.quantity, money=True)),
             )
-        ycharts_metrics = tuple((label, _metric(value, money=("target" in label.lower() or "capitalization" in label.lower()), percent="upside" in label.lower()) if isinstance(value, (int, float)) else str(value)) for label, value in ycharts_values)
+        visible_ycharts = {
+            "YCharts consensus rating",
+            "YCharts price target",
+            "YCharts price target low",
+            "YCharts price target high",
+            "YCharts price target upside",
+        }
+        ycharts_metrics = tuple(
+            (label, _format_ycharts_metric(label, value))
+            for label, value in ycharts_values
+            if label in visible_ycharts
+        )
+        analyst_target = info.get("targetMeanPrice")
+        analyst_upside = analyst_target / snapshot.price - 1 if isinstance(analyst_target, (int, float)) and analyst_target > 0 else None
         key_metrics = position_metrics + (
             ("Current price", _metric(snapshot.price, money=True)),
             ("Market capitalization", _metric(info.get("marketCap"), money=True)),
             ("Trailing / forward P/E", f"{_metric(info.get('trailingPE'))} / {_metric(info.get('forwardPE'))}"),
             ("Revenue / earnings growth", f"{_metric(info.get('revenueGrowth'), percent=True)} / {_metric(info.get('earningsGrowth'), percent=True)}"),
             ("Analyst mean target", _metric(info.get("targetMeanPrice"), money=True)),
-            ("Provider recommendation", str(info.get("recommendationKey") or "Unavailable").replace("_", " ").title()),
+            ("Analyst target implied upside", _metric(analyst_upside, percent=True)),
+            ("Street consensus (Yahoo)", str(info.get("recommendationKey") or "Unavailable").replace("_", " ").title()),
         ) + ycharts_metrics + snapshot.as_metrics()
+        divergence = abs(list(Rating).index(technical.rating) - list(Rating).index(synthesis.fundamental.rating))
+        divergence_note = (
+            " The specialist ratings diverge because the technical lens addresses entry timing while the fundamental lens addresses the business and valuation case."
+            if divergence >= 2 else ""
+        )
         executive = (
             f"{company} receives a {lead.value} rating for the {request.horizon.value.lower()} horizon. "
-            f"Technical analysis is {technical.rating.value}, while fundamental analysis is {synthesis.fundamental.rating.value}. "
-            f"{technical.summary} {synthesis.fundamental.summary}"
+            f"The lead framework weights fundamental evidence {fundamental_weight}% and technical evidence {technical_weight}% for this horizon. "
+            f"Technical analysis is {technical.rating.value}; fundamental analysis is {synthesis.fundamental.rating.value}.{divergence_note} "
+            f"{technical.summary}"
         )
         result = ResearchResult(
             SecurityIdentity(company, symbol, exchange, currency), request.horizon, now, snapshot.price,
             technical, synthesis.fundamental, synthesis.sentiment, lead, confidence, executive,
             key_metrics, strategies(snapshot, request.horizon), synthesis.risks, synthesis.catalysts,
-            synthesis.change_conditions, tuple(sources), synthesis.provider_label, tuple(limitations), chart_path, False
+            synthesis.change_conditions, tuple(sources), synthesis.provider_label, tuple(limitations), chart_path, False, tuple(ycharts_audit)
         )
         result.validate()
         return result
