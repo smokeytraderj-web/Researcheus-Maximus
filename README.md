@@ -19,6 +19,10 @@ The runnable application includes:
 - embedded PDF preview, requested-modification regeneration, versioned export, and temporary-session cleanup;
 - live security resolution, market history, fundamentals, news metadata, and deterministic technical indicators;
 - cleanly separated price-trend and Fibonacci charts so technical evidence remains readable;
+- a calm lead chart directly after the Overall Conclusion; the default is the security versus SPY on a year-to-date total-return basis, while explicit price-trend, Fibonacci, momentum, or relative-performance chart requests are honored;
+- prominent plain-English bullet takeaways directly beneath every chart;
+- a deliberately spaced report flow with the Technical Action Plan starting on its own page and Sources, report notes, and disclosure isolated on the final page in every report mode;
+- navy-and-gold GSWM presentation with a warm off-white page, navy title banner, gold rules, serif display headings, and clean sans-serif body copy;
 - an optional multi-page technical chartbook with RSI/MACD, normalized relative performance, and requested drawdown/volatility analysis;
 - plain-English decision insights beneath every deep-analysis chart, connecting the observed signal to the next confirmation level, downside level, and rating effect;
 - fund-profile enrichment for strategy, family, fees, assets, turnover, allocation, and fixed-income characteristics when the provider exposes them;
