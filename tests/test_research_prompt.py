@@ -1,6 +1,6 @@
 import unittest
 
-from core.research_prompt import append_revision_instructions, parse_research_prompt
+from core.research_prompt import append_revision_instructions, parse_deep_analysis_prompt, parse_research_prompt
 
 
 class ResearchPromptTests(unittest.TestCase):
@@ -28,6 +28,31 @@ class ResearchPromptTests(unittest.TestCase):
         self.assertIn("Research WMT", revised)
         self.assertIn("Requested modifications to the revised report", revised)
         self.assertIn("entry strategy conservative", revised)
+
+    def test_deep_prompt_extracts_comparisons_and_requested_risk_chart(self):
+        query, brief, comparisons, charts = parse_deep_analysis_prompt(
+            "AVGO - Compare against NVDA, SOXX, and SPY. Show RSI, MACD, drawdown, and volatility."
+        )
+        self.assertEqual(query, "AVGO")
+        self.assertEqual(comparisons, ("NVDA", "SOXX", "SPY"))
+        self.assertIn("relative_performance", charts)
+        self.assertIn("risk", charts)
+        self.assertIn("drawdown", brief)
+
+    def test_deep_prompt_ignores_indicator_names_and_defaults_to_spy(self):
+        query, _brief, comparisons, charts = parse_deep_analysis_prompt("AXON - Analyze RSI, MACD, ATR, and SMA trends.")
+        self.assertEqual(query, "AXON")
+        self.assertEqual(comparisons, ("SPY",))
+        self.assertEqual(charts, ("price_trend", "momentum", "relative_performance"))
+
+    def test_revision_can_add_comparisons_and_chart_types(self):
+        revised = append_revision_instructions(
+            "AVGO - Compare against SPY.",
+            "Add NVDA and include drawdown and volatility charts.",
+        )
+        _query, _brief, comparisons, charts = parse_deep_analysis_prompt(revised)
+        self.assertEqual(comparisons, ("SPY", "NVDA"))
+        self.assertIn("risk", charts)
 
 
 if __name__ == "__main__":
