@@ -3,21 +3,24 @@
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import quote
 
 from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
-from core.models import ChartRecord, Confidence, Horizon, Rating, ResearchRequest, ResearchResult, SecurityIdentity, SourceRecord
+from core.models import ChartRecord, Confidence, Horizon, PortfolioFitAssessment, Rating, ResearchRequest, ResearchResult, SecurityIdentity, SourceRecord
 from research.comparison import build_comparison_assessment
 from research.synthesis import deterministic_synthesis, ollama_synthesize, openai_synthesize
 from research.technical import (
     analyze_history,
+    historical_trade_examples,
     incorporate_relative_performance,
     render_chart,
     render_fibonacci_chart,
     render_momentum_chart,
     render_relative_performance_chart,
     render_risk_chart,
+    render_trade_case_chart,
     relative_performance_returns,
     risk_chart_insight,
     strategies,
@@ -117,12 +120,26 @@ def _direct_decision_answer(
     company: str,
     lead: Rating,
     technical: Rating,
+    portfolio_fit: PortfolioFitAssessment | None = None,
+    historical_case_count: int = 0,
 ) -> str:
     """Answer the user's decision directly while keeping the conclusion conditional."""
     positive = {Rating.STRONG_BUY, Rating.BUY, Rating.ADD}
     negative = {Rating.REDUCE, Rating.SELL, Rating.AVOID}
     historical = bool(request.custom_end and request.custom_end < dt.date.today().isoformat())
     timing = technical_setup(technical).lower()
+    if request.decision_intent == "portfolio_fit" and portfolio_fit is not None:
+        return f"Portfolio-fit answer: {portfolio_fit.fit_label}. {portfolio_fit.summary}"
+    if request.decision_intent == "historical_trade_examples":
+        if historical_case_count:
+            return (
+                f"Historical case-study answer: {historical_case_count} rules-based long-entry example"
+                f"{'s' if historical_case_count != 1 else ''} met the stated filters in the selected range. "
+                "Each example uses only information available at the signal date and shows its hypothetical entry, protective stop, and exit."
+            )
+        return (
+            "Historical case-study answer: no entry met every rule in the selected range; the report does not invent a trade to fill the request."
+        )
     if historical:
         return (
             f"Historical conclusion: at the {request.custom_end} range end, {company} rated {lead.value} "
@@ -161,6 +178,77 @@ def _direct_decision_answer(
         action = "hold or add only on confirmation" if lead in positive else "review for reduction" if lead in negative else "hold and monitor"
         return f"Position answer: the current evidence supports {action}; the overall view is {lead.value} with a {timing} setup."
     return f"Overall conclusion: {company} rates {lead.value} on the available evidence, with a {timing} technical setup."
+
+
+def _as_fraction(value: object) -> float | None:
+    if not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number / 100 if number > 1.5 else number
+
+
+def _build_portfolio_fit(
+    request: ResearchRequest,
+    info: dict,
+    company: str,
+) -> PortfolioFitAssessment | None:
+    if not request.portfolio_allocation:
+        return None
+    equity_target, fixed_income_target = request.portfolio_allocation
+    category = str(info.get("category") or info.get("legalType") or "Unavailable")
+    descriptor = " ".join(
+        str(info.get(key) or "")
+        for key in ("category", "legalType", "longBusinessSummary", "longName")
+    ).lower()
+    stock_weight = _as_fraction(_first_number(info, "stockPosition", "equityPosition"))
+    bond_weight = _as_fraction(_first_number(info, "bondPosition", "fixedIncomePosition"))
+    if stock_weight is not None and stock_weight >= 0.65:
+        role = "Equity sleeve"
+    elif bond_weight is not None and bond_weight >= 0.65:
+        role = "Fixed-income sleeve"
+    elif any(term in descriptor for term in ("allocation", "balanced", "multi-asset", "target-risk")):
+        role = "Blended allocation fund"
+    elif any(term in descriptor for term in ("bond", "fixed income", "municipal", "government income", "credit")):
+        role = "Fixed-income sleeve"
+    elif any(term in descriptor for term in ("equity", "stock", "growth", "value", "large blend", "small blend")):
+        role = "Equity sleeve"
+    else:
+        role = "Role needs confirmation"
+
+    if role == "Equity sleeve":
+        fit_label = f"Potential fit for part of the {equity_target}% equity sleeve"
+        summary = f"{company} should be judged as an equity holding, not as the portfolio's {fixed_income_target}% defensive allocation."
+        watchouts = ("Avoid letting one fund create unintended style or manager concentration.", "Confirm overlap with the other equity holdings.")
+    elif role == "Fixed-income sleeve":
+        fit_label = f"Potential fit for part of the {fixed_income_target}% fixed-income sleeve"
+        summary = f"{company} may serve the defensive side of a {equity_target}/{fixed_income_target} portfolio, subject to its duration, credit, and fee profile."
+        watchouts = ("Confirm duration and credit quality before treating it as a core bond holding.", "Higher-yielding or flexible-income funds may not behave like high-quality bonds in a selloff.")
+    elif role == "Blended allocation fund":
+        fit_label = "Requires look-through before adding"
+        summary = f"{company} already mixes asset classes, so adding it without a look-through can move the total portfolio away from the intended {equity_target}/{fixed_income_target} split."
+        watchouts = ("Use the fund's current asset mix when calculating the total portfolio allocation.", "Do not count the entire position as either stocks or bonds.")
+    else:
+        fit_label = "Not enough allocation data for a reliable fit conclusion"
+        summary = f"The available provider data does not clearly identify which part of a {equity_target}/{fixed_income_target} portfolio {company} should fill."
+        watchouts = ("Review the latest fact sheet and holdings allocation.", "Confirm expenses, liquidity, and the intended portfolio role before purchase.")
+
+    evidence = [f"Provider category: {category}.", f"Proposed role: {role}."]
+    if stock_weight is not None:
+        evidence.append(f"Reported stock allocation: {stock_weight:.1%}.")
+    if bond_weight is not None:
+        evidence.append(f"Reported bond allocation: {bond_weight:.1%}.")
+    expense = _as_fraction(_first_number(info, "annualReportExpenseRatio", "netExpenseRatio"))
+    if expense is not None:
+        evidence.append(f"Reported expense ratio: {expense:.2%}.")
+    return PortfolioFitAssessment(
+        equity_target,
+        fixed_income_target,
+        role,
+        fit_label,
+        summary,
+        tuple(evidence),
+        watchouts,
+    )
 
 
 def _format_ycharts_metric(label: str, value: object) -> str:
@@ -333,7 +421,11 @@ class LiveResearchProvider:
         if not looks_like_ticker:
             try:
                 search = yf.Search(cleaned, max_results=8, news_count=0, session=self._market_session)
-                candidates = [item for item in (search.quotes or []) if item.get("quoteType") in {"EQUITY", "ETF"}]
+                candidates = [
+                    item
+                    for item in (search.quotes or [])
+                    if item.get("quoteType") in {"EQUITY", "ETF", "MUTUALFUND"}
+                ]
             except Exception:
                 candidates = []
         exact = next((item for item in candidates if str(item.get("symbol", "")).upper() == upper), None)
@@ -523,6 +615,8 @@ class LiveResearchProvider:
                     comparison_histories,
                 )
         primary_identity = SecurityIdentity(company, symbol, exchange, currency)
+        portfolio_fit = _build_portfolio_fit(request, info, company)
+        trade_cases = historical_trade_examples(history) if request.historical_trade_examples else ()
         comparison_assessment = None
         comparison_info = {}
         secondary_snapshot = None
@@ -655,6 +749,13 @@ class LiveResearchProvider:
             "analyst_recommendation": info.get("recommendationKey"),
             "technical": dict(snapshot.as_metrics() + relative_metrics),
             "analysis_mode": "Deep Technical Analysis" if request.deep_analysis else "Standard Research",
+            "security_type": quote_type,
+            "fund_category": info.get("category"),
+            "fund_family": info.get("fundFamily"),
+            "fund_expense_ratio": _first_number(info, "annualReportExpenseRatio", "netExpenseRatio"),
+            "fund_yield": info.get("yield"),
+            "fund_stock_position": _first_number(info, "stockPosition", "equityPosition"),
+            "fund_bond_position": _first_number(info, "bondPosition", "fixedIncomePosition"),
             "comparison_symbols": tuple(comparison_histories),
             "user_context": {
                 "purchase_price": request.purchase_price,
@@ -662,6 +763,8 @@ class LiveResearchProvider:
                 "risk_tolerance": request.risk_tolerance,
                 "question": request.question,
                 "decision_intent": request.decision_intent,
+                "portfolio_allocation": request.portfolio_allocation or None,
+                "historical_trade_examples": request.historical_trade_examples,
                 "custom_analysis_range": (
                     {"start": request.custom_start, "end": request.custom_end}
                     if request.custom_start
@@ -669,6 +772,21 @@ class LiveResearchProvider:
                 ),
             },
         }
+        if portfolio_fit is not None:
+            market["portfolio_fit"] = {
+                "target_allocation": f"{portfolio_fit.equity_target_pct}/{portfolio_fit.fixed_income_target_pct}",
+                "security_role": portfolio_fit.security_role,
+                "fit_label": portfolio_fit.fit_label,
+                "summary": portfolio_fit.summary,
+                "evidence": portfolio_fit.evidence,
+                "watchouts": portfolio_fit.watchouts,
+            }
+        if request.historical_trade_examples:
+            market["historical_trade_case_count"] = len(trade_cases)
+            market["historical_trade_method"] = (
+                "Long-only case studies: signal after the close when price reclaims SMA20, SMA50 is rising, "
+                "MACD is improving, RSI is 45-72, and volume is at least 0.8x its 20-day average; entry is the next session."
+            )
         if comparison_assessment and secondary_snapshot is not None:
             market["analysis_mode"] = "Security Comparison"
             market["comparison_security"] = {
@@ -882,6 +1000,17 @@ class LiveResearchProvider:
                             risk_chart_insight(history, symbol),
                         )
                     )
+            if request.historical_trade_examples and trade_cases:
+                rendered_cases = []
+                for index, trade_case in enumerate(trade_cases, start=1):
+                    case_path = render_trade_case_chart(
+                        history,
+                        symbol,
+                        trade_case,
+                        workspace / f"historical-trade-{index}.png",
+                    )
+                    rendered_cases.append(replace(trade_case, chart_path=str(case_path)))
+                trade_cases = tuple(rendered_cases)
         history_source = str(history.attrs.get("market_data_source") or "Yahoo Finance market data")
         history_url = str(history.attrs.get("market_data_url") or f"https://finance.yahoo.com/quote/{quote(symbol)}")
         sources = [
@@ -934,7 +1063,31 @@ class LiveResearchProvider:
         raw_analyst_target = info.get("targetMeanPrice")
         analyst_target = raw_analyst_target if isinstance(raw_analyst_target, (int, float)) and raw_analyst_target > 0 else None
         analyst_upside = analyst_target / snapshot.price - 1 if analyst_target is not None else None
-        key_metrics = position_metrics + (
+        fund_metrics = []
+        if quote_type.upper() in {"ETF", "MUTUALFUND", "MUTUAL FUND"} or portfolio_fit is not None:
+            fund_metrics.extend(
+                [
+                    ("Security type", quote_type.replace("MUTUALFUND", "Mutual fund").title()),
+                    ("Fund category", str(info.get("category") or "Unavailable")),
+                    ("Fund family", str(info.get("fundFamily") or "Unavailable")),
+                ]
+            )
+            expense = _as_fraction(_first_number(info, "annualReportExpenseRatio", "netExpenseRatio"))
+            fund_yield = _as_fraction(info.get("yield"))
+            stock_weight = _as_fraction(_first_number(info, "stockPosition", "equityPosition"))
+            bond_weight = _as_fraction(_first_number(info, "bondPosition", "fixedIncomePosition"))
+            if expense is not None:
+                fund_metrics.append(("Expense ratio", _metric(expense, percent=True)))
+            if fund_yield is not None:
+                fund_metrics.append(("Distribution yield", _metric(fund_yield, percent=True)))
+            if stock_weight is not None or bond_weight is not None:
+                fund_metrics.append(
+                    (
+                        "Reported stock / bond allocation",
+                        f"{_metric(stock_weight, percent=True)} / {_metric(bond_weight, percent=True)}",
+                    )
+                )
+        key_metrics = position_metrics + tuple(fund_metrics) + (
             ("Range-end price" if request.custom_start else "Current price", _metric(snapshot.price, money=True)),
             ("Market capitalization", _metric(info.get("marketCap"), money=True)),
             ("Trailing / forward P/E", f"{_metric(info.get('trailingPE'))} / {_metric(info.get('forwardPE'))}"),
@@ -946,7 +1099,7 @@ class LiveResearchProvider:
         ) + ycharts_metrics + snapshot.as_metrics() + relative_metrics
         interpretation = assessment_interpretation(technical.rating, synthesis.fundamental.rating)
         executive = (
-            f"{_direct_decision_answer(request, company, lead, technical.rating)} "
+            f"{_direct_decision_answer(request, company, lead, technical.rating, portfolio_fit, len(trade_cases))} "
             f"{company} receives a {lead.value} rating for the {request.horizon.value.lower()} horizon. "
             f"The lead framework weights fundamental evidence {fundamental_weight}% and technical evidence {technical_weight}% for this horizon. "
             f"The technical setup is {technical_setup(technical.rating).lower()}, and the fundamental outlook is "
@@ -985,6 +1138,8 @@ class LiveResearchProvider:
             chartbook=tuple(chartbook),
             comparison=comparison_assessment,
             ycharts_status=ycharts_status,
+            historical_trade_cases=tuple(trade_cases),
+            portfolio_fit=portfolio_fit,
         )
         result.validate()
         return result
