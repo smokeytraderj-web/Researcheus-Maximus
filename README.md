@@ -12,6 +12,7 @@ The runnable application includes:
 - embedded PDF preview, versioned export, and temporary-session cleanup;
 - live security resolution, market history, fundamentals, news metadata, and deterministic technical indicators;
 - annotated technical charts with trend, support, resistance, and volume;
+- secure Windows certificate-store support for live market connections;
 - configurable OpenAI web research, local Ollama synthesis, deterministic fallback, and explicit demo mode.
 
 Live mode links directly to YCharts, TradingView, SEC EDGAR, and the underlying market-data page. Authenticated YCharts values are never guessed when an account session cannot be read. Demo mode remains labeled throughout the UI and PDF and never claims that live research occurred.
@@ -33,6 +34,8 @@ py -m venv .venv
 pip install -r requirements.txt
 python app.py
 ```
+
+If dependencies were previously installed, run the `pip install` command again before testing this version. Live mode keeps SSL verification enabled and augments the public certificate bundle with certificates already trusted by Windows, which supports managed networks that inspect HTTPS traffic.
 
 ## Test
 
