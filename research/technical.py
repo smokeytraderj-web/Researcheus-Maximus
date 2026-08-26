@@ -143,6 +143,58 @@ def technical_finding(snapshot: TechnicalSnapshot) -> SpecialistFinding:
     )
 
 
+def incorporate_relative_performance(
+    finding: SpecialistFinding,
+    primary_history: pd.DataFrame,
+    comparison_histories: dict[str, pd.DataFrame],
+) -> tuple[SpecialistFinding, tuple[tuple[str, str], ...], str]:
+    """Add transparent three-month relative strength evidence to the technical view."""
+    primary = primary_history["Close"].dropna().astype(float)
+    if len(primary) < 64 or not comparison_histories:
+        return finding, (), "Relative-performance evidence was unavailable."
+
+    primary_return = float(primary.iloc[-1] / primary.iloc[-64] - 1)
+    relative_results = []
+    metrics = []
+    for symbol, history in comparison_histories.items():
+        comparison = history["Close"].dropna().astype(float)
+        if len(comparison) < 64:
+            continue
+        comparison_return = float(comparison.iloc[-1] / comparison.iloc[-64] - 1)
+        relative = primary_return - comparison_return
+        relative_results.append(relative)
+        metrics.append(
+            (
+                f"3-month return vs. {symbol}",
+                f"{primary_return:+.1%} vs. {comparison_return:+.1%} ({relative:+.1%} relative)",
+            )
+        )
+    if not relative_results:
+        return finding, (), "Relative-performance evidence was unavailable."
+
+    average_relative = float(np.mean(relative_results))
+    ratings = list(Rating)
+    original_index = ratings.index(finding.rating)
+    adjustment = -1 if average_relative >= 0.08 else 1 if average_relative <= -0.08 else 0
+    adjusted_rating = ratings[max(0, min(len(ratings) - 1, original_index + adjustment))]
+    direction = "outperforming" if average_relative > 0 else "underperforming" if average_relative < 0 else "matching"
+    symbols = ", ".join(comparison_histories)
+    insight = (
+        f"The stock returned {primary_return:+.1%} over three months and is {direction} the comparison set "
+        f"({symbols}) by {average_relative:+.1%} on average."
+    )
+    if adjustment:
+        insight += f" This moved the technical rating from {finding.rating.value} to {adjusted_rating.value}."
+    else:
+        insight += " Relative strength did not change the technical rating."
+    revised = SpecialistFinding(
+        adjusted_rating,
+        f"{finding.summary} {insight}",
+        finding.signals + (insight,),
+    )
+    return revised, tuple(metrics), insight
+
+
 def strategies(snapshot: TechnicalSnapshot, horizon: Horizon) -> tuple[Strategy, ...]:
     buffer = max(snapshot.atr14 * 0.5, snapshot.price * 0.005)
     if snapshot.price < snapshot.sma20:
@@ -189,7 +241,7 @@ def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot
         ax.plot(frame.index, sma200, color="#8B929A", linewidth=1.1, label="SMA 200")
     ax.axhline(snapshot.support, color="#B65050", linestyle="--", linewidth=0.9, label="60d support")
     ax.axhline(snapshot.resistance, color="#4A8A68", linestyle="--", linewidth=0.9, label="60d resistance")
-    ax.set_title(f"{ticker} — Price, Trend, Support and Resistance", loc="left", color="#14263D", fontweight="bold")
+    ax.set_title(f"{ticker} - Price, Trend, Support and Resistance", loc="left", color="#14263D", fontweight="bold")
     ax.set_ylabel("Price (USD)")
     ax.grid(alpha=0.18)
     ax.legend(ncol=3, fontsize=8, frameon=False, loc="upper left")
@@ -200,6 +252,119 @@ def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot
     vol.grid(axis="y", alpha=0.15)
     vol.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=9))
     vol.xaxis.set_major_formatter(mdates.ConciseDateFormatter(vol.xaxis.get_major_locator()))
+    fig.tight_layout()
+    fig.savefig(destination, dpi=170, bbox_inches="tight")
+    plt.close(fig)
+    return destination
+
+
+def render_momentum_chart(history: pd.DataFrame, ticker: str, destination: Path) -> Path:
+    """Render RSI and MACD panels from the same verified history used in the rating."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    close = history["Close"].dropna().astype(float).tail(260)
+    rsi = _rsi(close)
+    ema12 = close.ewm(span=12, adjust=False).mean()
+    ema26 = close.ewm(span=26, adjust=False).mean()
+    macd = ema12 - ema26
+    signal = macd.ewm(span=9, adjust=False).mean()
+    histogram = macd - signal
+    fig, (rsi_ax, macd_ax) = plt.subplots(2, 1, figsize=(10.5, 5.2), sharex=True)
+    fig.patch.set_facecolor("white")
+    rsi_ax.plot(rsi.index, rsi, color="#14263D", linewidth=1.5, label="RSI (14)")
+    rsi_ax.axhline(70, color="#B65050", linestyle="--", linewidth=0.9)
+    rsi_ax.axhline(30, color="#4A8A68", linestyle="--", linewidth=0.9)
+    rsi_ax.fill_between(rsi.index, 30, 70, color="#F3F5F7", alpha=0.7)
+    rsi_ax.set_ylim(0, 100)
+    rsi_ax.set_ylabel("RSI")
+    rsi_ax.set_title(f"{ticker} - Momentum: RSI and MACD", loc="left", color="#14263D", fontweight="bold")
+    rsi_ax.grid(alpha=0.16)
+    macd_ax.plot(macd.index, macd, color="#14263D", linewidth=1.3, label="MACD")
+    macd_ax.plot(signal.index, signal, color="#B08D57", linewidth=1.2, label="Signal")
+    colors_v = np.where(histogram >= 0, "#6E9D85", "#C77A7A")
+    macd_ax.bar(histogram.index, histogram, color=colors_v, width=1.0, alpha=0.65, label="Histogram")
+    macd_ax.axhline(0, color="#8B929A", linewidth=0.7)
+    macd_ax.set_ylabel("MACD")
+    macd_ax.grid(alpha=0.16)
+    macd_ax.legend(ncol=3, fontsize=8, frameon=False, loc="upper left")
+    macd_ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=9))
+    macd_ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(macd_ax.xaxis.get_major_locator()))
+    fig.tight_layout()
+    fig.savefig(destination, dpi=170, bbox_inches="tight")
+    plt.close(fig)
+    return destination
+
+
+def render_relative_performance_chart(
+    histories: dict[str, pd.DataFrame],
+    destination: Path,
+) -> Path:
+    """Render normalized performance on common trading dates for valid comparisons."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    closes = {
+        symbol: history["Close"].dropna().astype(float).rename(symbol)
+        for symbol, history in histories.items()
+        if not history.empty and "Close" in history.columns
+    }
+    frame = pd.concat(closes.values(), axis=1, join="inner").dropna().tail(260)
+    if len(frame) < 20:
+        raise ValueError("At least 20 common trading sessions are required for a comparison chart.")
+    normalized = frame.divide(frame.iloc[0]).multiply(100)
+    palette = ["#14263D", "#B08D57", "#4E7298", "#6E9D85"]
+    fig, ax = plt.subplots(figsize=(10.5, 4.8))
+    fig.patch.set_facecolor("white")
+    for index, column in enumerate(normalized.columns):
+        ax.plot(
+            normalized.index,
+            normalized[column],
+            color=palette[index % len(palette)],
+            linewidth=1.8 if index == 0 else 1.25,
+            label=column,
+        )
+    ax.axhline(100, color="#8B929A", linewidth=0.7)
+    ax.set_title("Normalized Relative Performance - Starting Value 100", loc="left", color="#14263D", fontweight="bold")
+    ax.set_ylabel("Indexed value")
+    ax.grid(alpha=0.18)
+    ax.legend(ncol=4, fontsize=8, frameon=False, loc="upper left")
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=9))
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    fig.tight_layout()
+    fig.savefig(destination, dpi=170, bbox_inches="tight")
+    plt.close(fig)
+    return destination
+
+
+def risk_chart_insight(history: pd.DataFrame, ticker: str) -> str:
+    close = history["Close"].dropna().astype(float).tail(260)
+    returns = close.pct_change().dropna()
+    drawdown = close / close.cummax() - 1
+    annualized_volatility = float(returns.tail(63).std() * np.sqrt(252)) if len(returns) >= 20 else 0.0
+    return (
+        f"{ticker}'s one-year maximum drawdown was {float(drawdown.min()):.1%}; current drawdown is "
+        f"{float(drawdown.iloc[-1]):.1%}, with three-month annualized volatility of {annualized_volatility:.1%}."
+    )
+
+
+def render_risk_chart(history: pd.DataFrame, ticker: str, destination: Path) -> Path:
+    """Render one-year drawdown and rolling realized volatility."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    close = history["Close"].dropna().astype(float).tail(260)
+    returns = close.pct_change()
+    drawdown = close / close.cummax() - 1
+    volatility = returns.rolling(20).std() * np.sqrt(252)
+    fig, (drawdown_ax, volatility_ax) = plt.subplots(2, 1, figsize=(10.5, 5.2), sharex=True)
+    fig.patch.set_facecolor("white")
+    drawdown_ax.fill_between(drawdown.index, drawdown, 0, color="#C77A7A", alpha=0.65)
+    drawdown_ax.plot(drawdown.index, drawdown, color="#B65050", linewidth=1.0)
+    drawdown_ax.set_title(f"{ticker} - Drawdown and Realized Volatility", loc="left", color="#14263D", fontweight="bold")
+    drawdown_ax.set_ylabel("Drawdown")
+    drawdown_ax.yaxis.set_major_formatter(lambda value, _position: f"{value:.0%}")
+    drawdown_ax.grid(alpha=0.16)
+    volatility_ax.plot(volatility.index, volatility, color="#14263D", linewidth=1.4)
+    volatility_ax.set_ylabel("20d ann. vol.")
+    volatility_ax.yaxis.set_major_formatter(lambda value, _position: f"{value:.0%}")
+    volatility_ax.grid(alpha=0.16)
+    volatility_ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=9))
+    volatility_ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(volatility_ax.xaxis.get_major_locator()))
     fig.tight_layout()
     fig.savefig(destination, dpi=170, bbox_inches="tight")
     plt.close(fig)
