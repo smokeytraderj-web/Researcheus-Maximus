@@ -69,6 +69,7 @@ class ResearchRunnerTests(unittest.TestCase):
             self.assertIn("OPTIONS STRATEGY", report_text)
             self.assertIn("EXAMPLE", report_text)
             self.assertIn("YTD Total Return", first_page)
+            self.assertIn("KEY CHART TAKEAWAYS", first_page)
             self.assertNotIn("WHAT THIS CHART SHOWS", report_text)
             self.assertIn("Investment Summary", first_page)
             self.assertIn("Position and Risk Plan", second_page)
