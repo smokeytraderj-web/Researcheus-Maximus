@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -11,6 +12,9 @@ from research.live_provider import (
     _comparison_benchmark,
     _direct_chart_history,
     _direct_decision_answer,
+    _enrich_fund_info,
+    _external_user_context,
+    _request_specific_response,
     _nasdaq_history,
     _usable_ycharts_metric,
 )
@@ -107,6 +111,7 @@ class HistoryFallbackTests(unittest.TestCase):
     def test_zero_ycharts_target_is_not_usable_evidence(self):
         self.assertFalse(_usable_ycharts_metric("YCharts price target", 0))
         self.assertTrue(_usable_ycharts_metric("YCharts price target", 245.0))
+        self.assertFalse(_usable_ycharts_metric("YCharts price target upside", 0))
         self.assertTrue(_usable_ycharts_metric("YCharts price target upside", -0.08))
 
     def test_uses_second_ticker_history_attempt(self):
@@ -177,6 +182,49 @@ class HistoryFallbackTests(unittest.TestCase):
         self.assertTrue(answer.startswith("Direct answer:"))
         self.assertIn("not a clear buy", answer)
 
+    def test_external_synthesis_context_excludes_private_position_fields(self):
+        context = _external_user_context(
+            ResearchRequest(
+                "ACYN",
+                Horizon.ALL,
+                purchase_price=19.25,
+                quantity=500,
+                risk_tolerance="conservative",
+                question="Give me a report on ACYN and tell me a little about the fund in a summary to start.",
+            )
+        )
+        self.assertIn("question", context)
+        self.assertNotIn("purchase_price", context)
+        self.assertNotIn("quantity", context)
+        self.assertNotIn("risk_tolerance", context)
+
+    def test_fund_summary_request_is_answered_before_generic_analysis(self):
+        request = ResearchRequest(
+            "ACYN",
+            Horizon.ALL,
+            question="Give me a report on ACYN and tell me a little about the fund in a summary to start the report.",
+        )
+        response = _request_specific_response(
+            request,
+            "FT Vest Laddered Autocallable Barrier & Income ETF",
+            "ACYN",
+            {
+                "quoteType": "ETF",
+                "category": "Derivative Income",
+                "fundFamily": "First Trust",
+                "longBusinessSummary": "The fund uses a laddered portfolio of structured outcome strategies. It seeks income with defined barrier exposure.",
+                "annualReportExpenseRatio": 0.0095,
+            },
+            Rating.HOLD,
+            Rating.BUY,
+            "Generic fundamental screen.",
+        )
+        self.assertIn("exchange-traded fund", response)
+        self.assertIn("First Trust", response)
+        self.assertIn("Derivative Income", response)
+        self.assertIn("structured outcome strategies", response)
+        self.assertIn("0.95%", response)
+
     def test_portfolio_fit_identifies_fixed_income_sleeve(self):
         request = ResearchRequest(
             "BDMIX",
@@ -194,6 +242,40 @@ class HistoryFallbackTests(unittest.TestCase):
         self.assertIn("30%", fit.fit_label)
         answer = _direct_decision_answer(request, "Example Bond Fund", Rating.HOLD, Rating.HOLD, fit)
         self.assertTrue(answer.startswith("Portfolio-fit answer:"))
+
+    def test_fund_specific_data_populates_missing_profile_fields(self):
+        operations = pd.DataFrame(
+            {"BDMIX": [0.0134, 0.82, 2_500_000_000]},
+            index=["Annual Report Expense Ratio", "Annual Holdings Turnover", "Total Net Assets"],
+        )
+        bond_holdings = pd.DataFrame(
+            {"BDMIX": [3.2, 5.4, "A"]},
+            index=["Duration", "Maturity", "Credit Quality"],
+        )
+        funds = SimpleNamespace(
+            fund_overview={"categoryName": "Equity Market Neutral", "family": "BlackRock", "legalType": "Open Ended Investment Company"},
+            description="A long-short equity market neutral strategy.",
+            asset_classes={"stockPosition": 0.88, "bondPosition": 0.02, "cashPosition": 0.10},
+            fund_operations=operations,
+            bond_holdings=bond_holdings,
+            quote_type=lambda: "MUTUALFUND",
+        )
+        enriched = _enrich_fund_info(SimpleNamespace(funds_data=funds), "BDMIX", {"longName": "BlackRock Global Equity Mkt Neutral Instl"})
+        self.assertEqual(enriched["category"], "Equity Market Neutral")
+        self.assertEqual(enriched["fundFamily"], "BlackRock")
+        self.assertEqual(enriched["stockPosition"], 0.88)
+        self.assertEqual(enriched["annualReportExpenseRatio"], 0.0134)
+        self.assertEqual(enriched["fundDuration"], 3.2)
+
+    def test_market_neutral_fund_is_not_forced_into_equity_or_bond_sleeve(self):
+        request = ResearchRequest("BDMIX", Horizon.ALL, portfolio_allocation=(70, 30))
+        fit = _build_portfolio_fit(
+            request,
+            {"category": "Equity Market Neutral", "longName": "BlackRock Global Equity Mkt Neutral Instl"},
+            "BlackRock Global Equity Mkt Neutral Instl",
+        )
+        self.assertEqual(fit.security_role, "Alternative / diversifier sleeve")
+        self.assertIn("not a direct 70/30", fit.fit_label.lower())
 
     def test_historical_range_is_not_presented_as_current_advice(self):
         answer = _direct_decision_answer(
