@@ -125,6 +125,20 @@ def classify_research_intent(value: str) -> str:
     return "research"
 
 
+def parse_overview_chart_request(value: str) -> str:
+    """Identify an explicitly requested lead chart; blank means use the YTD SPY comparison."""
+    lowered = value.lower()
+    if any(term in lowered for term in ("fibonacci chart", "fib chart", "fibonacci levels chart")):
+        return "fibonacci"
+    if any(term in lowered for term in ("momentum chart", "rsi chart", "macd chart")):
+        return "momentum"
+    if any(term in lowered for term in ("price chart", "trend chart", "moving average chart")):
+        return "price_trend"
+    if any(term in lowered for term in ("relative performance chart", "total return chart", "performance chart")):
+        return "relative_performance"
+    return ""
+
+
 def parse_portfolio_allocation(value: str) -> tuple[int, int]:
     """Extract a conventional equity/fixed-income allocation such as 70/30."""
     match = re.search(r"\b(\d{1,3})\s*(?:/|-)\s*(\d{1,3})\b", value)
