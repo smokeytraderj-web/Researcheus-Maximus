@@ -4,9 +4,11 @@ import datetime as dt
 from core.research_prompt import (
     append_revision_instructions,
     classify_research_intent,
+    is_historical_trade_request,
     parse_comparison_prompt,
     parse_custom_range,
     parse_deep_analysis_prompt,
+    parse_portfolio_allocation,
     parse_research_prompt,
 )
 
@@ -107,6 +109,25 @@ class ResearchPromptTests(unittest.TestCase):
             parse_custom_range("Analyze TSLA since March 2024", today=today),
             ("2024-03-01", "2026-08-26"),
         )
+        self.assertEqual(
+            parse_custom_range("Show QQQ trade examples from the past year", today=today),
+            ("2025-08-26", "2026-08-26"),
+        )
+
+    def test_portfolio_fit_and_historical_trade_prompts_are_classified(self):
+        prompt = "Is BDMIX good for a 70/30 portfolio?"
+        query, brief = parse_research_prompt(prompt)
+        self.assertEqual(query, "BDMIX")
+        self.assertEqual(parse_portfolio_allocation(brief), (70, 30))
+        self.assertEqual(classify_research_intent(brief), "portfolio_fit")
+
+        trade_prompt = "Show QQQ trades with stop loss indicators and real chart snapshots from the past year"
+        query, brief = parse_research_prompt(trade_prompt)
+        self.assertEqual(query, "QQQ")
+        self.assertTrue(is_historical_trade_request(brief))
+        self.assertEqual(classify_research_intent(brief), "historical_trade_examples")
+        _query, _brief, _comparisons, charts = parse_deep_analysis_prompt(trade_prompt)
+        self.assertIn("historical_trades", charts)
 
     def test_comparison_prompt_stops_before_custom_range(self):
         primary, secondary, _brief = parse_comparison_prompt(
