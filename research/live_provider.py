@@ -6,6 +6,7 @@ import datetime as dt
 from pathlib import Path
 from urllib.parse import quote
 
+from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
 from core.models import Confidence, Horizon, Rating, ResearchRequest, ResearchResult, SecurityIdentity, SourceRecord
 from research.synthesis import deterministic_synthesis, ollama_synthesize, openai_synthesize
 from research.technical import analyze_history, render_chart, strategies, technical_finding
@@ -410,15 +411,12 @@ class LiveResearchProvider:
             ("Analyst target implied upside", _metric(analyst_upside, percent=True)),
             ("Street consensus (Yahoo)", str(info.get("recommendationKey") or "Unavailable").replace("_", " ").title()),
         ) + ycharts_metrics + snapshot.as_metrics()
-        divergence = abs(list(Rating).index(technical.rating) - list(Rating).index(synthesis.fundamental.rating))
-        divergence_note = (
-            " The specialist ratings diverge because the technical lens addresses entry timing while the fundamental lens addresses the business and valuation case."
-            if divergence >= 2 else ""
-        )
+        interpretation = assessment_interpretation(technical.rating, synthesis.fundamental.rating)
         executive = (
             f"{company} receives a {lead.value} rating for the {request.horizon.value.lower()} horizon. "
             f"The lead framework weights fundamental evidence {fundamental_weight}% and technical evidence {technical_weight}% for this horizon. "
-            f"Technical analysis is {technical.rating.value}; fundamental analysis is {synthesis.fundamental.rating.value}.{divergence_note} "
+            f"The technical setup is {technical_setup(technical.rating).lower()}, and the fundamental outlook is "
+            f"{fundamental_outlook(synthesis.fundamental.rating).lower()}. {interpretation} "
             f"{technical.summary}"
         )
         result = ResearchResult(
