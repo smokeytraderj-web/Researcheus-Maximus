@@ -6,7 +6,7 @@ The runnable application includes:
 
 - one conversational company/ticker research prompt with an automatic all-horizons framework;
 - optional position context;
-- typed Technical, Fundamental, Sentiment, and Lead Analyst results;
+- one Overall Rating supported by a Technical Setup, Fundamental Outlook, and plain-language interpretation;
 - a required evidence-review checkpoint;
 - Gottfried & Somberg Wealth Management branded PDF generation;
 - embedded PDF preview, requested-modification regeneration, versioned export, and temporary-session cleanup;
