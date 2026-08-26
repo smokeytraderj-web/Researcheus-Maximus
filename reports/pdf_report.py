@@ -12,7 +12,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
 from core.models import ResearchRequest, ResearchResult
@@ -291,6 +291,29 @@ def _source_table(result: ResearchResult, styles) -> Table:
     return table
 
 
+def _chartbook_story(result: ResearchResult, styles) -> list:
+    story = []
+    for index, chart in enumerate(result.chartbook):
+        if index % 2 == 0:
+            story.append(PageBreak())
+            heading = "Deep Technical Chartbook" if index == 0 else "Deep Technical Chartbook - Continued"
+            story.append(Paragraph(heading, styles["section"]))
+        story.append(Paragraph(_safe(chart.title), styles["section"]))
+        image = Image(chart.path)
+        trailing_single = len(result.chartbook) % 2 == 1 and index == len(result.chartbook) - 1
+        image._restrictSize(7.15 * inch, (2.35 if trailing_single else 2.95) * inch)
+        story.append(image)
+        story.append(Paragraph(f"<b>Decision insight:</b> {_safe(chart.insight)}", styles["compact"]))
+        story.append(
+            Paragraph(
+                "Source: attributed live price histories; calculations and chart construction by Researcheus Maximus.",
+                styles["small"],
+            )
+        )
+        story.append(Spacer(1, 0.05 * inch))
+    return story
+
+
 def build_research_pdf(result: ResearchResult, request: ResearchRequest, destination: Path) -> Path:
     result.validate()
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -312,7 +335,7 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         Spacer(1, 0.05 * inch),
         Paragraph(f"{_safe(result.identity.company_name)} ({_safe(result.identity.ticker)})", styles["title"]),
         Paragraph(
-            f"{_safe(result.horizon.value)} research | {_safe(result.identity.exchange)} | {_safe(result.identity.currency)} | As of {_safe(as_of)} | Confidence: {_safe(result.confidence.value)}",
+            f"{_safe(result.analysis_mode if request.deep_analysis else result.horizon.value + ' research')} | {_safe(result.identity.exchange)} | {_safe(result.identity.currency)} | As of {_safe(as_of)} | Confidence: {_safe(result.confidence.value)}",
             styles["subtitle"],
         ),
         Spacer(1, 0.11 * inch),
@@ -335,7 +358,20 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
             Image(result.chart_path, width=7.2 * inch, height=4.75 * inch),
             Paragraph("Source: attributed live price history; indicators and annotations calculated by Researcheus Maximus.", styles["small"]),
         ]
-    story += [PageBreak(), Paragraph("Analysis and Decision Framework", styles["section"]), _analysis_cards(result, styles)]
+    if request.deep_analysis and result.chartbook:
+        story += _chartbook_story(result, styles)
+        if len(result.chartbook) % 2 == 0:
+            story.append(PageBreak())
+    else:
+        story.append(PageBreak())
+    story.append(
+        KeepTogether(
+            [
+                Paragraph("Analysis and Decision Framework", styles["section"]),
+                _analysis_cards(result, styles),
+            ]
+        )
+    )
     if result.sentiment:
         story.append(Paragraph(f"<b>Sentiment:</b> {_safe(result.sentiment)}", styles["small"]))
     story += [Paragraph("Key Metrics", styles["section"]), _metric_grid(result, styles), Paragraph("Potential Investment Strategies", styles["section"])]
