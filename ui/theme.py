@@ -2,7 +2,8 @@
 
 STYLESHEET = """
 QWidget { font-family: "Segoe UI", Arial, sans-serif; }
-QWidget#AppRoot { background: #F6F4EF; color: #1B2B45; }
+QWidget#AppRoot { background: #FFFFFF; color: #1B2B45; }
+QScrollArea#IntakeScroll, QScrollArea#IntakeScroll > QWidget > QWidget { background: #FFFFFF; border: 0; }
 QFrame#TopBar { background: #1B2B49; border-bottom: 1px solid #C49A3A; }
 QLabel#Brand { color: #FFFFFF; font-family: Georgia, "Times New Roman", serif; font-size: 17px; font-weight: 700; }
 QLabel#Firm { color: #D4B865; font-size: 9px; font-weight: 600; }
@@ -17,20 +18,20 @@ QLabel#SettingsSummary { color: #657386; font-size: 11px; padding: 5px 2px; }
 QFrame#HeroPanel { background: #1B2B49; border-radius: 2px; }
 QFrame#HeroRule { background: #D1AA45; border: 0; }
 QLabel#HeroEyebrow { color: #E3C363; font-size: 10px; font-weight: 700; }
-QLabel#HeroTitle { color: #FFFFFF; font-family: Georgia, "Times New Roman", serif; font-size: 31px; font-weight: 700; }
-QLabel#HeroSubtitle { color: #EEF1F6; font-size: 12px; }
+QLabel#HeroTitle { color: #FFFFFF; font-family: Georgia, "Times New Roman", serif; font-size: 38px; font-weight: 700; }
+QLabel#HeroSubtitle { color: #EEF1F6; font-size: 14px; }
 QLabel#ResearchPaths { color: #B58C34; font-size: 10px; font-weight: 700; padding-top: 3px; }
-QLabel#ModeNumber { color: #B58C34; font-family: Georgia, "Times New Roman", serif; font-size: 14px; font-weight: 700; }
-QLabel#ModeTitle { color: #1B2B49; font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: 700; }
-QLabel#ModeDescription { color: #627087; font-size: 11px; }
-QLabel#ModeHint { color: #7A8796; font-size: 10px; }
+QLabel#ModeNumber { color: #B58C34; font-family: Georgia, "Times New Roman", serif; font-size: 16px; font-weight: 700; }
+QLabel#ModeTitle { color: #1B2B49; font-family: Georgia, "Times New Roman", serif; font-size: 22px; font-weight: 700; }
+QLabel#ModeDescription { color: #627087; font-size: 13px; }
+QLabel#ModeHint { color: #7A8796; font-size: 11px; }
 QFrame#Card, QFrame#PrimaryPanel, QFrame#ToolPanel, QFrame#PrimaryModePanel, QFrame#ModePanel {
     background: #FFFFFF;
     border: 1px solid #DED9CF;
     border-radius: 3px;
 }
 QFrame#PrimaryPanel, QFrame#PrimaryModePanel, QFrame#ModePanel { border-top: 3px solid #C39A3D; }
-QFrame#ModePanel { min-height: 118px; }
+QFrame#ModePanel { min-height: 150px; }
 QLineEdit, QComboBox, QDoubleSpinBox, QPlainTextEdit {
     background: #FFFFFF;
     border: 1px solid #C8CED7;
@@ -44,9 +45,9 @@ QComboBox::drop-down, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
     min-width: 24px;
 }
 QPlainTextEdit#ResearchQuery {
-    min-height: 80px;
-    font-size: 14px;
-    padding: 10px 12px;
+    min-height: 116px;
+    font-size: 16px;
+    padding: 13px 15px;
 }
 QPlainTextEdit#DeepResearchQuery {
     min-height: 150px;
@@ -77,6 +78,7 @@ QPushButton#ModeLink {
     padding: 4px 0;
     text-align: left;
     font-family: Georgia, "Times New Roman", serif;
+    font-size: 13px;
     font-weight: 700;
 }
 QPushButton#ModeLink:hover { color: #B58C34; }
