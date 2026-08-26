@@ -111,6 +111,16 @@ class HistoryFallbackTests(unittest.TestCase):
         self.assertEqual(lead, Rating.HOLD)
         self.assertEqual((technical_weight, fundamental_weight), (20, 80))
 
+    def test_deep_analysis_prioritizes_technical_evidence(self):
+        lead, technical_weight, fundamental_weight = _combine_ratings(
+            Rating.SELL,
+            Rating.BUY,
+            Horizon.ALL,
+            deep_analysis=True,
+        )
+        self.assertEqual(lead, Rating.REDUCE)
+        self.assertEqual((technical_weight, fundamental_weight), (70, 30))
+
 
 if __name__ == "__main__":
     unittest.main()
