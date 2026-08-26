@@ -20,8 +20,8 @@ The runnable application includes:
 - live security resolution, market history, fundamentals, news metadata, and deterministic technical indicators;
 - cleanly separated price-trend and Fibonacci charts so technical evidence remains readable;
 - a calm lead chart directly after the Overall Conclusion; the default is the security versus SPY on a year-to-date total-return basis, while explicit price-trend, stop-loss-evidence, Fibonacci, momentum, or relative-performance chart requests are honored;
-- chart-led pages without redundant “what this chart shows” boxes; deep-analysis charts retain only a concise decision note when interpretation is needed;
-- a five-stage default report flow: Rating and Investment Summary, Position and Risk Plan, Research Evidence, Key Data and Levels, then Sources and Disclosure;
+- chart-led pages without redundant “what this chart shows” boxes; the lead chart ends with up to three plain-English takeaways, while deep-analysis charts retain only a concise decision note when interpretation is needed;
+- a five-stage default report flow: Rating and Investment Summary, Position and Risk Plan, Research Evidence, Key Data and Levels, then Sources and Disclosure, with disclosure text anchored to the bottom of the final page;
 - a client-facing first-page dashboard with one visually dominant Overall Rating, supporting technical/fundamental assessments, the exact user question, a direct answer, and the lead chart;
 - a second-page action dashboard that separates the position setup, planned entry, structural stop, targets/payoff, plain-English level rationale, and any eligible defined-risk options example;
 - navy-and-gold GSWM presentation with clean white pages, a navy title banner, gold rules, serif display headings, and readable sans-serif body copy;
