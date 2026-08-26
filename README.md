@@ -11,7 +11,7 @@ The runnable application includes:
 - a two-security comparison workspace for stocks or funds, with one evidence preference, sector-benchmark performance, and a side-by-side report;
 - optional position context;
 - one prominent, technically led Overall Rating, supported by a Technical Setup and Fundamental Outlook;
-- a first-page Technical Action Plan that converts the chart evidence into a stance, market condition, preferred order type, entry zone, technical stop and stop distance, two targets, and estimated reward/risk;
+- a dedicated Position and Risk Plan that converts the chart evidence into a stance, market condition, preferred order type, entry zone, technical stop and stop distance, two targets, and estimated reward/risk;
 - a conditional options-planning scenario for eligible stocks and ETFs, with defined-risk structures or stock-acquisition alternatives selected from the technical regime and accompanied by explicit expiration, premium, assignment, and live-chain verification warnings;
 - a first-page **Response to Your Request** that answers the user’s stated focus before the standard analysis; fund-summary prompts lead with a concise provider-grounded description, strategy/category, family, and available fee/asset facts;
 - a required evidence-review checkpoint;
@@ -20,10 +20,10 @@ The runnable application includes:
 - live security resolution, market history, fundamentals, news metadata, and deterministic technical indicators;
 - cleanly separated price-trend and Fibonacci charts so technical evidence remains readable;
 - a calm lead chart directly after the Overall Conclusion; the default is the security versus SPY on a year-to-date total-return basis, while explicit price-trend, Fibonacci, momentum, or relative-performance chart requests are honored;
-- prominent plain-English bullet takeaways directly beneath every chart;
-- a deliberately spaced report flow with the Technical Action Plan starting on its own page and Sources, report notes, and disclosure isolated on the final page in every report mode;
-- navy-and-gold GSWM presentation with a warm off-white page, navy title banner, gold rules, serif display headings, and clean sans-serif body copy;
-- an editorial landing page in the same visual system: a navy research hero, warm ivory canvas, serif headings, restrained gold rules, and three numbered research paths;
+- chart-led pages without redundant “what this chart shows” boxes; deep-analysis charts retain only a concise decision note when interpretation is needed;
+- a five-stage default report flow: Rating and Investment Summary, Position and Risk Plan, Research Evidence, Key Data and Levels, then Sources and Disclosure;
+- navy-and-gold GSWM presentation with clean white pages, a navy title banner, gold rules, serif display headings, and readable sans-serif body copy;
+- a full-width editorial landing page in the same visual system: a navy research hero, white canvas, serif headings, restrained gold rules, and three numbered research paths;
 - an optional multi-page technical chartbook with RSI/MACD, normalized relative performance, and requested drawdown/volatility analysis;
 - plain-English decision insights beneath every deep-analysis chart, connecting the observed signal to the next confirmation level, downside level, and rating effect;
 - fund-profile enrichment for strategy, family, fees, assets, turnover, allocation, and fixed-income characteristics when the provider exposes them;
@@ -53,7 +53,7 @@ Show QQQ trade entries with stop-loss examples and real chart snapshots from the
 
 The answer distinguishes the one Overall Rating from supporting technical and fundamental assessments, cites the evidence behind the conclusion, and states what would change it. In the main all-horizons report, the rating weights technical evidence 70% and fundamental evidence 30% so the displayed decision follows the current setup while retaining business-quality context.
 
-The first page then turns that rating into a conditional Technical Action Plan. It distinguishes a controlled pullback, patient limit order, confirmed breakout, or wait-for-reclaim setup; calculates an entry zone from support, moving averages, and Fibonacci structure; and places the technical stop beyond invalidation with an ATR volatility buffer. The displayed stop percentage is therefore derived from the actual chart rather than fixed at 7%. Targets use nearby resistance and Fibonacci levels, and estimated reward/risk makes the tradeoff visible. When the evidence does not support an attractive or sufficiently tight setup, the plan says to wait instead of manufacturing a trade.
+The next page turns that rating into a conditional Position and Risk Plan. Three large dashboard-style cards separate the position idea, stop-loss idea, and targets; a dedicated options-strategy example follows when the security is eligible. The plan distinguishes a controlled pullback, patient limit order, confirmed breakout, or wait-for-reclaim setup; calculates an entry zone from support, moving averages, and Fibonacci structure; and places the technical stop beyond invalidation with an ATR volatility buffer. The displayed stop percentage is therefore derived from the actual chart rather than fixed at 7%. Targets use nearby resistance and Fibonacci levels, and estimated reward/risk makes the tradeoff visible. When the evidence does not support an attractive or sufficiently tight setup, the plan says to wait instead of manufacturing a trade.
 
 For eligible stocks and ETFs, the plan may also show a defined-risk call spread, cash-secured put, or existing-position protective hedge as a research scenario. It never invents a live premium or executable strike: the user must verify the current option chain, liquidity, expiration, assignment exposure, and maximum loss before acting. A portfolio-fit question instead leads with the requested allocation, the sleeve the security could fill, and the look-through facts that must be confirmed.
 
