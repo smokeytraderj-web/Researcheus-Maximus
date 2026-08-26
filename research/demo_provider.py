@@ -19,6 +19,7 @@ from core.models import (
     SourceRecord,
     SpecialistFinding,
     Strategy,
+    TechnicalActionPlan,
 )
 
 
@@ -62,6 +63,34 @@ class DemoResearchProvider:
                 f"Synthetic {range_label} Fibonacci retracement levels: 38.2% ${price * 0.94:,.2f}, 50% ${price * 0.90:,.2f}, and 61.8% ${price * 0.86:,.2f}.",
                 "Volume confirmation remains incomplete in demo mode.",
             ),
+        )
+        entry_low = price * 0.93
+        entry_high = price * 0.95
+        entry_mid = (entry_low + entry_high) / 2
+        stop_level = price * 0.87
+        first_target = price * 1.08
+        second_target = price * 1.14
+        technical_plan = TechnicalActionPlan(
+            stance="Add on a controlled pullback",
+            market_condition="Trending higher - synthetic demo",
+            order_type="Limit order near modeled support",
+            entry_low=entry_low,
+            entry_high=entry_high,
+            stop_level=stop_level,
+            stop_pct=(entry_mid - stop_level) / entry_mid,
+            first_target=first_target,
+            second_target=second_target,
+            reward_risk=(first_target - entry_mid) / (entry_mid - stop_level),
+            confirmation="The modeled support zone holds and momentum turns higher.",
+            invalidation=f"A sustained close below ${stop_level:,.2f} invalidates the synthetic setup.",
+            rationale=(
+                "Entry is modeled near short-term trend and Fibonacci support.",
+                "The stop is below modeled structure with a volatility buffer.",
+                "Targets are synthetic workflow values and are not live forecasts.",
+            ),
+            options_strategy="Optional defined-risk bullish expression: call spread",
+            options_structure="Synthetic planning example only; verify a live option chain, expiration, strikes, and liquidity.",
+            options_risk="The entire debit can be lost and options are not suitable for every investor.",
         )
         comparison = None
         if request.comparison_analysis:
@@ -179,6 +208,7 @@ class DemoResearchProvider:
             ),
             comparison=comparison,
             ycharts_status="YCharts is not queried in Demo / Offline Test mode.",
+            technical_plan=technical_plan,
         )
         result.validate()
         return result
