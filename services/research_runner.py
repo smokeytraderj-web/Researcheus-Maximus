@@ -60,7 +60,7 @@ class ResearchRunner:
         request.validate()
         session = ResearchSession.create(self.session_root)
         try:
-            result = self.provider.run(request)
+            result = self.provider.run(request, session.working)
             preview = session.preview / "research.pdf"
             build_research_pdf(result, request, preview)
             _verify_pdf(preview)
@@ -85,4 +85,3 @@ class ResearchRunner:
 
     def cancel(self, prepared: PreparedResearch) -> None:
         prepared.session.cleanup()
-
