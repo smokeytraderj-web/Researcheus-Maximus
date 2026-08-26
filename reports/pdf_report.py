@@ -59,6 +59,7 @@ def _styles():
         "table_header": ParagraphStyle("TableHeader", parent=base["BodyText"], fontName=bold, fontSize=6.2, leading=7.7, textColor=colors.white),
         "tiny": ParagraphStyle("Tiny", parent=base["BodyText"], fontName=regular, fontSize=5.5, leading=6.8, textColor=MUTED),
         "rating": ParagraphStyle("Rating", parent=base["Normal"], fontName=bold, fontSize=13.5, leading=16, textColor=NAVY, alignment=TA_CENTER),
+        "action_value": ParagraphStyle("ActionValue", parent=base["Normal"], fontName=bold, fontSize=7.7, leading=9.4, textColor=NAVY, alignment=TA_LEFT),
         "value": ParagraphStyle("Value", parent=base["Normal"], fontName=bold, fontSize=7.2, leading=9, textColor=NAVY, alignment=TA_RIGHT),
     }
 
@@ -361,6 +362,10 @@ _METRIC_PRIORITY = (
     "Gain/loss from purchase price",
     "User quantity",
     "Illustrative current position value",
+    "Planned entry zone",
+    "Technical stop / invalidation",
+    "First / second target",
+    "Estimated reward / risk",
     "Range-end price",
     "Security type",
     "Fund strategy",
@@ -521,6 +526,120 @@ def _strategy_cards(result: ResearchResult, styles) -> Table | None:
         )
     )
     return table
+
+
+def _technical_action_plan_story(result: ResearchResult, styles) -> list:
+    plan = result.technical_plan
+    if plan is None:
+        return []
+
+    entry_zone = f"${plan.entry_low:,.2f}-${plan.entry_high:,.2f}"
+    stop = f"${plan.stop_level:,.2f}"
+    targets = f"${plan.first_target:,.2f} / ${plan.second_target:,.2f}"
+    summary = Table(
+        [
+            [
+                Paragraph("STANCE", styles["small"]),
+                Paragraph("MARKET", styles["small"]),
+                Paragraph("PREFERRED ORDER", styles["small"]),
+                Paragraph("ENTRY ZONE", styles["small"]),
+            ],
+            [
+                Paragraph(_safe(plan.stance), styles["action_value"]),
+                Paragraph(_safe(plan.market_condition), styles["action_value"]),
+                Paragraph(_safe(plan.order_type), styles["action_value"]),
+                Paragraph(_safe(entry_zone), styles["action_value"]),
+            ],
+            [
+                Paragraph("TECHNICAL STOP", styles["small"]),
+                Paragraph("STOP DISTANCE", styles["small"]),
+                Paragraph("TARGET 1 / TARGET 2", styles["small"]),
+                Paragraph("REWARD / RISK", styles["small"]),
+            ],
+            [
+                Paragraph(_safe(stop), styles["action_value"]),
+                Paragraph(f"{plan.stop_pct:.1%} from entry", styles["action_value"]),
+                Paragraph(_safe(targets), styles["action_value"]),
+                Paragraph(f"{plan.reward_risk:.2f}x to Target 1", styles["action_value"]),
+            ],
+        ],
+        colWidths=[1.7875 * inch] * 4,
+        hAlign="LEFT",
+    )
+    summary.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), PALE),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.white),
+                ("BACKGROUND", (0, 2), (-1, 2), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.6, NAVY),
+                ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    decision_rules = Table(
+        [
+            [
+                Paragraph(f"<b>Confirmation:</b> {_safe(plan.confirmation)}", styles["compact"]),
+                Paragraph(f"<b>Invalidation:</b> {_safe(plan.invalidation)}", styles["compact"]),
+            ]
+        ],
+        colWidths=[3.575 * inch, 3.575 * inch],
+        hAlign="LEFT",
+    )
+    decision_rules.setStyle(
+        TableStyle(
+            [
+                ("BOX", (0, 0), (-1, -1), 0.4, LINE),
+                ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+    story = [summary, decision_rules]
+    story.append(
+        Paragraph(
+            f"<b>Why these levels:</b> {_safe(' '.join(plan.rationale[:3]))}",
+            styles["small"],
+        )
+    )
+    if plan.options_strategy:
+        options = Table(
+            [
+                [
+                    Paragraph(
+                        f"<b>OPTIONS SCENARIO - {_safe(plan.options_strategy)}</b><br/>"
+                        f"{_safe(plan.options_structure)}<br/><b>Specific risk:</b> {_safe(plan.options_risk)}",
+                        styles["compact"],
+                    )
+                ]
+            ],
+            colWidths=[7.15 * inch],
+            hAlign="LEFT",
+        )
+        options.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFF7E8")),
+                    ("BOX", (0, 0), (-1, -1), 0.5, GOLD),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
+        )
+        story.append(options)
+    return story
 
 
 def _research_watchlist(result: ResearchResult, styles) -> Table:
@@ -852,12 +971,22 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
             styles["conclusion"],
         ),
     ]
+    action_plan_story = _technical_action_plan_story(result, styles)
+    if action_plan_story:
+        story += [
+            Paragraph("Technical Action Plan", styles["section"]),
+            Paragraph(
+                "Technically derived planning levels, not automatic trade instructions. Entry, stop, and target levels must be reassessed if price structure changes before execution.",
+                styles["small"],
+            ),
+            *action_plan_story,
+        ]
     portfolio_fit_box = _portfolio_fit_box(result, styles)
     if portfolio_fit_box is not None:
         story += [Paragraph("Portfolio Role", styles["section"]), portfolio_fit_box]
     if result.chart_path and Path(result.chart_path).is_file():
         primary_chart = Image(result.chart_path)
-        primary_chart._restrictSize(7.2 * inch, 4.75 * inch)
+        primary_chart._restrictSize(7.2 * inch, (3.35 if result.technical_plan is not None else 4.75) * inch)
         story += [
             Spacer(1, (0.16 if portfolio_fit_box is not None else 0.06) * inch),
             primary_chart,
@@ -866,7 +995,14 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
                 if request.deep_analysis
                 else []
             ),
-            Paragraph("Source: attributed live price history; indicators and annotations calculated by Researcheus Maximus.", styles["small"]),
+            Paragraph(
+                (
+                    "Source: synthetic demo history; indicators and annotations shown for workflow validation only."
+                    if result.demo_mode
+                    else "Source: attributed live price history; indicators and annotations calculated by Researcheus Maximus."
+                ),
+                styles["small"],
+            ),
         ]
     if request.deep_analysis and result.chartbook:
         story += _chartbook_story(result, styles)
@@ -890,24 +1026,32 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
     metric_note = _key_metric_note(result, styles)
     if metric_note is not None:
         story.append(metric_note)
-    story += [
-        Paragraph("Possible Investment Approaches", styles["section"]),
-        Paragraph(
-            "These are conditional ideas, not automatic instructions. Each approach states what price behavior to wait for and when the idea would no longer make sense.",
-            styles["small"],
-        ),
-    ]
-    strategy_table = _strategy_cards(result, styles)
-    if strategy_table is not None:
-        story.append(strategy_table)
+    if result.technical_plan is None:
+        story += [
+            Paragraph("Possible Investment Approaches", styles["section"]),
+            Paragraph(
+                "These are conditional ideas, not automatic instructions. Each approach states what price behavior to wait for and when the idea would no longer make sense.",
+                styles["small"],
+            ),
+        ]
+        strategy_table = _strategy_cards(result, styles)
+        if strategy_table is not None:
+            story.append(strategy_table)
     story += [Paragraph("Research Watchlist", styles["section"]), _research_watchlist(result, styles), Paragraph("Sources", styles["section"]), _source_table(result, styles)]
     visible_limitations = _client_visible_limitations(result)
     if visible_limitations:
         limitations = " | ".join(visible_limitations[:3])
         story.append(Paragraph(f"<b>Limitations:</b> {_safe(limitations)}", styles["tiny"]))
+    options_disclosure = (
+        " Options involve leverage and are not suitable for every investor; an option buyer can lose the entire premium, and an option seller can be assigned. Any options scenario requires separate suitability, approval, and live-chain review."
+        if result.technical_plan is not None and result.technical_plan.options_strategy
+        else ""
+    )
     story.append(
         Paragraph(
-            "<b>Disclosure:</b> This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing involves risk, including possible loss of principal. Firm compliance review is required before client distribution.",
+            "<b>Disclosure:</b> This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing involves risk, including possible loss of principal."
+            + options_disclosure
+            + " Firm compliance review is required before client distribution.",
             styles["tiny"],
         )
     )
