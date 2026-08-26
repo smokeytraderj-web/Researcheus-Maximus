@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from core.assessments import technical_setup
-from core.models import HistoricalTradeCase, Horizon, Rating, SpecialistFinding, Strategy
+from core.models import HistoricalTradeCase, Horizon, Rating, SpecialistFinding, Strategy, TechnicalActionPlan
 
 
 @dataclass(frozen=True, slots=True)
@@ -511,7 +511,210 @@ def strategies(snapshot: TechnicalSnapshot, horizon: Horizon) -> tuple[Strategy,
     )
 
 
-def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot, destination: Path) -> Path:
+def _option_strike_step(price: float) -> float:
+    if price < 50:
+        return 1.0
+    if price < 200:
+        return 2.5
+    if price < 500:
+        return 5.0
+    return 10.0
+
+
+def _rounded_strike(value: float, *, up: bool) -> float:
+    step = _option_strike_step(value)
+    scaled = value / step
+    rounded = np.ceil(scaled) if up else np.floor(scaled)
+    return float(max(step, rounded * step))
+
+
+def technical_action_plan(
+    snapshot: TechnicalSnapshot,
+    rating: Rating,
+    quote_type: str = "EQUITY",
+) -> TechnicalActionPlan:
+    """Convert technical evidence into a conditional entry, risk, target, and options plan."""
+    price = snapshot.price
+    atr = max(snapshot.atr14, price * 0.005)
+    atr_pct = atr / price
+    trend_gap = abs(snapshot.sma20 - snapshot.sma50) / price
+    trending_higher = (
+        price > snapshot.sma20 > snapshot.sma50
+        and snapshot.macd > snapshot.macd_signal
+        and trend_gap >= 0.005
+    )
+    trending_lower = (
+        price < snapshot.sma20 < snapshot.sma50
+        and snapshot.macd < snapshot.macd_signal
+        and trend_gap >= 0.005
+    )
+    if trending_higher:
+        market_condition = "Trending higher"
+    elif trending_lower:
+        market_condition = "Trending lower"
+    elif atr_pct >= 0.04:
+        market_condition = "Volatile and mixed"
+    else:
+        market_condition = "Choppy / range-bound"
+
+    positive = rating in {Rating.STRONG_BUY, Rating.BUY, Rating.ADD}
+    negative = rating in {Rating.REDUCE, Rating.SELL, Rating.AVOID}
+    pullback_levels = [
+        level
+        for level in (
+            snapshot.sma20,
+            snapshot.sma50,
+            snapshot.fib_38_2,
+            snapshot.fib_50,
+            snapshot.fib_61_8,
+            snapshot.support,
+        )
+        if 0 < level <= price - max(atr * 0.35, price * 0.01)
+    ]
+
+    if negative or trending_lower:
+        reclaim = max(snapshot.sma20, snapshot.sma50)
+        entry_center = reclaim + atr * 0.15
+        entry_low = reclaim - atr * 0.10
+        entry_high = reclaim + atr * 0.25
+        stance = "Wait - no new bullish position"
+        order_type = "No order until trend confirmation"
+        confirmation = (
+            f"Require a closing move above ${reclaim:,.2f}, followed by improving MACD, before considering an entry."
+        )
+    else:
+        entry_center = max(pullback_levels) if pullback_levels else price - atr
+        entry_low = max(0.01, entry_center - atr * 0.30)
+        entry_high = entry_center + atr * 0.30
+        if trending_higher and positive:
+            stance = "Add on a controlled pullback"
+            order_type = "Limit order near technical support"
+            confirmation = (
+                f"The ${entry_low:,.2f}-${entry_high:,.2f} zone must hold on a closing basis while momentum remains constructive."
+            )
+        else:
+            stance = "Use a patient entry - do not chase"
+            order_type = "Patient limit order in the support zone"
+            confirmation = (
+                f"Wait for a reversal inside ${entry_low:,.2f}-${entry_high:,.2f} and a close back above the short-term trend."
+            )
+
+    entry_mid = (entry_low + entry_high) / 2
+    stop_candidates = [
+        level
+        for level in (
+            snapshot.support,
+            snapshot.fib_61_8,
+            snapshot.fib_50,
+            snapshot.sma50,
+            snapshot.sma20,
+        )
+        if 0 < level < entry_low - atr * 0.25
+    ]
+    stop_anchor = max(stop_candidates) if stop_candidates else entry_mid - atr * 2.0
+    structural_stop = stop_anchor - atr * 0.35
+    minimum_risk_stop = entry_mid - max(atr * 1.5, entry_mid * 0.03)
+    stop_level = max(0.01, min(structural_stop, minimum_risk_stop))
+    risk_per_share = max(0.01, entry_mid - stop_level)
+    stop_pct = risk_per_share / entry_mid
+
+    structural_targets = sorted(
+        {
+            float(level)
+            for level in (
+                price,
+                snapshot.fib_61_8,
+                snapshot.fib_50,
+                snapshot.fib_38_2,
+                snapshot.resistance,
+                snapshot.fib_swing_high,
+            )
+            if level > entry_mid + atr * 0.50
+        }
+    )
+    first_target = next(
+        (level for level in structural_targets if level >= entry_mid + risk_per_share * 1.25),
+        structural_targets[0] if structural_targets else entry_mid + risk_per_share * 1.5,
+    )
+    higher_targets = [level for level in structural_targets if level > first_target + atr * 0.25]
+    second_target = higher_targets[-1] if higher_targets else max(first_target, entry_mid + risk_per_share * 2.0)
+    reward_risk = max(0.0, (first_target - entry_mid) / risk_per_share)
+
+    if stop_pct > 0.15 and not negative:
+        stance = "Wait for a tighter setup"
+        order_type = "No order - structural stop is too wide"
+        confirmation = (
+            f"Wait until support rises or price forms a tighter base; the current technical stop requires {stop_pct:.1%} risk."
+        )
+    invalidation = (
+        f"A sustained close below ${stop_level:,.2f} invalidates the setup; the stop is {stop_pct:.1%} below the planned entry midpoint."
+    )
+    rationale = (
+        f"The entry zone is anchored to the nearest usable support cluster around ${entry_center:,.2f}, not an arbitrary discount.",
+        f"The ${stop_level:,.2f} stop sits below structure with an ATR buffer; its {stop_pct:.1%} distance is calculated rather than fixed at 7%.",
+        f"The first technical objective is ${first_target:,.2f}; estimated reward/risk from the entry midpoint is {reward_risk:.2f}x.",
+        f"Market condition is {market_condition.lower()}, based on moving-average alignment, MACD, and ATR.",
+    )
+
+    options_strategy = ""
+    options_structure = ""
+    options_risk = ""
+    normalized_type = quote_type.upper().replace(" ", "")
+    optionable_reference = normalized_type in {"EQUITY", "ETF"} and price >= 5
+    if optionable_reference:
+        if negative or trending_lower:
+            protective_strike = _rounded_strike(stop_level, up=False)
+            options_strategy = "Existing position only: protective put or collar review"
+            options_structure = (
+                f"Planning reference: review a put strike near ${protective_strike:,.2f} with 45-90 days to expiration, "
+                "or finance part of the hedge with a covered call. Verify the live chain before use."
+            )
+            options_risk = "Protection costs premium and can expire worthless; a collar also caps upside. Options are not suitable for every investor."
+        elif market_condition in {"Choppy / range-bound", "Volatile and mixed"}:
+            put_strike = _rounded_strike(entry_mid, up=False)
+            options_strategy = "Optional stock-entry alternative: cash-secured put"
+            options_structure = (
+                f"Planning reference: 30-60 days to expiration with a strike near ${put_strike:,.2f}; reserve enough cash for 100 shares "
+                "and use it only if assignment at that price is acceptable. Verify the live chain before use."
+            )
+            options_risk = "Losses can be substantial if the stock falls far below the strike; assignment remains possible. Options are not suitable for every investor."
+        else:
+            long_strike = _rounded_strike(price, up=False)
+            short_strike = max(long_strike + _option_strike_step(price), _rounded_strike(first_target, up=True))
+            options_strategy = "Optional defined-risk bullish expression: call spread"
+            options_structure = (
+                f"Planning reference: 45-90 days to expiration, buy a call near ${long_strike:,.2f} and sell a call near ${short_strike:,.2f}. "
+                "Only consider it if the debit is reasonable versus the spread width and the live chain is liquid."
+            )
+            options_risk = "The entire debit can be lost by expiration and upside is capped at the short strike. Options are not suitable for every investor."
+
+    return TechnicalActionPlan(
+        stance=stance,
+        market_condition=market_condition,
+        order_type=order_type,
+        entry_low=entry_low,
+        entry_high=entry_high,
+        stop_level=stop_level,
+        stop_pct=stop_pct,
+        first_target=first_target,
+        second_target=second_target,
+        reward_risk=reward_risk,
+        confirmation=confirmation,
+        invalidation=invalidation,
+        rationale=rationale,
+        options_strategy=options_strategy,
+        options_structure=options_structure,
+        options_risk=options_risk,
+    )
+
+
+def render_chart(
+    history: pd.DataFrame,
+    ticker: str,
+    snapshot: TechnicalSnapshot,
+    destination: Path,
+    plan: TechnicalActionPlan | None = None,
+) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     frame = history.dropna(subset=["Close"]).copy()
     if not history.attrs.get("custom_range"):
@@ -539,6 +742,28 @@ def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot
     ax.plot(frame.index, sma50, color="#4E7298", linewidth=1.2, label="SMA 50")
     if sma200.notna().any():
         ax.plot(frame.index, sma200, color="#8B929A", linewidth=1.1, label="SMA 200")
+    if plan is not None:
+        ax.axhspan(
+            plan.entry_low,
+            plan.entry_high,
+            color="#B08D57",
+            alpha=0.12,
+            label=f"Entry zone ${plan.entry_low:,.2f}-${plan.entry_high:,.2f}",
+        )
+        ax.axhline(
+            plan.stop_level,
+            color="#B65050",
+            linestyle="--",
+            linewidth=1.0,
+            label=f"Stop ${plan.stop_level:,.2f}",
+        )
+        ax.axhline(
+            plan.first_target,
+            color="#4A8A68",
+            linestyle=":",
+            linewidth=1.1,
+            label=f"Target ${plan.first_target:,.2f}",
+        )
     ax.set_title(
         f"{ticker} - Price Trend and Moving Averages",
         loc="left",
@@ -547,7 +772,7 @@ def render_chart(history: pd.DataFrame, ticker: str, snapshot: TechnicalSnapshot
     )
     ax.set_ylabel("Price (USD)")
     ax.grid(alpha=0.18)
-    ax.legend(ncol=4, fontsize=8, frameon=False, loc="upper left")
+    ax.legend(ncol=4, fontsize=7.4, frameon=False, loc="upper left")
     date_axis = ax
     if vol is not None:
         colors_v = np.where(close.diff().fillna(0) >= 0, "#6E9D85", "#C77A7A")
