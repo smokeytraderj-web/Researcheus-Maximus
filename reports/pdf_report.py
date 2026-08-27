@@ -51,16 +51,15 @@ def _styles():
     regular, bold, display = _register_fonts()
     base = getSampleStyleSheet()
     return {
-        "brand": ParagraphStyle("Brand", parent=base["Normal"], fontName=bold, fontSize=7.2, textColor=GOLD, leading=9),
-        "banner_title": ParagraphStyle("BannerTitle", parent=base["Title"], fontName=display, fontSize=20.5, leading=23.5, textColor=colors.white, alignment=TA_LEFT, spaceBefore=5, spaceAfter=3),
-        "banner_subtitle": ParagraphStyle("BannerSubtitle", parent=base["Normal"], fontName=regular, fontSize=7.7, leading=10, textColor=colors.white),
+        "banner_title": ParagraphStyle("BannerTitle", parent=base["Title"], fontName=bold, fontSize=20.0, leading=23.0, textColor=NAVY, alignment=TA_LEFT, spaceBefore=7, spaceAfter=3),
+        "banner_subtitle": ParagraphStyle("BannerSubtitle", parent=base["Normal"], fontName=regular, fontSize=7.7, leading=10, textColor=MUTED),
         "request_label": ParagraphStyle("RequestLabel", parent=base["Normal"], fontName=bold, fontSize=7.0, textColor=GOLD, leading=9, spaceBefore=2, spaceAfter=2),
         "request_response": ParagraphStyle("RequestResponse", parent=base["BodyText"], fontName=regular, fontSize=9.2, leading=12.5, textColor=INK, spaceAfter=6),
         "title": ParagraphStyle("Title", parent=base["Title"], fontName=display, fontSize=20.5, leading=23.5, textColor=NAVY, alignment=TA_LEFT, spaceAfter=3),
         "subtitle": ParagraphStyle("Subtitle", parent=base["Normal"], fontName=regular, fontSize=7.7, leading=10, textColor=MUTED),
-        "page_title": ParagraphStyle("PageTitle", parent=base["Heading1"], fontName=display, fontSize=18.5, leading=22, textColor=NAVY),
+        "page_title": ParagraphStyle("PageTitle", parent=base["Heading1"], fontName=bold, fontSize=16.8, leading=20.5, textColor=NAVY),
         "page_meta": ParagraphStyle("PageMeta", parent=base["Normal"], fontName=regular, fontSize=7.3, leading=9, textColor=NAVY, alignment=TA_RIGHT),
-        "section": ParagraphStyle("Section", parent=base["Heading2"], fontName=display, fontSize=13.5, leading=16.5, textColor=NAVY, spaceBefore=10, spaceAfter=6),
+        "section": ParagraphStyle("Section", parent=base["Heading2"], fontName=bold, fontSize=11.8, leading=14.5, textColor=NAVY, spaceBefore=10, spaceAfter=6),
         "subsection": ParagraphStyle("Subsection", parent=base["Heading3"], fontName=bold, fontSize=8.2, leading=10, textColor=GOLD, spaceBefore=3, spaceAfter=3),
         "body": ParagraphStyle("Body", parent=base["BodyText"], fontName=regular, fontSize=8.8, leading=12, textColor=INK, spaceAfter=4),
         "conclusion": ParagraphStyle("Conclusion", parent=base["BodyText"], fontName=regular, fontSize=10.1, leading=13.8, textColor=INK, spaceAfter=7),
@@ -83,11 +82,16 @@ def _styles():
         "metric_label": ParagraphStyle("MetricLabel", parent=base["BodyText"], fontName=regular, fontSize=7.5, leading=9.5, textColor=INK),
         "metric_value": ParagraphStyle("MetricValue", parent=base["BodyText"], fontName=bold, fontSize=7.9, leading=9.7, textColor=NAVY, alignment=TA_RIGHT),
         "chart_note": ParagraphStyle("ChartNote", parent=base["BodyText"], fontName=regular, fontSize=7.5, leading=10, textColor=MUTED, italic=True, spaceBefore=3, spaceAfter=4),
+        "question_prompt": ParagraphStyle("QuestionPrompt", parent=base["BodyText"], fontName=bold, fontSize=10.8, leading=14.8, textColor=NAVY),
+        "decision_rating": ParagraphStyle("DecisionRating", parent=base["Normal"], fontName=display, fontSize=22, leading=25, textColor=NAVY),
+        "decision_answer": ParagraphStyle("DecisionAnswer", parent=base["BodyText"], fontName=regular, fontSize=10.3, leading=14.2, textColor=INK),
+        "reason": ParagraphStyle("Reason", parent=base["BodyText"], fontName=regular, fontSize=9.0, leading=12.7, textColor=INK),
+        "metric_big": ParagraphStyle("MetricBig", parent=base["Normal"], fontName=bold, fontSize=12.2, leading=14.5, textColor=NAVY),
     }
 
 
 def _footer(canvas, document) -> None:
-    regular, _bold, _display = _register_fonts()
+    regular, _bold, display = _register_fonts()
     canvas.saveState()
     canvas.setFillColor(colors.white)
     canvas.rect(0, 0, letter[0], letter[1], fill=1, stroke=0)
@@ -95,6 +99,9 @@ def _footer(canvas, document) -> None:
     canvas.setLineWidth(0.6)
     canvas.line(0.62 * inch, 0.48 * inch, 7.88 * inch, 0.48 * inch)
     canvas.setFillColor(NAVY)
+    if document.page == 1:
+        canvas.setFont(display, 12.2)
+        canvas.drawString(0.62 * inch, 10.42 * inch, "Researcheus Maximus")
     canvas.setFont(regular, 6.2)
     canvas.drawString(0.62 * inch, 0.3 * inch, "Gottfried & Somberg Wealth Management")
     canvas.drawRightString(7.88 * inch, 0.3 * inch, f"Page {document.page}")
@@ -136,47 +143,38 @@ def _first_sentence(value: str) -> str:
     return first.strip()
 
 
-def _report_banner(title: str, subtitle: str, styles) -> Table:
-    content = [
-        Paragraph("GOTTFRIED &amp; SOMBERG WEALTH MANAGEMENT", styles["brand"]),
+def _gold_rule() -> Table:
+    rule = Table([[""]], colWidths=[7.25 * inch], rowHeights=[0.06 * inch], hAlign="LEFT")
+    rule.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, -1), 1.0, GOLD)]))
+    return rule
+
+
+def _report_banner(title: str, subtitle: str, styles) -> list:
+    return [
         Paragraph(_safe(title), styles["banner_title"]),
         Paragraph(subtitle, styles["banner_subtitle"]),
+        _gold_rule(),
     ]
-    banner = Table([[content]], colWidths=[7.25 * inch], hAlign="LEFT")
-    banner.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), NAVY),
-                ("LINEBELOW", (0, 0), (-1, -1), 1.5, GOLD),
-                ("LEFTPADDING", (0, 0), (-1, -1), 14),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 14),
-                ("TOPPADDING", (0, 0), (-1, -1), 12),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
-            ]
-        )
-    )
-    return banner
 
 
 def _content_header(title: str, meta: str, styles) -> list:
     header = Table(
-        [[Paragraph(_safe(title), styles["page_title"]), Paragraph(_safe(meta), styles["page_meta"])]],
-        colWidths=[5.3 * inch, 1.95 * inch],
+        [[Paragraph(_safe(title), styles["page_title"]), Paragraph(_safe(meta), styles["page_meta"]) ]],
+        colWidths=[5.35 * inch, 1.9 * inch],
         hAlign="LEFT",
     )
     header.setStyle(
         TableStyle(
             [
-                ("LINEBELOW", (0, 0), (-1, -1), 1.4, GOLD),
                 ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 0),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 0),
                 ("TOPPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
             ]
         )
     )
-    return [header, Spacer(1, 0.10 * inch)]
+    return [header, _gold_rule(), Spacer(1, 0.08 * inch)]
 
 
 def _bullet_text(items: tuple[str, ...], style, limit: int | None = None) -> list[Paragraph]:
@@ -197,32 +195,6 @@ def _chart_note(items: tuple[str, ...], styles) -> Paragraph | None:
     if not clean:
         return None
     return Paragraph(f"<b>Decision note:</b> {_safe(clean[0])}", styles["chart_note"])
-
-
-def _chart_takeaways(items: tuple[str, ...], styles) -> Table | None:
-    """Render a short client-facing interpretation panel beneath the lead chart."""
-    clean = tuple(item.strip() for item in items if item and item.strip())[:3]
-    if not clean:
-        return None
-    content = [
-        Paragraph("KEY CHART TAKEAWAYS", styles["action_label"]),
-        *_bullet_text(clean, styles["compact"]),
-    ]
-    panel = Table([[content]], colWidths=[7.15 * inch], hAlign="LEFT")
-    panel.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), PALE),
-                ("LINEBEFORE", (0, 0), (0, -1), 2.5, GOLD),
-                ("BOX", (0, 0), (-1, -1), 0.35, LINE),
-                ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ]
-        )
-    )
-    return panel
 
 
 def _rating_box(result: ResearchResult, styles, *, price_label: str = "CURRENT PRICE") -> Table:
@@ -837,7 +809,12 @@ def _strategy_cards(result: ResearchResult, styles) -> Table | None:
     return table
 
 
-def _technical_action_plan_story(result: ResearchResult, styles) -> list:
+def _technical_action_plan_story(
+    result: ResearchResult,
+    styles,
+    *,
+    include_options: bool = True,
+) -> list:
     plan = result.technical_plan
     if plan is None:
         return []
@@ -933,7 +910,7 @@ def _technical_action_plan_story(result: ResearchResult, styles) -> list:
         )
     )
     story = [position_card, Spacer(1, 0.08 * inch), risk_target_cards, Spacer(1, 0.07 * inch), rationale_card]
-    if plan.options_strategy:
+    if include_options and plan.options_strategy:
         options = Table(
             [
                 [
@@ -963,6 +940,304 @@ def _technical_action_plan_story(result: ResearchResult, styles) -> list:
             )
         )
         story += [Spacer(1, 0.07 * inch), options]
+    return story
+
+
+def _options_requested(request: ResearchRequest, result: ResearchResult) -> bool:
+    """Keep options out of General Research unless the user explicitly asks for them."""
+    prompt = f"{request.question} {request.query}".lower()
+    option_terms = (
+        "option",
+        "call spread",
+        "call strategy",
+        "covered call",
+        "protective put",
+        "put strategy",
+        "cash-secured put",
+        "cash secured put",
+        "collar",
+        "hedge",
+    )
+    explicitly_requested = any(term in prompt for term in option_terms)
+    weak_existing_position = bool(
+        (request.purchase_price is not None or request.quantity is not None)
+        and result.lead_rating.value in {"Reduce", "Sell", "Avoid"}
+    )
+    return explicitly_requested or weak_existing_position
+
+
+def _decision_reason_items(result: ResearchResult) -> tuple[str, ...]:
+    """Return short, decision-relevant reasons without repeating the direct answer."""
+    reasons: list[str] = []
+    if result.portfolio_fit is not None:
+        reasons.append(_first_sentence(result.portfolio_fit.summary))
+    reasons.append(_first_sentence(result.technical.summary))
+    reasons.append(_first_sentence(result.fundamental.summary))
+    if result.risks:
+        reasons.append(f"Primary risk: {_first_sentence(result.risks[0])}")
+    return tuple(item for item in reasons if item)[:4]
+
+
+def _general_decision_card(result: ResearchResult, request: ResearchRequest, styles) -> Table:
+    question = request.question.strip() or request.query.strip()
+    answer = _overall_conclusion_text(result.request_response or result.executive_summary)
+    reasons = _decision_reason_items(result)
+    content = [
+        Paragraph("YOUR QUESTION", styles["request_label"]),
+        Paragraph(_safe(question), styles["question_prompt"]),
+        Spacer(1, 0.10 * inch),
+        Paragraph("DIRECT ANSWER", styles["request_label"]),
+        Paragraph(_safe(answer), styles["decision_answer"]),
+        Spacer(1, 0.13 * inch),
+        Paragraph("WHY", styles["request_label"]),
+        *_bullet_text(reasons, styles["reason"]),
+    ]
+    card = Table([[content]], colWidths=[7.15 * inch], hAlign="LEFT")
+    card.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("LINEABOVE", (0, 0), (-1, 0), 2.0, GOLD),
+                ("BOX", (0, 0), (-1, -1), 0.45, LINE),
+                ("LEFTPADDING", (0, 0), (-1, -1), 15),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 15),
+                ("TOPPADDING", (0, 0), (-1, -1), 13),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 13),
+            ]
+        )
+    )
+    return card
+
+
+def _general_action_cards(result: ResearchResult, styles, *, include_options: bool) -> list:
+    plan = result.technical_plan
+    if plan is None:
+        strategy_table = _strategy_cards(result, styles)
+        return [strategy_table] if strategy_table is not None else []
+
+    cards = [
+        [
+            [
+                Paragraph("POSITION", styles["action_label"]),
+                Paragraph(_safe(plan.stance), styles["action_big"]),
+                Paragraph(_safe(plan.order_type), styles["action_detail"]),
+            ],
+            [
+                Paragraph("ENTRY ZONE", styles["action_label"]),
+                Paragraph(f"${plan.entry_low:,.2f}-${plan.entry_high:,.2f}", styles["action_big"]),
+                Paragraph(_safe(plan.confirmation), styles["action_detail"]),
+            ],
+        ],
+        [
+            [
+                Paragraph("STOP / INVALIDATION", styles["action_label"]),
+                Paragraph(f"${plan.stop_level:,.2f}", styles["action_big"]),
+                Paragraph(
+                    f"{plan.stop_pct:.1%} below entry midpoint. {_safe(plan.invalidation)}",
+                    styles["action_detail"],
+                ),
+            ],
+            [
+                Paragraph("TARGETS / PAYOFF", styles["action_label"]),
+                Paragraph(f"${plan.first_target:,.2f} / ${plan.second_target:,.2f}", styles["action_big"]),
+                Paragraph(f"{plan.reward_risk:.2f}x estimated reward/risk to Target 1.", styles["action_detail"]),
+            ],
+        ],
+    ]
+    table = Table(cards, colWidths=[3.575 * inch, 3.575 * inch], hAlign="LEFT")
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.45, LINE),
+                ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
+                ("LINEABOVE", (0, 0), (-1, 0), 2.0, GOLD),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+            ]
+        )
+    )
+    story: list = [table]
+    if include_options and plan.options_strategy:
+        options = Table(
+            [[
+                Paragraph("OPTIONS / HEDGE", styles["action_label"]),
+                Paragraph(
+                    f"<b>{_safe(plan.options_strategy)}</b> — {_safe(plan.options_structure)} "
+                    f"<b>Risk:</b> {_safe(plan.options_risk)}",
+                    styles["action_detail"],
+                ),
+            ]],
+            colWidths=[1.3 * inch, 5.85 * inch],
+            hAlign="LEFT",
+        )
+        options.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), PALE),
+                    ("BOX", (0, 0), (-1, -1), 0.4, LINE),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                    ("TOPPADDING", (0, 0), (-1, -1), 7),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                ]
+            )
+        )
+        story += [Spacer(1, 0.08 * inch), options]
+    return story
+
+
+def _general_evidence_cards(result: ResearchResult, styles) -> Table:
+    sentiment = _first_sentence(result.sentiment) if result.sentiment else "No material sentiment evidence was available."
+    cells = [
+        [
+            Paragraph("TECHNICAL", styles["action_label"]),
+            Paragraph(_safe(technical_setup(result.technical.rating)), styles["metric_big"]),
+            Paragraph(_safe(_first_sentence(result.technical.summary)), styles["compact"]),
+        ],
+        [
+            Paragraph("FUNDAMENTAL", styles["action_label"]),
+            Paragraph(_safe(fundamental_outlook(result.fundamental.rating)), styles["metric_big"]),
+            Paragraph(_safe(_first_sentence(result.fundamental.summary)), styles["compact"]),
+        ],
+        [
+            Paragraph("SENTIMENT / CONTEXT", styles["action_label"]),
+            Paragraph(_safe(sentiment), styles["compact"]),
+        ],
+    ]
+    table = Table([cells], colWidths=[2.38 * inch, 2.38 * inch, 2.39 * inch], hAlign="LEFT")
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("BOX", (0, 0), (-1, -1), 0.45, LINE),
+                ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
+                ("LINEABOVE", (0, 0), (-1, 0), 1.7, GOLD),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+    return table
+
+
+_GENERAL_METRICS = (
+    "Current price",
+    "Market capitalization",
+    "Trailing / forward P/E",
+    "Revenue growth",
+    "Earnings growth",
+    "Analyst target implied upside",
+    "Three-month return",
+    "20-day moving average",
+    "50-day moving average",
+    "RSI (14)",
+)
+
+
+def _general_metric_table(result: ResearchResult, styles) -> Table:
+    available = {label: value for label, value in result.key_metrics}
+    available.setdefault("Current price", f"${result.current_price:,.2f}")
+    selected = [(label, available[label]) for label in _GENERAL_METRICS if label in available][:8]
+    if len(selected) < 6:
+        selected_labels = {label for label, _value in selected}
+        selected.extend(
+            (label, value)
+            for label, value in result.key_metrics
+            if label not in selected_labels and "unavailable" not in value.lower()
+        )
+        selected = selected[:8]
+    rows = []
+    for index in range(0, len(selected), 2):
+        left = selected[index]
+        right = selected[index + 1] if index + 1 < len(selected) else ("", "")
+        rows.append(
+            [
+                Paragraph(_safe(left[0]), styles["metric_label"]),
+                Paragraph(_safe(left[1]), styles["metric_value"]),
+                Paragraph(_safe(right[0]), styles["metric_label"]),
+                Paragraph(_safe(right[1]), styles["metric_value"]),
+            ]
+        )
+    table = Table(rows, colWidths=[2.05 * inch, 1.52 * inch, 2.05 * inch, 1.53 * inch], hAlign="LEFT")
+    table.setStyle(
+        TableStyle(
+            [
+                ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, PALE]),
+                ("BOX", (0, 0), (-1, -1), 0.4, LINE),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.25, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+    return table
+
+
+def _general_watchpoints(result: ResearchResult, styles) -> Table:
+    rows = [
+        [
+            Paragraph("MAIN RISK", styles["action_label"]),
+            Paragraph(_safe(_first_sentence(result.risks[0])) if result.risks else "No specific risk supplied.", styles["compact"]),
+        ],
+        [
+            Paragraph("WHAT COULD IMPROVE THE VIEW", styles["action_label"]),
+            Paragraph(
+                _safe(_first_sentence(result.change_conditions[0])) if result.change_conditions else "New confirming evidence.",
+                styles["compact"],
+            ),
+        ],
+    ]
+    table = Table(rows, colWidths=[1.75 * inch, 5.4 * inch], hAlign="LEFT")
+    table.setStyle(
+        TableStyle(
+            [
+                ("BOX", (0, 0), (-1, -1), 0.4, LINE),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.25, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+    return table
+
+
+def _general_sources_and_disclosure(
+    result: ResearchResult,
+    styles,
+    *,
+    include_options: bool,
+) -> list:
+    visible_limitations = _client_visible_limitations(result)
+    disclosure = (
+        "<b>Disclosure:</b> This material is informational and reflects conditions as of the stated time. "
+        "Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. "
+        "Investing involves risk, including possible loss of principal."
+    )
+    if include_options:
+        disclosure += " Options involve leverage, may expire worthless, and require separate suitability and live-chain review."
+    disclosure += " Firm compliance review is required before client distribution."
+    story: list = [Paragraph("Sources", styles["section"]), _source_table(result, styles)]
+    if visible_limitations:
+        story += [
+            Spacer(1, 0.04 * inch),
+            Paragraph("NOTES", styles["request_label"]),
+            *_bullet_text(visible_limitations[:2], styles["tiny"]),
+        ]
+    story.append(TopPadder(Paragraph(disclosure, styles["tiny"])))
     return story
 
 
@@ -1218,7 +1493,7 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         pagesize=letter,
         rightMargin=0.62 * inch,
         leftMargin=0.62 * inch,
-        topMargin=0.48 * inch,
+        topMargin=0.78 * inch,
         bottomMargin=0.62 * inch,
         title=f"{result.identity.ticker} Research",
         author="Gottfried & Somberg Wealth Management",
@@ -1244,7 +1519,7 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         if comparison
         else f"{_safe(result.analysis_mode if request.deep_analysis else result.horizon.value + ' research')} | {range_text + ' | ' if range_text else ''}{_safe(result.identity.exchange)} | {_safe(result.identity.currency)} | Produced {_safe(as_of)}"
     )
-    story = [_report_banner(report_title, report_subtitle, styles), Spacer(1, 0.11 * inch)]
+    story = [*_report_banner(report_title, report_subtitle, styles), Spacer(1, 0.11 * inch)]
     if result.demo_mode:
         warning = Table([[Paragraph("DEMO MODE - Synthetic values for workflow validation. Not live investment research.", styles["body"])]], colWidths=[7.25 * inch])
         warning.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FFF3D8")), ("BOX", (0, 0), (-1, -1), 0.7, GOLD), ("LEFTPADDING", (0, 0), (-1, -1), 8), ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5)]))
@@ -1294,6 +1569,57 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
         return destination
 
+    is_general_brief = not request.deep_analysis and not request.historical_trade_examples
+    if is_general_brief:
+        include_options = _options_requested(request, result)
+        story += [
+            _rating_box(result, styles, price_label="RANGE-END PRICE" if custom_range else "CURRENT PRICE"),
+            Spacer(1, 0.12 * inch),
+            Paragraph("Decision", styles["section"]),
+            _general_decision_card(result, request, styles),
+        ]
+        if result.portfolio_fit is not None:
+            story += [Spacer(1, 0.10 * inch), _portfolio_fit_box(result, styles)]
+
+        story += [PageBreak(), *_content_header("Action and Risk", page_meta, styles)]
+        action_story = _general_action_cards(result, styles, include_options=include_options)
+        if action_story:
+            story += [Paragraph("Position Plan", styles["section"]), *action_story]
+        else:
+            story += [
+                Paragraph("Position Plan", styles["section"]),
+                Paragraph(
+                    "No actionable technical plan was supported by the available evidence. Wait for a clearer setup rather than forcing an entry.",
+                    styles["body"],
+                ),
+            ]
+        chart_record = result.overview_chart
+        chart_path = chart_record.path if chart_record else result.chart_path
+        if chart_path and Path(chart_path).is_file():
+            story += [Spacer(1, 0.12 * inch)]
+            if chart_record is not None and chart_record.title != "Annotated Price Structure":
+                story += [Paragraph(_safe(chart_record.title), styles["subsection"]), Spacer(1, 0.03 * inch)]
+            chart_image = Image(chart_path)
+            chart_image._restrictSize(7.15 * inch, (3.40 if include_options else 4.00) * inch)
+            story.append(chart_image)
+
+        story += [PageBreak(), *_content_header("Evidence and Sources", page_meta, styles)]
+        story += [
+            Paragraph("Decision Evidence", styles["section"]),
+            _general_evidence_cards(result, styles),
+            Paragraph("Key Facts", styles["section"]),
+            _general_metric_table(result, styles),
+            Spacer(1, 0.06 * inch),
+            _general_watchpoints(result, styles),
+        ]
+        story += _general_sources_and_disclosure(
+            result,
+            styles,
+            include_options=include_options,
+        )
+        doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
+        return destination
+
     story += [_rating_box(result, styles, price_label="RANGE-END PRICE" if custom_range else "CURRENT PRICE")]
     story += [Paragraph("Investment Summary", styles["section"])]
     request_card = _request_answer_card(result, request, styles)
@@ -1310,15 +1636,9 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
         overview_image = Image(result.overview_chart.path)
         overview_image._restrictSize(7.25 * inch, 3.35 * inch)
         story.append(overview_image)
-        takeaways = _chart_takeaways(
-            result.overview_chart.insights or _insight_bullets(result.overview_chart.insight),
-            styles,
-        )
-        if takeaways is not None:
-            story += [Spacer(1, 0.04 * inch), takeaways]
     story += [PageBreak(), *_content_header("Position and Risk Plan", page_meta, styles)]
 
-    action_plan_story = _technical_action_plan_story(result, styles)
+    action_plan_story = _technical_action_plan_story(result, styles, include_options=True)
     if action_plan_story:
         story += [Paragraph("Technical Action Plan", styles["section"]), *action_plan_story]
     else:
