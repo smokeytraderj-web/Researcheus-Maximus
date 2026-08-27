@@ -66,18 +66,33 @@ Every output is assumed to be client-ready. There is no separate internal-report
 
 Client-ready means polished and sourced; it does not mean overstating certainty. Ratings, price levels, targets, and strategies must be framed as evidence-based assessments and scenarios, never guarantees.
 
-## General Research Report Standard
+## Research Report Standards
 
-`Researcheus-Maximus/resources/general_research_base.html` is the authoritative visual and interaction reference for the default General Research report. Treat its composition as a product contract, not a loose mood board.
+The two HTML files in `Researcheus-Maximus/resources/` are authoritative product contracts, not loose mood boards:
 
-- Preserve the white editorial page, narrow left navigation rail, Source Serif 4 display hierarchy, IBM Plex Sans body copy, IBM Plex Mono figures, navy text, restrained gold accents, light-gray analytical panels, and compact red/green signal colors.
-- Preserve the information order: security and rating; direct answer to the user's question; position and risk plan; supporting technical evidence; relative strength; fundamentals; organized data; sources and disclosure.
-- Preserve generous page margins, aligned content edges, consistent section rules, tabular-number alignment, and one dominant idea per module. Do not reintroduce oversized banners, dense dashboard grids, ornamental headers, obvious chart-commentary boxes, or mixed visual systems.
-- Keep the exact user question and decision-specific answer ahead of the first chart. General Research should not become a technical-analysis dump.
-- The Position and risk section includes an interactive `Action plan` / `Scenario tester` tab control. The scenario tester must update the selected price, change from current price, change from entry, stop distance, illustrative position impact, and plain-English action zone without changing the underlying evidence.
-- Supporting technical evidence appears in one tabbed `Evidence` section with four selectable charts in this order: Price structure, Momentum, Relative strength, and Fibonacci. The left rail must list those same four chart names directly; selecting a rail item must open its matching Evidence tab. The Fibonacci tab must visibly render the validated six-month close series, swing high and low, 38.2%, 50%, and 61.8% retracement levels, the current-price interaction, and one concise decision implication.
-- Interactive controls are additive. Print and PDF output must hide controls, expose their useful static conclusion, expand otherwise hidden report content where necessary, and remain complete without JavaScript interaction.
-- Use the same data bindings and validation rules as the approved research result. Never insert seeded demonstration data into a client report.
+- `general_research_base.html` defines the default General Research response.
+- `technical_research_base.html` defines Deep Technical / Technical Research.
+
+Both formats share one visual system: a white editorial page, narrow left navigation rail, Source Serif 4 display hierarchy, IBM Plex Sans body copy, IBM Plex Mono figures, navy text, restrained gold accents, light-gray analytical panels, and compact red/green signal colors. Preserve generous page margins, aligned content edges, consistent section rules, tabular-number alignment, and one dominant idea per module. Do not reintroduce oversized banners, dense dashboard grids, ornamental headers, obvious chart-commentary boxes, or mixed visual systems.
+
+### General Research
+
+- The main goal is to answer the user's exact question. Preserve the question verbatim and put a direct, decision-specific answer before the first chart.
+- Use this order: security and answer; exact question and direct answer; concise reasoning; what the advisor would do; one decision-relevant chart; essential data; risks and decision triggers; sources and disclosure.
+- Default to one chart. Select the chart that best supports the requested decision; use security-versus-SPY indexed total return when the user does not specify a chart.
+- Keep the data set compact and relevant to the question. General Research must not become a technical-analysis dump or a shortened copy of the technical report.
+- Add entry, stop, target, options, or other technical modules only when the user's request materially calls for them and the available evidence supports them.
+- The default print/PDF form is a concise three-page client brief: answer and reasoning, evidence and essential data, then risks/sources/disclosure.
+
+### Technical Research
+
+- Preserve the information order: security and rating; the call; position and risk plan; technical evidence; fundamentals; organized data; sources and disclosure.
+- Preserve the interactive `Action plan` / `Scenario tester` control. The scenario tester updates selected price, change from current price, change from entry, stop distance, illustrative position impact, and plain-English action zone without changing the evidence.
+- Preserve one tabbed `Evidence` section with four selectable charts in this order: Price structure, Momentum, Relative strength, and Fibonacci. The left rail lists the same four chart names and opens the matching tab.
+- The Fibonacci chart visibly renders the validated six-month close series, swing high and low, 38.2%, 50%, and 61.8% retracement levels, the current-price interaction, and one concise decision implication. Reserve enough plot margin that every annotation remains inside the chart at desktop, responsive, and print sizes.
+- Interactive controls are additive. Print/PDF output hides controls, exposes useful static conclusions, expands hidden report content where necessary, and remains complete without JavaScript interaction.
+
+Both formats use the same production data bindings and validation rules as the approved research result. Seeded demonstration values in the reference files are layout fixtures only and must never be emitted into a client report.
 
 ## Inherited Reportus Framework
 
