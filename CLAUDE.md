@@ -66,6 +66,19 @@ Every output is assumed to be client-ready. There is no separate internal-report
 
 Client-ready means polished and sourced; it does not mean overstating certainty. Ratings, price levels, targets, and strategies must be framed as evidence-based assessments and scenarios, never guarantees.
 
+## General Research Report Standard
+
+`Researcheus-Maximus/resources/general_research_base.html` is the authoritative visual and interaction reference for the default General Research report. Treat its composition as a product contract, not a loose mood board.
+
+- Preserve the white editorial page, narrow left navigation rail, Source Serif 4 display hierarchy, IBM Plex Sans body copy, IBM Plex Mono figures, navy text, restrained gold accents, light-gray analytical panels, and compact red/green signal colors.
+- Preserve the information order: security and rating; direct answer to the user's question; position and risk plan; supporting technical evidence; relative strength; fundamentals; organized data; sources and disclosure.
+- Preserve generous page margins, aligned content edges, consistent section rules, tabular-number alignment, and one dominant idea per module. Do not reintroduce oversized banners, dense dashboard grids, ornamental headers, obvious chart-commentary boxes, or mixed visual systems.
+- Keep the exact user question and decision-specific answer ahead of the first chart. General Research should not become a technical-analysis dump.
+- The Position and risk section includes an interactive `Action plan` / `Scenario tester` tab control. The scenario tester must update the selected price, change from current price, change from entry, stop distance, illustrative position impact, and plain-English action zone without changing the underlying evidence.
+- The supporting technical sequence includes dedicated Price structure, Momentum, Fibonacci structure, and Relative strength sections. Fibonacci must show the validated swing high and low, 38.2%, 50%, and 61.8% retracement levels, the current-price interaction, and one concise decision implication.
+- Interactive controls are additive. Print and PDF output must hide controls, expose their useful static conclusion, expand otherwise hidden report content where necessary, and remain complete without JavaScript interaction.
+- Use the same data bindings and validation rules as the approved research result. Never insert seeded demonstration data into a client report.
+
 ## Inherited Reportus Framework
 
 Reuse or adapt these proven Reportus patterns:
