@@ -206,7 +206,10 @@ body:not(.advisor) .adv{display:none !important}
     <div class="rail-label">Equity Note</div>
     <a href="#call" class="on">The call</a>
     <a href="#plan">Position &amp; risk</a>
-    <a href="#evidence">Evidence</a>
+    <a href="#evidence" data-evidence-index="0">Price structure</a>
+    <a href="#evidence" data-evidence-index="1">Momentum</a>
+    <a href="#evidence" data-evidence-index="2">Relative strength</a>
+    <a href="#evidence" data-evidence-index="3">Fibonacci</a>
     <a href="#fundamentals">Fundamentals</a>
     <a href="#data">Data</a>
     <a href="#sources">Sources</a>
@@ -640,12 +643,16 @@ reportTabs.forEach(function(tab,index){
 
 /* ---------- evidence chart tabs ---------- */
 var evidenceTabs=[].slice.call(document.querySelectorAll('.evidence-tab'));
+var evidenceNavLinks=[].slice.call(document.querySelectorAll('.rail a[data-evidence-index]'));
+var activeEvidenceIndex=0;
 function selectEvidenceTab(index){
+  activeEvidenceIndex=index;
   evidenceTabs.forEach(function(tab,i){
     var selected=i===index;
     tab.setAttribute('aria-selected',selected);
     document.getElementById(tab.getAttribute('aria-controls')).hidden=!selected;
   });
+  evidenceNavLinks.forEach(function(link,i){link.classList.toggle('on',i===index)});
 }
 evidenceTabs.forEach(function(tab,index){
   tab.addEventListener('click',function(){selectEvidenceTab(index)});
@@ -654,6 +661,13 @@ evidenceTabs.forEach(function(tab,index){
     if(event.key==='ArrowRight')next=(index+1)%evidenceTabs.length;
     if(event.key==='ArrowLeft')next=(index-1+evidenceTabs.length)%evidenceTabs.length;
     if(next!==undefined){event.preventDefault();selectEvidenceTab(next);evidenceTabs[next].focus()}
+  });
+});
+evidenceNavLinks.forEach(function(link,index){
+  link.addEventListener('click',function(event){
+    event.preventDefault();
+    selectEvidenceTab(index);
+    document.getElementById('evidence').scrollIntoView({behavior:'smooth',block:'start'});
   });
 });
 
@@ -724,7 +738,13 @@ advBtn.addEventListener('click',function(){
 var links=[].slice.call(document.querySelectorAll('.rail a'));
 var obs=new IntersectionObserver(function(es){
   es.forEach(function(e){ if(e.isIntersecting){
-    links.forEach(function(a){a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id)});
+    links.forEach(function(a){
+      var evidenceIndex=a.getAttribute('data-evidence-index');
+      var selected=e.target.id==='evidence'
+        ? evidenceIndex===String(activeEvidenceIndex)
+        : evidenceIndex===null && a.getAttribute('href')==='#'+e.target.id;
+      a.classList.toggle('on',selected);
+    });
   }});
 },{rootMargin:'-10% 0px -70% 0px'});
 document.querySelectorAll('section[id]').forEach(function(s){obs.observe(s)});
