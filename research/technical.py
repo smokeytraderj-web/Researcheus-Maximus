@@ -13,6 +13,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 import numpy as np
 import pandas as pd
 
@@ -788,33 +789,51 @@ def render_chart(
     destination: Path,
     plan: TechnicalActionPlan | None = None,
 ) -> Path:
+    """Render a minimal annotated candlestick view grounded in dated price structure."""
     destination.parent.mkdir(parents=True, exist_ok=True)
-    frame = history.dropna(subset=["Close"]).copy()
+    frame = history.dropna(subset=["Close", "High", "Low"]).copy()
     if not history.attrs.get("custom_range"):
-        frame = frame.tail(260)
+        frame = frame.tail(120)
     close = frame["Close"].astype(float)
+    open_price = (
+        frame["Open"].astype(float).fillna(close.shift(1)).fillna(close)
+        if "Open" in frame and frame["Open"].notna().any()
+        else close.shift(1).fillna(close)
+    )
+    high = frame["High"].astype(float)
+    low = frame["Low"].astype(float)
     sma20 = close.rolling(20).mean()
     sma50 = close.rolling(50).mean()
-    sma200 = close.rolling(200).mean()
-    volume = frame["Volume"].fillna(0).astype(float)
-    show_volume = bool(float(volume.abs().sum()) > 0)
-    if show_volume:
-        fig, (ax, vol) = plt.subplots(
-            2,
-            1,
-            figsize=(10.5, 7.0),
-            gridspec_kw={"height_ratios": [4, 1]},
-            sharex=True,
-        )
-    else:
-        fig, ax = plt.subplots(figsize=(10.5, 5.5))
-        vol = None
+    fig, ax = plt.subplots(figsize=(10.5, 5.7))
     fig.patch.set_facecolor("white")
-    ax.plot(frame.index, close, color=NAVY, linewidth=1.8, label="Close")
-    ax.plot(frame.index, sma20, color=GOLD, linewidth=1.2, label="SMA 20")
-    ax.plot(frame.index, sma50, color=BLUE, linewidth=1.2, label="SMA 50")
-    if sma200.notna().any():
-        ax.plot(frame.index, sma200, color=MUTED, linewidth=1.1, label="SMA 200")
+    x_values = mdates.date2num(frame.index.to_pydatetime())
+    spacing = float(np.median(np.diff(x_values))) if len(x_values) > 1 else 1.0
+    candle_width = max(0.32, min(0.72, spacing * 0.64))
+    for x_value, opening, maximum, minimum, closing in zip(
+        x_values,
+        open_price,
+        high,
+        low,
+        close,
+    ):
+        candle_color = GREEN if closing >= opening else RED
+        ax.vlines(x_value, minimum, maximum, color=candle_color, linewidth=0.65, alpha=0.88, zorder=2)
+        body_bottom = min(opening, closing)
+        body_height = max(abs(closing - opening), max(closing * 0.0006, 0.01))
+        ax.add_patch(
+            Rectangle(
+                (x_value - candle_width / 2, body_bottom),
+                candle_width,
+                body_height,
+                facecolor=candle_color,
+                edgecolor=candle_color,
+                linewidth=0.45,
+                alpha=0.86,
+                zorder=3,
+            )
+        )
+    ax.plot(frame.index, sma20, color=GOLD, linewidth=1.25, label="20-day average", zorder=4)
+    ax.plot(frame.index, sma50, color=BLUE, linewidth=1.15, label="50-day average", zorder=4)
     if plan is not None:
         reference_label, reference_level = _stop_reference(snapshot, plan)
         ax.axhspan(
@@ -822,14 +841,14 @@ def render_chart(
             plan.entry_high,
             color=GOLD,
             alpha=0.12,
-            label=f"Entry zone ${plan.entry_low:,.2f}-${plan.entry_high:,.2f}",
+            label=f"Entry ${plan.entry_low:,.2f}-${plan.entry_high:,.2f}",
         )
         ax.axhline(
             reference_level,
             color=MUTED,
             linestyle="-.",
             linewidth=0.9,
-            label=f"{reference_label.title()} ${reference_level:,.2f}",
+            label=f"Structure ${reference_level:,.2f}",
         )
         ax.axhline(
             plan.stop_level,
@@ -843,28 +862,85 @@ def render_chart(
             color=GREEN,
             linestyle=":",
             linewidth=1.1,
-            label=f"Target ${plan.first_target:,.2f}",
+            label=f"Target 1 ${plan.first_target:,.2f}",
         )
-    ax.set_title(
-        f"{ticker} - Price Trend and Action Levels",
-        loc="left",
+
+    arrow_style = dict(arrowstyle="->", color=NAVY, linewidth=0.85, shrinkA=2, shrinkB=2)
+    latest_date = frame.index[-1]
+    latest_close = float(close.iloc[-1])
+    latest_sma20 = float(sma20.iloc[-1])
+    latest_sma50 = float(sma50.iloc[-1])
+    if latest_close > latest_sma20 and latest_close > latest_sma50:
+        trend_label = "Price above 20D + 50D"
+        trend_offset = (-92, 34)
+    elif latest_close < latest_sma20 and latest_close < latest_sma50:
+        trend_label = "Price below 20D + 50D"
+        trend_offset = (-92, -42)
+    else:
+        trend_label = "Trend averages split"
+        trend_offset = (-88, 34)
+    ax.annotate(
+        trend_label,
+        xy=(latest_date, latest_close),
+        xytext=trend_offset,
+        textcoords="offset points",
+        fontsize=7.4,
         color=NAVY,
         fontweight="bold",
+        arrowprops=arrow_style,
+        bbox=dict(boxstyle="round,pad=0.25", facecolor="white", edgecolor="#D8DDE6", alpha=0.94),
+        zorder=7,
     )
-    ax.set_ylabel("Price (USD)")
-    ax.grid(alpha=0.18)
-    ax.legend(ncol=3, fontsize=7.4, frameon=False, loc="upper left")
-    date_axis = ax
-    if vol is not None:
-        colors_v = np.where(close.diff().fillna(0) >= 0, "#6E9D85", "#C77A7A")
-        vol.bar(frame.index, volume, color=colors_v, width=1.0, alpha=0.75)
-        vol.set_ylabel("Volume")
-        vol.grid(axis="y", alpha=0.15)
-        date_axis = vol
-    date_axis.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=9))
-    date_axis.xaxis.set_major_formatter(mdates.ConciseDateFormatter(date_axis.xaxis.get_major_locator()))
+
+    spread = sma20 - sma50
+    crossings = spread.mul(spread.shift(1)).lt(0)
+    crossing_dates = crossings[crossings].index
+    if len(crossing_dates):
+        cross_date = crossing_dates[-1]
+        cross_value = float(close.loc[cross_date])
+        bullish_cross = float(spread.loc[cross_date]) > 0
+        ax.annotate(
+            "Bullish 20/50 cross" if bullish_cross else "Bearish 20/50 cross",
+            xy=(cross_date, cross_value),
+            xytext=(16, 38 if bullish_cross else -46),
+            textcoords="offset points",
+            fontsize=7.2,
+            color=NAVY,
+            arrowprops=arrow_style,
+            bbox=dict(boxstyle="round,pad=0.22", facecolor="white", edgecolor="#D8DDE6", alpha=0.92),
+            zorder=7,
+        )
+
+    support_window = low.tail(min(60, len(low)))
+    support_date = support_window.idxmin()
+    support_value = float(support_window.loc[support_date])
+    if not len(crossing_dates) or abs((latest_date - support_date).days) > 18:
+        ax.annotate(
+            f"Support test ${support_value:,.2f}",
+            xy=(support_date, support_value),
+            xytext=(-10, -42),
+            textcoords="offset points",
+            fontsize=7.2,
+            color=NAVY,
+            arrowprops=arrow_style,
+            bbox=dict(boxstyle="round,pad=0.22", facecolor="white", edgecolor="#D8DDE6", alpha=0.92),
+            zorder=7,
+        )
+
+    ax.set_title(f"{ticker} | Daily Price Structure", loc="left", color=NAVY, fontsize=11.2, fontweight="bold")
+    ax.set_ylabel("Price (USD)", color=MUTED, fontsize=8)
+    ax.grid(axis="y", alpha=0.14, linewidth=0.7)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#D8DDE6")
+    ax.spines["bottom"].set_color("#D8DDE6")
+    ax.tick_params(colors=MUTED, labelsize=7.6)
+    ax.legend(ncol=3, fontsize=7.1, frameon=False, loc="upper left")
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=8))
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    ax.margins(x=0.018)
     fig.tight_layout()
-    fig.savefig(destination, dpi=170, bbox_inches="tight")
+    fig.savefig(destination, dpi=190, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     return destination
 
