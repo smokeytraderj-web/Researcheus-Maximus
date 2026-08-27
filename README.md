@@ -2,6 +2,8 @@
 
 A Windows desktop application for client-ready, evidence-grounded investment research.
 
+**Primary General Research objective:** answer the user's exact question clearly and directly. Security data, ratings, charts, and technical plans must support that answer; they must never replace it with a generic stock report.
+
 The runnable application includes:
 
 - one conversational company/ticker research prompt with an automatic all-horizons framework;
@@ -10,7 +12,7 @@ The runnable application includes:
 - a separate Deep Technical Analysis workspace for chart-specific research and benchmark/peer comparisons;
 - a two-security comparison workspace for stocks or funds, with one evidence preference, sector-benchmark performance, and a side-by-side report;
 - optional position context;
-- one prominent, technically led Overall Rating, supported by a Technical Setup and Fundamental Outlook;
+- one prominent Overall View inside a client question-and-answer brief, with technical and fundamental evidence organized later in the report;
 - a dedicated Position and Risk Plan that converts the chart evidence into a stance, market condition, preferred order type, entry zone, technical stop and stop distance, two targets, and estimated reward/risk;
 - an options-planning scenario only when the user asks about options or hedging, with explicit expiration, premium, assignment, suitability, and live-chain verification warnings;
 - a first-page **Direct Answer** that preserves and answers the complete user question before any chart or technical plan; fund-summary prompts lead with a concise provider-grounded description, strategy/category, family, and available fee/asset facts;
@@ -21,9 +23,10 @@ The runnable application includes:
 - cleanly separated price-trend and Fibonacci charts so technical evidence remains readable;
 - a large annotated candlestick chart on page two by default, with short arrows anchored to actual dated price, moving-average-cross, and support events; explicit stop-loss-evidence, Fibonacci, momentum, or relative-performance chart requests are still honored;
 - chart-led pages without redundant “what this chart shows” or generic takeaway boxes;
-- a fixed three-page General Research brief: direct answer and reasoning; position/risk plan with one large chart; concise evidence, sources, and disclosure;
-- a client-facing first page with one visually dominant Overall Rating, supporting technical/fundamental assessments, the exact user question, a direct answer, and clear reasoning before the first chart;
-- a spacious second-page action dashboard that separates the position setup, planned entry, structural stop, and targets/payoff; an options or hedge example appears only when requested;
+- a fixed three-page General Research brief: client Q&A and reasoning; position/risk plan with one large chart; concise evidence, essential facts, sources, and disclosure;
+- a client-facing first page built around the exact question, a direct answer, one Overall View, and labeled reasons before the first chart—without the legacy four-column rating strip;
+- a spacious second-page action plan that separates position, order style, market condition, entry, structural stop, targets/payoff, confirmation, and invalidation; an options or hedge example appears only when requested;
+- an editorial third page with two-column supporting evidence, one formal facts table, and sources/disclosure confined to the final page;
 - navy-and-gold GSWM presentation with clean white pages, a minimal first-page Researcheus Maximus wordmark, thin gold rules, serif display headings, and readable sans-serif body copy;
 - a full-width editorial landing page in the same visual system: a navy research hero, white canvas, serif headings, restrained gold rules, three numbered research paths, and a Tailwind-inspired spacing/card system implemented natively in Qt;
 - an optional multi-page technical chartbook with dedicated structural stop-loss evidence, RSI/MACD, normalized relative performance, and requested drawdown/volatility analysis;
