@@ -112,11 +112,27 @@ def classify_research_intent(value: str) -> str:
     lowered = value.lower()
     if parse_portfolio_allocation(value):
         return "portfolio_fit"
+    if "portfolio" in lowered and (
+        re.search(r"\b\d{1,3}(?:\.\d+)?\s*(?:%|percent)\b", lowered)
+        or any(term in lowered for term in ("allocation", "concentration", "exposure", "equities", "equity sleeve"))
+    ):
+        return "portfolio_context"
     if is_historical_trade_request(value):
         return "historical_trade_examples"
     if any(term in lowered for term in ("should i sell", "time to sell", "exit", "reduce my position")):
         return "sell"
-    if any(term in lowered for term in ("should i buy", "good opportunity to buy", "good entry", "worth buying")):
+    if any(
+        term in lowered
+        for term in (
+            "should i buy",
+            "good opportunity to buy",
+            "good decision to buy",
+            "good choice to buy",
+            "a good buy",
+            "good entry",
+            "worth buying",
+        )
+    ):
         return "buy"
     if any(term in lowered for term in ("my position", "this position", "what about my", "should i hold", "should i add")):
         return "position"
@@ -126,7 +142,7 @@ def classify_research_intent(value: str) -> str:
 
 
 def parse_overview_chart_request(value: str) -> str:
-    """Identify an explicitly requested lead chart; blank means use the YTD SPY comparison."""
+    """Identify an explicitly requested lead chart; blank means annotated price structure."""
     lowered = value.lower()
     if any(term in lowered for term in ("stop loss chart", "stop-loss chart", "stop evidence chart", "invalidation chart")):
         return "stop_loss"
@@ -150,6 +166,28 @@ def parse_portfolio_allocation(value: str) -> tuple[int, int]:
     if equity < 0 or fixed_income < 0 or equity + fixed_income != 100:
         return ()
     return equity, fixed_income
+
+
+def parse_portfolio_exposure(value: str) -> tuple[float | None, float | None, str, bool]:
+    """Extract stated equity and sector exposure from conversational portfolio context."""
+    equity_match = re.search(
+        r"\b(\d{1,3}(?:\.\d+)?)\s*(?:%|percent)\s*(?:in\s+|is\s+)?equities?\b",
+        value,
+        flags=re.IGNORECASE,
+    )
+    sector_match = re.search(
+        r"\b(\d{1,3}(?:\.\d+)?)\s*(?:%|percent)\s+of\s+(that|(?:my|the)\s+equity(?:\s+sleeve)?)\s+(?:is|in)\s+([A-Za-z][A-Za-z &-]{1,30}?)(?=[,.;?!]|\s+(?:and|so|should|is\s+it)\b|$)",
+        value,
+        flags=re.IGNORECASE,
+    )
+    equity_pct = float(equity_match.group(1)) if equity_match else None
+    sector_pct = float(sector_match.group(1)) if sector_match else None
+    sector = sector_match.group(3).strip().lower() if sector_match else ""
+    if equity_pct is not None and not 0 <= equity_pct <= 100:
+        equity_pct = None
+    if sector_pct is not None and not 0 <= sector_pct <= 100:
+        sector_pct = None
+    return equity_pct, sector_pct, sector, bool(sector_match)
 
 
 def is_historical_trade_request(value: str) -> bool:
