@@ -10,6 +10,7 @@ from core.research_prompt import (
     parse_deep_analysis_prompt,
     parse_overview_chart_request,
     parse_portfolio_allocation,
+    parse_portfolio_exposure,
     parse_research_prompt,
 )
 
@@ -55,7 +56,7 @@ class ResearchPromptTests(unittest.TestCase):
         self.assertIn("Requested modifications to the revised report", revised)
         self.assertIn("entry strategy conservative", revised)
 
-    def test_lead_chart_request_is_explicit_or_defaults_to_relative_performance(self):
+    def test_lead_chart_request_is_explicit_or_defaults_to_annotated_price(self):
         self.assertEqual(parse_overview_chart_request("AXON - show a Fibonacci chart"), "fibonacci")
         self.assertEqual(parse_overview_chart_request("AXON - show a stop-loss chart"), "stop_loss")
         self.assertEqual(parse_overview_chart_request("AXON - show an RSI chart"), "momentum")
@@ -143,6 +144,11 @@ class ResearchPromptTests(unittest.TestCase):
         self.assertEqual(classify_research_intent(brief), "historical_trade_examples")
         _query, _brief, _comparisons, charts = parse_deep_analysis_prompt(trade_prompt)
         self.assertIn("historical_trades", charts)
+
+    def test_conversational_portfolio_concentration_is_preserved(self):
+        brief = "TSLA, I have a portfolio that is 90% equities and 20 percent of that is tech. Is it a good decision to buy?"
+        self.assertEqual(classify_research_intent(brief), "portfolio_context")
+        self.assertEqual(parse_portfolio_exposure(brief), (90.0, 20.0, "tech", True))
 
     def test_comparison_prompt_stops_before_custom_range(self):
         primary, secondary, _brief = parse_comparison_prompt(
