@@ -10,6 +10,17 @@ The application is a new public GitHub project modeled on the architecture, inte
 
 The displayed product name is **Researcheus Maximus**. The displayed firm name is **Gottfried & Somberg Wealth Management**. Do not append “LLC” or abbreviate the firm name unless an approved firm template requires it.
 
+## Primary General Research Objective
+
+The main General Research workflow exists first to answer the user's stated investment question. Security research, ratings, technical levels, charts, and strategy ideas are supporting evidence for that answer; they must never displace it with a generic stock report.
+
+- Preserve the complete user question and make the direct answer the first substantive content in the client PDF.
+- Incorporate stated portfolio allocation, concentration, existing-position, timing, and decision context when it materially changes the answer.
+- If the question cannot be answered from the available evidence, say exactly what is missing instead of substituting a generic fundamental or technical summary.
+- Default General Research output is a three-page client brief: direct answer and reasoning; action/risk plan with one large annotated chart; concise evidence, sources, and disclosure.
+- General Research should use only the technical detail necessary to support the decision. Deep Technical Analysis remains the detailed technical workflow.
+- Options strategies appear in General Research only when the user asks about options, calls, puts, or hedging, or when existing-position context makes a hedge directly relevant.
+
 ## Version-One Scope
 
 Version one supports only **Single Stock Research**.
@@ -358,9 +369,17 @@ The user can approve, correct the security, remove a questionable source, refres
 
 ## PDF Structure
 
-The normal single-stock PDF is concise and highly readable. One to two pages is preferred, but content may expand when needed to preserve evidence, chart legibility, strategies, sources, and disclosure. Do not compress material into unreadable text.
+The normal General Research PDF is a concise, highly readable three-page client brief. Specialized comparison, historical-trade, and Deep Technical Analysis reports may expand when needed to preserve evidence and chart legibility. Do not compress material into unreadable text.
 
-Use this logical structure:
+For General Research, use this fixed sequence:
+
+1. The user's question, a direct answer, the final rating, and concise decision reasoning.
+2. A restrained action/risk plan and one large annotated candlestick chart.
+3. Supporting evidence, essential metrics, risks/triggers, sources, and disclosure.
+
+Use a minimal **Researcheus Maximus** wordmark and white page surface. Do not use a large colored title banner. Do not add generic or obvious chart commentary beneath a chart; the chart itself should use short arrows and labels tied to actual dated price or indicator events.
+
+For specialized reports, preserve the relevant parts of this logical structure:
 
 1. Executive Summary and final rating.
 2. Current Price and Key Metrics.
@@ -547,4 +566,3 @@ These sources inform the professional research principles in this specification:
 - U.S. SEC EDGAR filing search: https://www.sec.gov/edgar/search/
 - FINRA, social-media-influenced investing and sentiment tools: https://www.finra.org/rules-guidance/key-topics/fintech/report/social-media-influenced-investing/tools
 - FINRA and SEC investor bulletin on risks of social-sentiment tools: https://www.finra.org/investors/insights/social-sentiment-investing-tools
-
