@@ -9,6 +9,7 @@ from urllib.parse import quote
 
 from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
 from core.models import ChartRecord, Confidence, Horizon, PortfolioFitAssessment, Rating, ResearchRequest, ResearchResult, SecurityIdentity, SourceRecord
+from core.research_prompt import parse_portfolio_exposure
 from research.comparison import build_comparison_assessment
 from research.synthesis import deterministic_synthesis, ollama_synthesize, openai_synthesize
 from research.technical import (
@@ -187,6 +188,46 @@ def _direct_decision_answer(
     return f"Overall conclusion: {company} rates {lead.value} on the available evidence, with a {timing} technical setup."
 
 
+def _portfolio_context_answer(
+    request: ResearchRequest,
+    company: str,
+    info: dict,
+    lead: Rating,
+    technical: Rating,
+) -> str:
+    """Answer a buy question using the allocation and concentration stated by the user."""
+    equity_pct, sector_pct, stated_sector, sector_is_of_equity = parse_portfolio_exposure(request.question)
+    positive = {Rating.STRONG_BUY, Rating.BUY, Rating.ADD}
+    negative = {Rating.REDUCE, Rating.SELL, Rating.AVOID}
+    timing = technical_setup(technical).lower()
+    if lead in negative or technical in negative:
+        decision = f"I would not add {company} now; the {timing} setup does not justify increasing portfolio risk."
+    elif lead in positive and technical in positive:
+        decision = f"A small, deliberately sized {company} purchase can be reasonable, but not as an unrestricted full position."
+    else:
+        decision = f"I would wait before adding {company}; the current {lead.value} view does not offer a strong enough reason to increase concentration."
+
+    context = ""
+    if equity_pct is not None and sector_pct is not None and sector_is_of_equity:
+        total_sector_pct = equity_pct * sector_pct / 100
+        sector_label = stated_sector or "the stated sector"
+        context = (
+            f" Your stated {equity_pct:.0f}% equity allocation and {sector_pct:.0f}% {sector_label} share of equities imply "
+            f"about {total_sector_pct:.0f}% of the total portfolio is already in that sleeve before this purchase."
+        )
+    elif equity_pct is not None:
+        context = f" With {equity_pct:.0f}% of the portfolio already in equities, position size matters as much as the stock-level rating."
+
+    provider_sector = str(info.get("sector") or "").strip()
+    classification = ""
+    if provider_sector and stated_sector and stated_sector not in provider_sector.lower():
+        classification = (
+            f" The provider classifies {company} in {provider_sector}, so it should not be treated as a pure {stated_sector} holding, "
+            "but its volatility and growth sensitivity can still add concentration risk."
+        )
+    return decision + context + classification
+
+
 def _external_user_context(request: ResearchRequest) -> dict:
     """Send only research instructions—not private position fields—to external synthesis."""
     return {
@@ -272,11 +313,34 @@ def _request_specific_response(
         return _fund_request_summary(company, symbol, info)
     if comparison_verdict:
         return comparison_verdict
+    if request.decision_intent == "portfolio_context":
+        return _portfolio_context_answer(request, company, info, lead, technical)
     direct = _direct_decision_answer(request, company, lead, technical, portfolio_fit, historical_case_count)
     if request.decision_intent != "research":
         return direct
     if request.question.strip() and fundamental_summary.strip():
-        return fundamental_summary.strip()
+        generic_fallback = "fundamental screen combines growth, valuation, leverage" in fundamental_summary.lower()
+        if not generic_fallback:
+            return fundamental_summary.strip()
+        generic_request = any(
+            phrase in question
+            for phrase in (
+                "give me a report",
+                "research report",
+                "report on",
+                "analyze ",
+                "analysis of",
+                "full analysis",
+            )
+        )
+        if generic_request:
+            return direct
+        requested_focus = " ".join(request.question.split())[:240]
+        return (
+            f"I could not fully answer the specific question from the available deterministic evidence: “{requested_focus}” "
+            f"The current screen rates {company} {lead.value}, but a configured research provider and current primary-source review "
+            "are required to answer that focus responsibly."
+        )
     return direct
 
 
@@ -863,8 +927,8 @@ class LiveResearchProvider:
             if request.custom_start and request.custom_end
             else "YTD"
         )
-        if not request.comparison_analysis and request.overview_chart in {"", "relative_performance"}:
-            if request.overview_chart == "relative_performance" and comparison_histories:
+        if not request.comparison_analysis and request.overview_chart == "relative_performance":
+            if comparison_histories:
                 overview_histories = {symbol: history, **comparison_histories}
                 overview_benchmark = "SPY" if "SPY" in comparison_histories else deep_sector_benchmark
             else:
@@ -1221,9 +1285,9 @@ class LiveResearchProvider:
                 )
             if not request.comparison_analysis:
                 try:
-                    if request.overview_chart == "price_trend":
+                    if request.overview_chart in {"", "price_trend"}:
                         overview_chart = ChartRecord(
-                            "Price Trend and Moving Averages",
+                            "Annotated Price Structure",
                             chart_path,
                             technical.summary,
                             (technical.summary, *technical.signals[:2]),
