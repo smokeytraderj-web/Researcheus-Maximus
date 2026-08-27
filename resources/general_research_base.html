@@ -121,13 +121,13 @@ figure{margin:0}
 .pc-n{font-size:11.5px;color:var(--muted);line-height:1.45}
 
 /* ---------- position-plan tabs + scenario tester ---------- */
-.report-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:18px}
-.report-tab{font:inherit;font-size:12.5px;font-weight:500;padding:9px 16px;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;transition:.15s}
-.report-tab:first-child{padding-left:0;padding-right:18px}
-.report-tab:hover{color:var(--ink)}
-.report-tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--gold);font-weight:600}
-.report-tab:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
-.report-panel[hidden]{display:none}
+.report-tabs,.evidence-tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:18px}
+.report-tab,.evidence-tab{font:inherit;font-size:12.5px;font-weight:500;padding:9px 16px;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;transition:.15s}
+.report-tab:first-child,.evidence-tab:first-child{padding-left:0;padding-right:18px}
+.report-tab:hover,.evidence-tab:hover{color:var(--ink)}
+.report-tab[aria-selected="true"],.evidence-tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--gold);font-weight:600}
+.report-tab:focus-visible,.evidence-tab:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+.report-panel[hidden],.evidence-panel[hidden]{display:none}
 
 .scen{display:grid;grid-template-columns:minmax(0,1fr) 272px;gap:30px;border:1px solid var(--line);background:var(--panel);padding:23px 24px}
 .slider-lab{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin-bottom:8px}
@@ -190,8 +190,9 @@ body:not(.advisor) .adv{display:none !important}
   .page{box-shadow:none;padding:0}
   section{break-inside:avoid} details{break-inside:avoid}
   details:not([open]) .det-body{display:block}
-  .report-tabs,.slider-control{display:none}
-  .report-panel[hidden]{display:block!important}
+  .report-tabs,.evidence-tabs,.slider-control{display:none}
+  .report-panel[hidden],.evidence-panel[hidden]{display:block!important}
+  .evidence-panel{margin-top:18px}
   #scenarioLab{margin-top:18px}
   @page{margin:16mm 15mm}
 }
@@ -205,10 +206,7 @@ body:not(.advisor) .adv{display:none !important}
     <div class="rail-label">Equity Note</div>
     <a href="#call" class="on">The call</a>
     <a href="#plan">Position &amp; risk</a>
-    <a href="#structure">Price structure</a>
-    <a href="#momentum">Momentum</a>
-    <a href="#fibonacci">Fibonacci</a>
-    <a href="#relative">Relative strength</a>
+    <a href="#evidence">Evidence</a>
     <a href="#fundamentals">Fundamentals</a>
     <a href="#data">Data</a>
     <a href="#sources">Sources</a>
@@ -341,61 +339,67 @@ body:not(.advisor) .adv{display:none !important}
       </div>
     </section>
 
-    <section id="structure">
-      <div class="sec-head"><h2>Price structure</h2><span class="verdict v-bear">Bearish</span></div>
-      <figure class="chart">
-        <div class="chart-title">TSLA daily close with trend averages and planned levels</div>
-        <div id="c1"></div>
-        <div class="chart-legend">
-          <span class="key"><i class="swatch" style="background:var(--ink)"></i>Close</span>
-          <span class="key"><i class="swatch" style="background:var(--gold)"></i>20-day avg</span>
-          <span class="key"><i class="swatch" style="background:#5B7BA8"></i>50-day avg</span>
-          <span class="key"><i class="swatch" style="background:var(--gold-soft);height:8px"></i>Entry zone</span>
-          <span class="key"><i class="swatch" style="background:var(--bear)"></i>Stop $344.50</span>
-        </div>
-      </figure>
-      <div class="takeaway"><span class="tk">Read</span><p>Price at $354.81 is below the 50-day average of $361.43 and well below the 200-day at $401.41. The 20-day has crossed under the 50-day. Until price closes back above $361.43, the chart does not support a durable advance.</p></div>
-    </section>
+    <section id="evidence">
+      <div class="sec-head"><h2>Evidence</h2><span class="verdict v-neu">Four charts, one panel</span></div>
+      <div class="evidence-tabs" role="tablist" aria-label="Technical evidence charts">
+        <button class="evidence-tab" role="tab" aria-selected="true" aria-controls="evidencePrice" id="evidencePriceTab">Price structure</button>
+        <button class="evidence-tab" role="tab" aria-selected="false" aria-controls="evidenceMomentum" id="evidenceMomentumTab">Momentum</button>
+        <button class="evidence-tab" role="tab" aria-selected="false" aria-controls="evidenceRelative" id="evidenceRelativeTab">Relative strength</button>
+        <button class="evidence-tab" role="tab" aria-selected="false" aria-controls="evidenceFibonacci" id="evidenceFibonacciTab">Fibonacci</button>
+      </div>
 
-    <section id="momentum">
-      <div class="sec-head"><h2>Momentum</h2><span class="verdict v-neu">Improving, unconfirmed</span></div>
-      <figure class="chart">
-        <div class="chart-title">RSI (14) and MACD</div>
-        <div id="c2"></div>
-        <div class="chart-legend">
-          <span class="key"><i class="swatch" style="background:var(--ink)"></i>RSI 53.9</span>
-          <span class="key"><i class="swatch" style="background:#5B7BA8"></i>MACD −0.51</span>
-          <span class="key"><i class="swatch" style="background:var(--gold)"></i>Signal −4.73</span>
-        </div>
-      </figure>
-      <div class="takeaway"><span class="tk">Read</span><p>MACD has crossed back above its signal line and RSI has recovered to a neutral 53.9. That is early evidence of stabilisation, not a buy signal. Momentum is the piece most likely to flip this rating, so it is worth watching weekly.</p></div>
-    </section>
+      <div class="evidence-panel" id="evidencePrice" role="tabpanel" aria-labelledby="evidencePriceTab">
+        <figure class="chart">
+          <div class="chart-title">TSLA daily close with trend averages and planned levels</div>
+          <div id="c1"></div>
+          <div class="chart-legend">
+            <span class="key"><i class="swatch" style="background:var(--ink)"></i>Close</span>
+            <span class="key"><i class="swatch" style="background:var(--gold)"></i>20-day avg</span>
+            <span class="key"><i class="swatch" style="background:#5B7BA8"></i>50-day avg</span>
+            <span class="key"><i class="swatch" style="background:var(--gold-soft);height:8px"></i>Entry zone</span>
+            <span class="key"><i class="swatch" style="background:var(--bear)"></i>Stop $344.50</span>
+          </div>
+        </figure>
+        <div class="takeaway"><span class="tk">Read</span><p>Price at $354.81 is below the 50-day average of $361.43 and well below the 200-day at $401.41. Until price closes back above $361.43, the chart does not support a durable advance.</p></div>
+      </div>
 
-    <section id="fibonacci">
-      <div class="sec-head"><h2>Fibonacci structure</h2><span class="verdict v-neu">At the 61.8% pivot</span></div>
-      <figure class="chart">
-        <div class="chart-title">Six-month swing structure and retracement levels</div>
-        <div id="c4"></div>
-        <div class="chart-legend">
-          <span class="key"><i class="swatch" style="background:var(--ink)"></i>Close</span>
-          <span class="key"><i class="swatch" style="background:var(--muted)"></i>Retracement levels</span>
-          <span class="key"><i class="swatch" style="background:var(--gold)"></i>61.8% pivot</span>
-        </div>
-      </figure>
-      <div class="takeaway"><span class="tk">Read</span><p>Price at $354.81 sits just below the 61.8% retracement at $356.98. A sustained reclaim would open the 50% level at $375.39 and then $393.80; failure below the pivot keeps the $344.50 stop as the structural invalidation.</p></div>
-    </section>
+      <div class="evidence-panel" id="evidenceMomentum" role="tabpanel" aria-labelledby="evidenceMomentumTab" hidden>
+        <figure class="chart">
+          <div class="chart-title">RSI (14) and MACD</div>
+          <div id="c2"></div>
+          <div class="chart-legend">
+            <span class="key"><i class="swatch" style="background:var(--ink)"></i>RSI 53.9</span>
+            <span class="key"><i class="swatch" style="background:#5B7BA8"></i>MACD −0.51</span>
+            <span class="key"><i class="swatch" style="background:var(--gold)"></i>Signal −4.73</span>
+          </div>
+        </figure>
+        <div class="takeaway"><span class="tk">Read</span><p>MACD has crossed back above its signal line and RSI has recovered to a neutral 53.9. That is early stabilisation, not a buy signal; momentum is the factor most likely to change the rating.</p></div>
+      </div>
 
-    <section id="relative">
-      <div class="sec-head"><h2>Relative strength</h2><span class="verdict v-bear">Lagging</span></div>
-      <figure class="chart">
-        <div class="chart-title">TSLA vs. SPY, indexed to 100 at twelve months</div>
-        <div id="c3"></div>
-        <div class="chart-legend">
-          <span class="key"><i class="swatch" style="background:var(--ink)"></i>TSLA +7.3%</span>
-          <span class="key"><i class="swatch" style="background:var(--gold)"></i>SPY +19.8%</span>
-        </div>
-      </figure>
-      <div class="takeaway"><span class="tk">Read</span><p>TSLA led the index for most of the last year and gave the entire lead back in one move. Over three months it trails SPY by 21.9 percentage points. This is the clearest argument for reducing rather than holding through.</p></div>
+      <div class="evidence-panel" id="evidenceRelative" role="tabpanel" aria-labelledby="evidenceRelativeTab" hidden>
+        <figure class="chart">
+          <div class="chart-title">TSLA vs. SPY, indexed to 100 at twelve months</div>
+          <div id="c3"></div>
+          <div class="chart-legend">
+            <span class="key"><i class="swatch" style="background:var(--ink)"></i>TSLA +7.3%</span>
+            <span class="key"><i class="swatch" style="background:var(--gold)"></i>SPY +19.8%</span>
+          </div>
+        </figure>
+        <div class="takeaway"><span class="tk">Read</span><p>TSLA led the index for most of the year and gave the entire lead back in one move. Its 21.9-point three-month deficit to SPY supports reducing rather than holding through.</p></div>
+      </div>
+
+      <div class="evidence-panel" id="evidenceFibonacci" role="tabpanel" aria-labelledby="evidenceFibonacciTab" hidden>
+        <figure class="chart">
+          <div class="chart-title">Six-month swing $297.38 to $453.40</div>
+          <div id="c4"></div>
+          <div class="chart-legend">
+            <span class="key"><i class="swatch" style="background:var(--ink)"></i>Close</span>
+            <span class="key"><i class="swatch" style="background:var(--muted)"></i>Retracement levels</span>
+            <span class="key"><i class="swatch" style="background:var(--gold)"></i>61.8% pivot</span>
+          </div>
+        </figure>
+        <div class="takeaway"><span class="tk">Read</span><p>Price at $354.81 is just below the 61.8% retracement at $356.98. A sustained reclaim opens $375.39 and $393.80; failure keeps the $344.50 stop as structural invalidation.</p></div>
+      </div>
     </section>
 
     <section id="fundamentals">
@@ -631,6 +635,25 @@ reportTabs.forEach(function(tab,index){
     if(event.key==='ArrowRight')next=(index+1)%reportTabs.length;
     if(event.key==='ArrowLeft')next=(index-1+reportTabs.length)%reportTabs.length;
     if(next!==undefined){event.preventDefault();selectReportTab(next);reportTabs[next].focus()}
+  });
+});
+
+/* ---------- evidence chart tabs ---------- */
+var evidenceTabs=[].slice.call(document.querySelectorAll('.evidence-tab'));
+function selectEvidenceTab(index){
+  evidenceTabs.forEach(function(tab,i){
+    var selected=i===index;
+    tab.setAttribute('aria-selected',selected);
+    document.getElementById(tab.getAttribute('aria-controls')).hidden=!selected;
+  });
+}
+evidenceTabs.forEach(function(tab,index){
+  tab.addEventListener('click',function(){selectEvidenceTab(index)});
+  tab.addEventListener('keydown',function(event){
+    var next;
+    if(event.key==='ArrowRight')next=(index+1)%evidenceTabs.length;
+    if(event.key==='ArrowLeft')next=(index-1+evidenceTabs.length)%evidenceTabs.length;
+    if(next!==undefined){event.preventDefault();selectEvidenceTab(next);evidenceTabs[next].focus()}
   });
 });
 
