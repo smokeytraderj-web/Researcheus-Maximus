@@ -16,6 +16,7 @@ from research.live_provider import (
     _external_user_context,
     _request_specific_response,
     _nasdaq_history,
+    _portfolio_context_answer,
     _usable_ycharts_metric,
 )
 
@@ -191,6 +192,24 @@ class HistoryFallbackTests(unittest.TestCase):
         self.assertTrue(answer.startswith("Direct answer:"))
         self.assertIn("not a clear buy", answer)
 
+    def test_portfolio_concentration_question_gets_a_personalized_answer(self):
+        request = ResearchRequest(
+            "TSLA",
+            Horizon.ALL,
+            question="TSLA, I have a portfolio that is 90% equities and 20 percent of that is tech. Is it a good decision to buy?",
+            decision_intent="portfolio_context",
+        )
+        answer = _portfolio_context_answer(
+            request,
+            "Tesla",
+            {"sector": "Consumer Cyclical"},
+            Rating.HOLD,
+            Rating.REDUCE,
+        )
+        self.assertIn("would not add Tesla now", answer)
+        self.assertIn("about 18% of the total portfolio", answer)
+        self.assertIn("Consumer Cyclical", answer)
+
     def test_external_synthesis_context_excludes_private_position_fields(self):
         context = _external_user_context(
             ResearchRequest(
@@ -233,6 +252,25 @@ class HistoryFallbackTests(unittest.TestCase):
         self.assertIn("Derivative Income", response)
         self.assertIn("structured outcome strategies", response)
         self.assertIn("0.95%", response)
+
+    def test_deterministic_fallback_does_not_replace_a_specific_question_with_boilerplate(self):
+        request = ResearchRequest(
+            "TSLA",
+            Horizon.ALL,
+            question="How exposed is TSLA to changes in regulatory-credit revenue?",
+        )
+        response = _request_specific_response(
+            request,
+            "Tesla",
+            "TSLA",
+            {"quoteType": "EQUITY"},
+            Rating.HOLD,
+            Rating.REDUCE,
+            "The fundamental screen combines growth, valuation, leverage, and available analyst-consensus evidence.",
+        )
+        self.assertIn("could not fully answer the specific question", response)
+        self.assertIn("regulatory-credit revenue", response)
+        self.assertNotIn("fundamental screen combines", response)
 
     def test_portfolio_fit_identifies_fixed_income_sleeve(self):
         request = ResearchRequest(
