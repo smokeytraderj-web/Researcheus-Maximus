@@ -12,6 +12,7 @@ import hashlib
 import numpy as np
 import pandas as pd
 
+from core.research_prompt import parse_portfolio_exposure
 from core.models import (
     ComparisonAssessment,
     ChartRecord,
@@ -49,6 +50,7 @@ KNOWN = {
     "MICROSOFT": ("Microsoft Corporation", "MSFT", "NASDAQ"),
     "NVDA": ("NVIDIA Corporation", "NVDA", "NASDAQ"),
     "AVGO": ("Broadcom Inc.", "AVGO", "NASDAQ"),
+    "TSLA": ("Tesla, Inc.", "TSLA", "NASDAQ"),
     "SPY": ("SPDR S&P 500 ETF Trust", "SPY", "NYSE Arca"),
 }
 
@@ -129,6 +131,7 @@ class DemoResearchProvider:
             spy_close = spy_shape / spy_shape[-1] * 100
             primary_history = pd.DataFrame(
                 {
+                    "Open": pd.Series(primary_close, index=dates).shift(1).fillna(primary_close[0]).to_numpy(),
                     "Close": primary_close,
                     "High": primary_close * 1.012,
                     "Low": primary_close * 0.988,
@@ -155,9 +158,9 @@ class DemoResearchProvider:
                     technical_plan,
                 )
             )
-            if request.overview_chart == "price_trend":
+            if request.overview_chart in {"", "price_trend"}:
                 overview_chart = ChartRecord(
-                    "Price Trend and Moving Averages",
+                    "Annotated Price Structure",
                     chart_path,
                     technical.summary,
                     (technical.summary, *technical.signals[:2]),
@@ -189,7 +192,7 @@ class DemoResearchProvider:
                 )
                 insight = momentum_decision_insight(demo_snapshot, technical.rating)
                 overview_chart = ChartRecord("Momentum - RSI and MACD", str(lead_path), insight, (insight,))
-            else:
+            elif request.overview_chart == "relative_performance":
                 overview_benchmark = "SPY" if ticker != "SPY" else ""
                 histories = (
                     {ticker: primary_history, "SPY": spy_history}
@@ -339,11 +342,7 @@ class DemoResearchProvider:
                 SourceRecord("Researcheus Demo Provider", "synthetic://demo", now, "Workflow validation only"),
             ),
             provider_label="Deterministic demo provider",
-            request_response=(
-                f"This demo report addresses the request about {company.rstrip('.')}. Live provider facts are required for a client-ready answer."
-                if request.question.strip()
-                else ""
-            ),
+            request_response=self._request_response(request, company, technical, price),
             limitations=("Synthetic values only; no live research sources were contacted.",),
             demo_mode=True,
             chart_path=chart_path,
@@ -362,3 +361,31 @@ class DemoResearchProvider:
         )
         result.validate()
         return result
+
+    @staticmethod
+    def _request_response(
+        request: ResearchRequest,
+        company: str,
+        technical: SpecialistFinding,
+        price: float,
+    ) -> str:
+        if not request.question.strip():
+            return ""
+        if request.decision_intent == "portfolio_context":
+            equity_pct, sleeve_pct, sleeve_name, is_portfolio_question = parse_portfolio_exposure(
+                request.question
+            )
+            if is_portfolio_question and equity_pct is not None and sleeve_pct is not None:
+                total_exposure = equity_pct * sleeve_pct / 100
+                sleeve = sleeve_name or "stated sector"
+                return (
+                    f"Do not make a full-size purchase based on this demo report. Your stated {equity_pct:.0f}% equity allocation "
+                    f"and {sleeve_pct:.0f}% {sleeve} sleeve imply about {total_exposure:.0f}% of the total portfolio is already "
+                    f"in that area. Because {company.rstrip('.')} adds single-stock concentration, a live review should first "
+                    "measure the position's size against the entire portfolio, identify overlap with existing holdings, and "
+                    "confirm that the risk plan fits your loss tolerance."
+                )
+        return (
+            f"The demo evidence rates {company.rstrip('.')} {technical.rating.value} near ${price:,.2f}, but synthetic data "
+            "cannot support a real buy or sell decision. Live facts are required before acting."
+        )
