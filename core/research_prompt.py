@@ -277,7 +277,7 @@ def parse_deep_analysis_prompt(value: str) -> tuple[str, str, tuple[str, ...], t
     comparisons = tuple(symbols[:3]) or ("SPY",)
 
     lowered = prompt.lower()
-    charts = ["price_trend", "stop_loss", "momentum", "relative_performance"]
+    charts = ["price_trend", "stop_loss", "momentum", "relative_performance", "fibonacci"]
     if any(term in lowered for term in ("drawdown", "volatility", "risk chart", "risk profile")):
         charts.append("risk")
     if is_historical_trade_request(prompt):
