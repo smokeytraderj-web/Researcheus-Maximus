@@ -78,7 +78,10 @@ class ResearchPromptTests(unittest.TestCase):
         query, _brief, comparisons, charts = parse_deep_analysis_prompt("AXON - Analyze RSI, MACD, ATR, and SMA trends.")
         self.assertEqual(query, "AXON")
         self.assertEqual(comparisons, ("SPY",))
-        self.assertEqual(charts, ("price_trend", "stop_loss", "momentum", "relative_performance"))
+        self.assertEqual(
+            charts,
+            ("price_trend", "stop_loss", "momentum", "relative_performance", "fibonacci"),
+        )
 
     def test_revision_can_add_comparisons_and_chart_types(self):
         revised = append_revision_instructions(
