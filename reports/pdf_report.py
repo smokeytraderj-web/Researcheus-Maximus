@@ -1409,6 +1409,110 @@ def _source_table(result: ResearchResult, styles) -> Table:
     return table
 
 
+def _metric_value(result: ResearchResult, *labels: str, fallback: str = "Not available") -> str:
+    values = {label.lower(): value for label, value in result.key_metrics}
+    for label in labels:
+        value = values.get(label.lower())
+        if value and "unavailable" not in value.lower():
+            return value
+    return fallback
+
+
+def _technical_opening_story(result: ResearchResult, request: ResearchRequest, styles) -> list:
+    """Render the approved technical note hierarchy instead of the legacy rating strip."""
+    question = request.question.strip() or request.query.strip()
+    answer = _overall_conclusion_text(result.request_response or result.executive_summary)
+    technical_view = technical_setup(result.technical.rating)
+    call_card = Table(
+        [[
+            [
+                Paragraph("THE CALL", styles["request_label"]),
+                Paragraph(_safe(answer), styles["decision_answer"]),
+                Spacer(1, 0.05 * inch),
+                Paragraph(f"<b>Question:</b> {_safe(question)}", styles["compact"]),
+            ],
+            [
+                Paragraph("TECHNICAL VIEW", styles["decision_label_inverse"]),
+                Paragraph(_safe(technical_view), styles["decision_rating_inverse"]),
+                Paragraph(_safe(result.lead_rating.value), styles["decision_label_inverse"]),
+            ],
+        ]],
+        colWidths=[5.58 * inch, 1.67 * inch],
+        hAlign="LEFT",
+    )
+    call_card.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, 0), colors.white),
+                ("BACKGROUND", (1, 0), (1, 0), NAVY),
+                ("BOX", (0, 0), (-1, -1), 0.45, LINE),
+                ("LINEABOVE", (0, 0), (-1, 0), 2.0, GOLD),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (0, 0), 14),
+                ("RIGHTPADDING", (0, 0), (0, 0), 15),
+                ("LEFTPADDING", (1, 0), (1, 0), 8),
+                ("RIGHTPADDING", (1, 0), (1, 0), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+            ]
+        )
+    )
+    metrics = (
+        ("LAST PRICE", f"${result.current_price:,.2f}"),
+        ("THREE MONTHS", _metric_value(result, "Three-month return", "3-month return")),
+        ("RSI (14)", _metric_value(result, "RSI (14)")),
+        (
+            "STREET UPSIDE",
+            _metric_value(result, "Analyst target implied upside", "Analyst mean target"),
+        ),
+    )
+    metric_table = Table(
+        [
+            [Paragraph(label, styles["action_label"]) for label, _value in metrics],
+            [Paragraph(_safe(value), styles["metric_big"]) for _label, value in metrics],
+        ],
+        colWidths=[CONTENT_WIDTH / 4] * 4,
+        hAlign="LEFT",
+    )
+    metric_table.setStyle(
+        TableStyle(
+            [
+                ("LINEABOVE", (0, 0), (-1, 0), 0.5, LINE),
+                ("LINEBELOW", (0, -1), (-1, -1), 0.5, LINE),
+                ("LINEBEFORE", (1, 0), (-1, -1), 0.3, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, 0), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 2),
+                ("TOPPADDING", (0, 1), (-1, 1), 2),
+                ("BOTTOMPADDING", (0, 1), (-1, 1), 8),
+            ]
+        )
+    )
+    story: list = [
+        Paragraph("TECHNICAL RESEARCH", styles["eyebrow"]),
+        call_card,
+        Spacer(1, 0.13 * inch),
+        metric_table,
+    ]
+    if result.overview_chart and Path(result.overview_chart.path).is_file():
+        story += [
+            Spacer(1, 0.12 * inch),
+            Paragraph("PRICE STRUCTURE", styles["eyebrow"]),
+        ]
+        image = Image(result.overview_chart.path)
+        image._restrictSize(CONTENT_WIDTH, 3.75 * inch)
+        story.append(image)
+        note = _chart_note(
+            result.overview_chart.insights or _insight_bullets(result.overview_chart.insight),
+            styles,
+        )
+        if note is not None:
+            story.append(note)
+    return story
+
+
 def _client_visible_limitations(result: ResearchResult) -> tuple[str, ...]:
     """Keep operational provider diagnostics in Evidence Review, not the client PDF."""
     hidden_fragments = (
@@ -1469,16 +1573,28 @@ def _sources_and_disclosure_story(result: ResearchResult, styles, *, comparison:
 
 
 def _chartbook_story(result: ResearchResult, styles) -> list:
+    """Give every technical study a full page so labels and annotations stay readable."""
+    priority = {
+        "Momentum - RSI and MACD": 0,
+        "Relative Performance": 1,
+        "Fibonacci Structure": 2,
+        "Stop-Loss Evidence": 3,
+        "Drawdown and Volatility": 4,
+    }
+    charts = sorted(result.chartbook, key=lambda chart: priority.get(chart.title, 99))
     story = []
-    for index, chart in enumerate(result.chartbook):
-        if index % 2 == 0:
-            story.append(PageBreak())
-            heading = "Deep Technical Chartbook" if index == 0 else "Deep Technical Chartbook - Continued"
-            story.extend(_content_header(heading, _as_of_label(result), styles))
+    for index, chart in enumerate(charts, start=1):
+        story.append(PageBreak())
+        story.extend(
+            _content_header(
+                "Technical Evidence",
+                f"{result.identity.ticker} | Study {index} of {len(charts)}",
+                styles,
+            )
+        )
         story.append(Paragraph(_safe(chart.title), styles["section"]))
         image = Image(chart.path)
-        trailing_single = len(result.chartbook) % 2 == 1 and index == len(result.chartbook) - 1
-        image._restrictSize(7.15 * inch, (2.35 if trailing_single else 2.95) * inch)
+        image._restrictSize(7.15 * inch, 5.35 * inch)
         story.append(image)
         note = _chart_note(
             chart.insights or _insight_bullets(chart.insight),
@@ -1748,6 +1864,49 @@ def build_research_pdf(result: ResearchResult, request: ResearchRequest, destina
             styles,
             include_options=include_options,
         )
+        doc.build(story)
+        return destination
+
+    if request.deep_analysis:
+        story += _technical_opening_story(result, request, styles)
+        story += [PageBreak(), *_content_header("Position and Risk Plan", page_meta, styles)]
+        action_plan_story = _technical_action_plan_story(result, styles, include_options=True)
+        if action_plan_story:
+            story += [Paragraph("ACTION PLAN", styles["eyebrow"]), *action_plan_story]
+        else:
+            story += [
+                Paragraph("ACTION PLAN", styles["eyebrow"]),
+                Paragraph(
+                    "No actionable technical plan was supported by the available evidence. Wait for a clearer setup rather than forcing an entry.",
+                    styles["body"],
+                ),
+            ]
+        portfolio_fit_box = _portfolio_fit_box(result, styles)
+        if portfolio_fit_box is not None:
+            story += [Paragraph("Portfolio Role", styles["section"]), portfolio_fit_box]
+        if result.chartbook:
+            story += _chartbook_story(result, styles)
+        story += [PageBreak(), *_content_header("Research Evidence", page_meta, styles)]
+        story.append(
+            KeepTogether(
+                [
+                    Paragraph("Analysis and Decision Framework", styles["section"]),
+                    _analysis_cards(result, styles),
+                ]
+            )
+        )
+        if result.sentiment:
+            story += [
+                Paragraph("Sentiment and Narrative", styles["section"]),
+                Paragraph(_safe(result.sentiment), styles["body"]),
+            ]
+        story += [Paragraph("Research Watchlist", styles["section"]), _research_watchlist(result, styles)]
+        story += [PageBreak(), *_content_header("Key Data and Levels", page_meta, styles)]
+        story += _organized_metric_story(result, styles)
+        metric_note = _key_metric_note(result, styles)
+        if metric_note is not None:
+            story.append(metric_note)
+        story += _sources_and_disclosure_story(result, styles)
         doc.build(story)
         return destination
 
