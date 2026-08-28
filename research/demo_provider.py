@@ -242,6 +242,47 @@ class DemoResearchProvider:
                 )
                 fib_insight = fibonacci_decision_insight(demo_snapshot, technical.rating)
                 chartbook.append(ChartRecord("Fibonacci Structure", str(fib_path), fib_insight, (fib_insight,)))
+                if "momentum" in request.requested_charts:
+                    momentum_path = render_momentum_chart(
+                        primary_history,
+                        ticker,
+                        workspace / "momentum-chart.png",
+                    )
+                    momentum_insight = momentum_decision_insight(demo_snapshot, technical.rating)
+                    chartbook.append(
+                        ChartRecord(
+                            "Momentum - RSI and MACD",
+                            str(momentum_path),
+                            momentum_insight,
+                            (momentum_insight,),
+                        )
+                    )
+                if "relative_performance" in request.requested_charts and ticker != "SPY":
+                    relative_path = render_total_return_chart(
+                        {ticker: primary_history, "SPY": spy_history},
+                        workspace / "relative-performance-chart.png",
+                        period_label,
+                        "SPY",
+                        period_start,
+                        period_end,
+                    )
+                    relative_insights = total_return_chart_insights(
+                        {ticker: primary_history, "SPY": spy_history},
+                        ticker,
+                        "SPY",
+                        period_label,
+                        technical.rating,
+                        period_start,
+                        period_end,
+                    )
+                    chartbook.append(
+                        ChartRecord(
+                            "Relative Performance",
+                            str(relative_path),
+                            relative_insights[0],
+                            relative_insights,
+                        )
+                    )
         comparison = None
         if request.comparison_analysis:
             second_key = request.comparison_query.strip().upper()
