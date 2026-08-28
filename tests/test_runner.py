@@ -124,6 +124,18 @@ class ResearchRunnerTests(unittest.TestCase):
             )
             self.assertEqual(prepared.suggested_filename, "AXON_Deep_Technical_Analysis.pdf")
             reader = PdfReader(prepared.preview_path)
+            report_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            first_page = reader.pages[0].extract_text() or ""
+            second_page = reader.pages[1].extract_text() or ""
+            self.assertIn("TECHNICAL RESEARCH", first_page)
+            self.assertIn("THE CALL", first_page)
+            self.assertIn("PRICE STRUCTURE", first_page)
+            self.assertNotIn("OVERALL RATING", first_page)
+            self.assertIn("Position and Risk Plan", second_page)
+            self.assertIn("ACTION PLAN", second_page)
+            self.assertIn("Momentum - RSI and MACD", report_text)
+            self.assertIn("Relative Performance", report_text)
+            self.assertIn("Fibonacci Structure", report_text)
             self.assertIn("Sources and Disclosure", reader.pages[-1].extract_text() or "")
             self.assertNotIn(
                 "Sources and Disclosure",
