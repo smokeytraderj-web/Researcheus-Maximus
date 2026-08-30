@@ -158,7 +158,7 @@ class DemoResearchProvider:
                     technical_plan,
                 )
             )
-            if request.overview_chart in {"", "price_trend"}:
+            if request.overview_chart == "price_trend" or (request.deep_analysis and not request.overview_chart):
                 overview_chart = ChartRecord(
                     "Annotated Price Structure",
                     chart_path,
@@ -192,7 +192,7 @@ class DemoResearchProvider:
                 )
                 insight = momentum_decision_insight(demo_snapshot, technical.rating)
                 overview_chart = ChartRecord("Momentum - RSI and MACD", str(lead_path), insight, (insight,))
-            elif request.overview_chart == "relative_performance":
+            elif request.overview_chart == "relative_performance" or not request.overview_chart:
                 overview_benchmark = "SPY" if ticker != "SPY" else ""
                 histories = (
                     {ticker: primary_history, "SPY": spy_history}
@@ -412,6 +412,12 @@ class DemoResearchProvider:
     ) -> str:
         if not request.question.strip():
             return ""
+        if request.decision_intent == "buy":
+            return (
+                f"Direct answer: the synthetic workflow treats {company.rstrip('.')} as a conditional "
+                f"{technical.rating.value.lower()} candidate near ${price:,.2f}, but demo evidence cannot support a real purchase. "
+                "Use live mode and confirm the stated entry and invalidation levels before acting."
+            )
         if request.decision_intent == "portfolio_context":
             equity_pct, sleeve_pct, sleeve_name, is_portfolio_question = parse_portfolio_exposure(
                 request.question
