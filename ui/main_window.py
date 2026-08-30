@@ -108,6 +108,31 @@ def _metric_link(label: str) -> str:
     return f"<a href='metric://{key}' style='color:#14263D; text-decoration:none'>{escape(label)}</a>"
 
 
+_BROWSER_STYLE = """
+<style>
+body{font-family:'Segoe UI',Arial,sans-serif;color:#3E4759;font-size:13px;line-height:1.6}
+h2{font-family:Georgia,'Times New Roman',serif;color:#1B2A4A;font-size:22px;font-weight:700;margin:0 0 6px}
+h3{font-family:Georgia,'Times New Roman',serif;color:#1B2A4A;font-size:14.5px;font-weight:700;
+   margin:20px 0 8px;padding-top:14px;border-top:1px solid #DDE1E7}
+hr{border:0;border-top:2px solid #1B2A4A;margin:16px 0}
+b{color:#1B2A4A}
+p{margin:0 0 10px}
+ul{margin:4px 0 10px;padding-left:20px}
+li{margin-bottom:5px}
+a{color:#1B2A4A}
+table{border-collapse:collapse;width:100%;font-size:12.5px;margin:6px 0 14px}
+th{background:#1B2A4A;color:#FFFFFF;padding:7px 9px;text-align:left;font-size:10.5px;
+   text-transform:uppercase;letter-spacing:.04em}
+td{padding:7px 9px;border-bottom:1px solid #EDF0F3}
+</style>
+"""
+
+
+def _branded_html(body: str) -> str:
+    """Wrap raw QTextBrowser content in the app's navy/gold/serif visual system."""
+    return _BROWSER_STYLE + body
+
+
 class MetricBrowser(QTextBrowser):
     """Evidence browser with a minimal plain-English metric glossary."""
 
@@ -712,7 +737,7 @@ class MainWindow(QMainWindow):
             rationale = "".join(f"<li>{escape(item)}</li>" for item in comparison.rationale)
             primary_setup = technical_setup(r.technical.rating)
             secondary_setup = technical_setup(comparison.secondary_technical.rating)
-            self.review_browser.setHtml(f"""
+            self.review_browser.setHtml(_branded_html(f"""
                 {ycharts_alert}
                 <h2>{escape(r.identity.ticker)} vs {escape(comparison.secondary_identity.ticker)}</h2>
                 <p><b>{escape(r.identity.company_name)}</b> compared with <b>{escape(comparison.secondary_identity.company_name)}</b><br>
@@ -732,10 +757,10 @@ class MainWindow(QMainWindow):
                 <h3>Sources and direct review links</h3><ul>{source_links}</ul>
                 <h3>Limitations and source gaps</h3><ul>{limitations or '<li>None reported.</li>'}</ul>
                 {"<p style='color:#8A632B'><b>Demo mode:</b> Values are synthetic and are for workflow testing only.</p>" if r.demo_mode else ""}
-            """)
+            """))
             self.stack.setCurrentIndex(1)
             return
-        self.review_browser.setHtml(f"""
+        self.review_browser.setHtml(_branded_html(f"""
             {ycharts_alert}
             <h2>{r.identity.company_name} ({r.identity.ticker})</h2>
             <p><b>Exchange:</b> {r.identity.exchange} &nbsp; <b>Currency:</b> {r.identity.currency}<br>
@@ -760,7 +785,7 @@ class MainWindow(QMainWindow):
             <h3>Sources and direct review links</h3><ul>{source_links}</ul>
             <h3>Limitations and source gaps</h3><ul>{limitations or '<li>None reported.</li>'}</ul>
             {"<p style='color:#8A632B'><b>Blocking limitation:</b> Demo mode uses synthetic values and contains no live YCharts, TradingView, SEC, news, or social evidence.</p>" if r.demo_mode else ""}
-        """)
+        """))
         self.stack.setCurrentIndex(1)
 
     def _research_failed(self, message: str, progress: QProgressBar, *, keep_preview: bool = False) -> None:
@@ -779,7 +804,7 @@ class MainWindow(QMainWindow):
             mode_note += f"<p><b>Deep chartbook:</b> {len(self.prepared.result.chartbook) + 1} analyzed charts, including the primary price/trend chart.</p>"
         if self.prepared.request.comparison_analysis and self.prepared.result.comparison:
             mode_note += f"<p><b>Security comparison:</b> {escape(self.prepared.result.identity.ticker)} vs {escape(self.prepared.result.comparison.secondary_identity.ticker)}, with a transparent metric-by-metric evidence table.</p>"
-        self.preview_browser.setHtml(f"<h2>Interactive client report ready</h2><p><b>{self.prepared.suggested_html_filename}</b></p><p>The approved Equity Note format was populated with this run's validated research data.</p>{mode_note}<p>The report includes <b>Print / save PDF</b>, which preserves this approved layout. The obsolete static PDF is no longer presented as the client report.</p>")
+        self.preview_browser.setHtml(_branded_html(f"<h2>Interactive client report ready</h2><p><b>{self.prepared.suggested_html_filename}</b></p><p>The approved Equity Note format was populated with this run's validated research data.</p>{mode_note}<p>The report includes <b>Print / save PDF</b>, which preserves this approved layout. The obsolete static PDF is no longer presented as the client report.</p>"))
         self.stack.setCurrentIndex(2)
         self._open_interactive_report()
 
