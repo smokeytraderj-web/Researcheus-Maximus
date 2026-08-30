@@ -17,8 +17,9 @@ The runnable application includes:
 - an options-planning scenario only when the user asks about options or hedging, with explicit expiration, premium, assignment, suitability, and live-chain verification warnings;
 - a first-page **Direct Answer** that preserves and answers the complete user question before any chart or technical plan; fund-summary prompts lead with a concise provider-grounded description, strategy/category, family, and available fee/asset facts;
 - a required evidence-review checkpoint;
-- Gottfried & Somberg Wealth Management branded PDF generation;
-- embedded PDF preview, requested-modification regeneration, versioned export, and temporary-session cleanup;
+- Gottfried & Somberg Wealth Management branded interactive HTML reports;
+- approved General Research and Technical Research Equity Note layouts with browser-native Print / save PDF;
+- requested-modification regeneration, versioned export, and temporary-session cleanup;
 - live security resolution, market history, fundamentals, news metadata, and deterministic technical indicators;
 - cleanly separated price-trend and Fibonacci charts so technical evidence remains readable;
 - a large annotated candlestick chart on page two by default, with short arrows anchored to actual dated price, moving-average-cross, and support events; explicit stop-loss-evidence, Fibonacci, momentum, or relative-performance chart requests are still honored;
