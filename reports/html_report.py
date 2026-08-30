@@ -38,14 +38,13 @@ def _approved_css(reference: str) -> str:
 
 
 _DYNAMIC_CSS = r"""
-.chart-image{display:block;width:100%;height:auto;max-height:700px;object-fit:contain}
+.chart-image{display:block;width:100%;height:auto;max-height:800px;object-fit:contain}
 #charts .chart{padding:18px 20px 12px}
 .page-view[hidden]{display:none}
 .p2-strip{display:flex;align-items:center;gap:14px;padding-bottom:14px;margin-bottom:22px;border-bottom:1px solid var(--line)}
 .p2-co{font-family:'Source Serif 4',Georgia,serif;font-size:15px;font-weight:600;color:var(--ink)}
 .p2-px{font-size:14px;color:var(--ink-2);margin-left:auto}
-.rail a.page-tab{font-size:13.5px}
-.tv-widget{width:100%;height:680px}
+.tv-widget{width:100%;height:760px}
 .chart-empty{min-height:280px;display:grid;place-items:center;background:var(--panel);color:var(--muted);font-size:12px}
 .question-line{font-family:'Source Serif 4',Georgia,serif;font-size:18px;line-height:1.5;color:var(--ink);margin:0 0 16px}
 .question-line span{display:block;font-family:'IBM Plex Sans',Arial,sans-serif;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:5px}
@@ -477,7 +476,8 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 <nav class="rail" aria-label="Report pages">
   <div class="rail-label">Technical Research</div>
   <a href="#page1" class="page-tab on" data-page="page1">1 — The call</a>
-  <a href="#page2" class="page-tab" data-page="page2">2 — Charts &amp; data</a>
+  <a href="#page2" class="page-tab" data-page="page2">2 — Charts</a>
+  <a href="#page3" class="page-tab" data-page="page3">3 — Fundamentals</a>
   <div class="rail-tools"><button class="btn" id="advBtn" aria-pressed="false">Advisor detail: off</button><button class="btn" onclick="window.print()">Print / save PDF</button></div>
 </nav>
 <main class="page">
@@ -494,6 +494,9 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 <div class="page-view" id="page2" hidden>
 {page2_strip}
 <section id="charts"><div class="sec-head"><h2>Charts</h2><span class="verdict v-neu">Six views, one panel</span></div><div class="evidence-tabs" role="tablist">{tabs}{tv_tab}{scenario_tab}</div>{panels}{tv_panel}{scenario_panel}</section>
+</div>
+<div class="page-view" id="page3" hidden>
+{page2_strip}
 <section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p><details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*result.fundamental.signals, *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div></section>
 <section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div><p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
 </div>
