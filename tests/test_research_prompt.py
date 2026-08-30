@@ -107,6 +107,7 @@ class ResearchPromptTests(unittest.TestCase):
         query, brief = parse_research_prompt(prompt)
         self.assertEqual(query, "TSLA")
         self.assertEqual(classify_research_intent(brief), "buy")
+        self.assertEqual(classify_research_intent("Is AXON a good opportunity?"), "buy")
 
     def test_open_ended_position_and_sell_questions_are_classified(self):
         query, brief = parse_research_prompt("Should I sell my TSLA position?")
