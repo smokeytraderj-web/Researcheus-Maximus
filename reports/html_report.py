@@ -45,6 +45,7 @@ _DYNAMIC_CSS = r"""
 .p2-co{font-family:'Source Serif 4',Georgia,serif;font-size:15px;font-weight:600;color:var(--ink)}
 .p2-px{font-size:14px;color:var(--ink-2);margin-left:auto}
 .rail a.page-tab{font-size:13.5px}
+.tv-widget{width:100%;height:680px}
 .chart-empty{min-height:280px;display:grid;place-items:center;background:var(--panel);color:var(--muted);font-size:12px}
 .question-line{font-family:'Source Serif 4',Georgia,serif;font-size:18px;line-height:1.5;color:var(--ink);margin:0 0 16px}
 .question-line span{display:block;font-family:'IBM Plex Sans',Arial,sans-serif;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:5px}
@@ -397,6 +398,20 @@ def _chart_by_title(result: ResearchResult, *terms: str) -> ChartRecord | None:
     return None
 
 
+def _tradingview_symbol(result: ResearchResult) -> str:
+    """Map our exchange metadata to TradingView's exchange codes for the public widget."""
+    value = result.identity.exchange.upper().replace(" ", "")
+    if any(token in value for token in ("NASDAQ", "NMS", "NGM", "NCM")):
+        exchange = "NASDAQ"
+    elif "NYSE" in value or value in {"NYQ", "ASE"}:
+        exchange = "NYSE"
+    elif "AMEX" in value:
+        exchange = "AMEX"
+    else:
+        exchange = value or "NASDAQ"
+    return f"{exchange}:{result.identity.ticker}"
+
+
 def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
     plan = result.technical_plan
     if plan is None:
@@ -451,6 +466,9 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
         separators=(",", ":"),
     )
     demo = '<div class="demo-note">Demonstration mode uses synthetic evidence and is not a client investment recommendation.</div>' if result.demo_mode else ""
+    tv_symbol = _tradingview_symbol(result)
+    tv_tab = '<button class="evidence-tab" role="tab" aria-selected="false" aria-controls="evidenceTradingView" id="evidenceTradingViewTab">TradingView</button>'
+    tv_panel = '<div class="evidence-panel" id="evidenceTradingView" role="tabpanel" aria-labelledby="evidenceTradingViewTab" hidden><figure class="chart" style="padding:0"><div id="tvWidget" class="tv-widget"></div></figure></div>'
     scenario_tab = f'<button class="evidence-tab" role="tab" aria-selected="false" aria-controls="evidenceScenario" id="evidenceScenarioTab">Scenario tester</button>'
     scenario_panel = f'''<div class="evidence-panel" id="evidenceScenario" role="tabpanel" aria-labelledby="evidenceScenarioTab" hidden><div class="scen"><div><div class="slider-lab"><span class="big num" id="sPrice">{_money(result.current_price)}</span><span class="k" id="sDelta">At today's price</span></div><div class="slider-control"><input type="range" id="slider" min="{slider_min:.2f}" max="{slider_max:.2f}" step="0.01" value="{result.current_price:.2f}" aria-label="Test a future price"><div class="ticks"><span style="left:0%">{_money(slider_min)}</span><span style="left:100%">{_money(slider_max)}</span></div></div><div class="zone" id="zone" aria-live="polite"></div></div><div class="out"><div class="o-row"><span class="o-k">Change from today</span><span class="o-v num" id="oChg">0.0%</span></div><div class="o-row"><span class="o-k">Vs. entry midpoint</span><span class="o-v num" id="oEntry">—</span></div><div class="o-row"><span class="o-k">Distance to stop</span><span class="o-v num" id="oStop">—</span></div><div class="o-row"><span class="o-k">On a $100,000 position</span><span class="o-v num" id="oPnl">$0</span></div><div class="o-note">Illustrative only. Excludes dividends, commissions, taxes and execution differences.</div></div></div></div>'''
     page2_strip = f'''<div class="p2-strip"><span class="p2-co">{escape(result.identity.company_name)} <span class="num">{escape(result.identity.ticker)}</span></span><span class="p2-px num">{_money(result.current_price)}</span><span class="verdict {tone_class}">{escape(result.lead_rating.value)}</span></div>'''
@@ -475,12 +493,12 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </div>
 <div class="page-view" id="page2" hidden>
 {page2_strip}
-<section id="charts"><div class="sec-head"><h2>Charts</h2><span class="verdict v-neu">Five views, one panel</span></div><div class="evidence-tabs" role="tablist">{tabs}{scenario_tab}</div>{panels}{scenario_panel}</section>
+<section id="charts"><div class="sec-head"><h2>Charts</h2><span class="verdict v-neu">Six views, one panel</span></div><div class="evidence-tabs" role="tablist">{tabs}{tv_tab}{scenario_tab}</div>{panels}{tv_panel}{scenario_panel}</section>
 <section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p><details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*result.fundamental.signals, *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div></section>
 <section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div><p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
 </div>
 </main></div>"""
-    script = f"const PLAN={plan_json};\n" + _technical_script()
+    script = f"const PLAN={plan_json};\nconst TV_SYMBOL={json.dumps(tv_symbol)};\n" + _technical_script()
     return _document(
         f"{result.identity.ticker} Technical Research — Researcheus Maximus",
         "technical_research_base.html",
@@ -508,6 +526,27 @@ function bindTabs(buttonSelector,panelSelector){
   })});
 }
 bindTabs('.evidence-tab','.evidence-panel');
+(function(){
+  var loaded=false,loading=false;
+  function init(){
+    if(typeof TradingView==='undefined')return;
+    new TradingView.widget({
+      autosize:true,symbol:TV_SYMBOL,interval:'D',timezone:'America/New_York',theme:'light',style:'1',
+      locale:'en',toolbar_bg:'#F6F7F9',enable_publishing:false,hide_top_toolbar:false,hide_legend:false,
+      container_id:'tvWidget'
+    });
+    loaded=true;
+  }
+  function load(){
+    if(loaded)return;
+    if(typeof TradingView!=='undefined'){init();return}
+    if(loading)return;
+    loading=true;
+    var s=document.createElement('script');s.src='https://s3.tradingview.com/tv.js';s.onload=init;
+    document.head.appendChild(s);
+  }
+  var tab=document.getElementById('evidenceTradingViewTab');if(tab)tab.addEventListener('click',load);
+})();
 document.querySelectorAll('[data-evidence-index]').forEach(function(link){link.addEventListener('click',function(){var i=Number(link.dataset.evidenceIndex);var tabs=document.querySelectorAll('.evidence-tab');if(tabs[i])tabs[i].click()})});
 var pageTabs=[].slice.call(document.querySelectorAll('.page-tab'));
 pageTabs.forEach(function(tab){tab.addEventListener('click',function(event){
@@ -529,8 +568,22 @@ var slider=document.getElementById('slider');if(slider){slider.addEventListener(
 (function(){
   var levels=[{p:PLAN.target2,l:'Second target',c:'tgt'},{p:PLAN.target1,l:'First target',c:'tgt'},{p:PLAN.entryMid,l:'Entry midpoint',c:'entry'},{p:PLAN.current,l:'Now',c:'now'},{p:PLAN.stop,l:'Stop',c:'stop'}];
   var lo=Math.min(PLAN.stop,PLAN.current,PLAN.entryLow),hi=Math.max(PLAN.target2,PLAN.current,PLAN.entryHigh),pad=(hi-lo)*.08;lo-=pad;hi+=pad;
-  function y(p){return (1-(p-lo)/(hi-lo))*100}var h='<div class="lzone" style="top:'+y(PLAN.entryHigh)+'%;height:'+(y(PLAN.entryLow)-y(PLAN.entryHigh))+'%"></div>';
-  levels.forEach(function(level){var tag=level.c==='now'?'<span class="lnow-chip">Now</span>':'<span class="ltag"><strong>'+level.l+'</strong></span>';h+='<div class="lrow '+level.c+'" style="top:'+y(level.p)+'%"><span class="lprice num">'+money(level.p)+'</span><span class="lrule"></span>'+tag+'</div>'});
+  var H=238;
+  function y(p){return (1-(p-lo)/(hi-lo))*H}
+  var zTop=y(PLAN.entryHigh),zBottom=y(PLAN.entryLow);
+  var h='<div class="lzone" style="top:'+(zTop/H*100)+'%;height:'+((zBottom-zTop)/H*100)+'%"></div>';
+  // Declutter: labels for nearby price levels overlap when placed at their raw
+  // linear position, so push each one down just enough to clear the label above it.
+  var placed=levels.map(function(level){return {level:level,y:y(level.p)}}).sort(function(a,b){return a.y-b.y});
+  var minGap=26;
+  for(var i=1;i<placed.length;i++){
+    if(placed[i].y-placed[i-1].y<minGap)placed[i].y=placed[i-1].y+minGap;
+  }
+  placed.forEach(function(item){
+    var level=item.level;
+    var tag=level.c==='now'?'<span class="lnow-chip">Now</span>':'<span class="ltag"><strong>'+level.l+'</strong></span>';
+    h+='<div class="lrow '+level.c+'" style="top:'+(item.y/H*100)+'%"><span class="lprice num">'+money(level.p)+'</span><span class="lrule"></span>'+tag+'</div>';
+  });
   var ladder=document.getElementById('ladder');if(ladder)ladder.innerHTML=h;
 })();
 """
