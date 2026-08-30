@@ -4,9 +4,11 @@
 
 **Researcheus Maximus** is a single-user Windows desktop application for producing client-ready, evidence-grounded research on one publicly traded stock at a time.
 
-The user may enter either a ticker or a company name, such as `AAPL` or `Apple`. The application resolves the security, asks for an investment horizon, conducts automated technical, fundamental, news, analyst-commentary, and public social-sentiment research, and produces a concise branded PDF.
+The user may enter either a ticker or a company name, such as `AAPL` or `Apple`. The application resolves the security, asks for an investment horizon, conducts automated technical, fundamental, news, analyst-commentary, and public social-sentiment research, and produces a concise branded interactive report.
 
 The application is a new public GitHub project modeled on the architecture, interaction pattern, and visual system of `smokeytraderj-web/Reportus`. Reportus must remain unchanged.
+
+The primary client artifact is the interactive HTML Equity Note defined by the approved resource templates. Its built-in **Print / save PDF** control is the supported PDF path so a saved PDF preserves the same approved layout. The obsolete standalone ReportLab layout must never be presented as the client report.
 
 The displayed product name is **Researcheus Maximus**. The displayed firm name is **Gottfried & Somberg Wealth Management**. Do not append “LLC” or abbreviate the firm name unless an approved firm template requires it.
 
@@ -39,7 +41,7 @@ Version one must:
 8. Run separate Technical Analyst and Fundamental Analyst workstreams.
 9. Use a Lead Analyst to reconcile the complete evidence.
 10. Present a pre-generation evidence review for user approval.
-11. Generate a concise, client-ready PDF with text, tables, and annotated charts.
+11. Generate a concise, client-ready interactive report with text, tables, annotated charts, and a print-safe PDF view.
 12. Support revisions before finalization.
 13. Delete temporary research data after successful export, cancellation, or crash recovery.
 
@@ -130,10 +132,10 @@ Do not copy Reportus report generators merely because they exist. Reuse its shel
 9. Reconcile conflicting evidence and calculate deterministic metrics.
 10. Show a compact Evidence Review containing security identity, current price, timestamps, sources, major signals, missing information, conflicts, and preliminary ratings.
 11. Require approval or correction.
-12. Generate the first PDF and show it in an embedded viewer.
+12. Generate the interactive Equity Note and open it in the user's browser for review.
 13. Allow quick revisions or a custom revision.
 14. Finalize only when the user presses **Finalize Research**.
-15. Verify the exported PDF and delete the temporary session.
+15. Verify the exported HTML report and delete the temporary session; PDF copies are created from the report's Print / save PDF control.
 
 ## Security Resolution
 
@@ -458,10 +460,10 @@ Do not retain revision-chat history after finalization or cancellation.
 - Do not redact prohibited data and continue automatically; reject the affected session and request clean replacement input.
 - Use an isolated temporary directory for each research session.
 - Retain uploaded files, browser captures, extracted content, charts, agent notes, drafts, and revision context only during the active session.
-- After finalization, verify the PDF opens and passes QA, then delete all temporary session data.
+- After finalization, verify the interactive report opens and passes QA, then delete all temporary session data.
 - Delete the same data on cancellation or closing an unfinished session.
 - On startup, purge abandoned sessions left by a crash.
-- The final PDF is the only retained research artifact.
+- The finalized self-contained HTML report is the retained research artifact. A PDF copy may be printed from the same approved layout.
 - Never log user position details, company research text, financial values, credentials, cookies, or source content.
 
 ## AI Providers
