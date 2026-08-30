@@ -50,6 +50,14 @@ class ResearchRunnerTests(unittest.TestCase):
             )
             session_path = prepared.session.root
             self.assertTrue(prepared.preview_path.is_file())
+            self.assertTrue(prepared.interactive_path.is_file())
+            interactive = prepared.interactive_path.read_text(encoding="utf-8")
+            self.assertIn("General Research", interactive)
+            self.assertIn("The answer", interactive)
+            self.assertIn("Give me a report on AXON.", interactive)
+            self.assertIn("Direct answer", interactive)
+            self.assertIn("data:image/png;base64,", interactive)
+            self.assertNotIn("Scenario tester", interactive)
             reader = PdfReader(prepared.preview_path)
             self.assertEqual(len(reader.pages), 3)
             report_text = "\n".join(page.extract_text() or "" for page in reader.pages)
@@ -89,6 +97,7 @@ class ResearchRunnerTests(unittest.TestCase):
             self.assertNotIn("LEAD\n", report_text)
             final = runner.finalize(prepared, root / "output")
             self.assertTrue(final.is_file())
+            self.assertEqual(final.suffix, ".html")
             self.assertFalse(session_path.exists())
 
     def test_cancel_cleans_session(self):
@@ -123,6 +132,15 @@ class ResearchRunnerTests(unittest.TestCase):
                 )
             )
             self.assertEqual(prepared.suggested_filename, "AXON_Deep_Technical_Analysis.pdf")
+            self.assertEqual(prepared.suggested_html_filename, "AXON_Deep_Technical_Analysis.html")
+            interactive = prepared.interactive_path.read_text(encoding="utf-8")
+            self.assertIn("Technical Research", interactive)
+            self.assertIn("Scenario tester", interactive)
+            self.assertIn("Price structure", interactive)
+            self.assertIn("Momentum", interactive)
+            self.assertIn("Relative strength", interactive)
+            self.assertIn("Fibonacci", interactive)
+            self.assertIn("data:image/png;base64,", interactive)
             reader = PdfReader(prepared.preview_path)
             report_text = "\n".join(page.extract_text() or "" for page in reader.pages)
             first_page = reader.pages[0].extract_text() or ""
