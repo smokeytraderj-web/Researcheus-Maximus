@@ -927,7 +927,10 @@ class LiveResearchProvider:
             if request.custom_start and request.custom_end
             else "YTD"
         )
-        if not request.comparison_analysis and request.overview_chart == "relative_performance":
+        if not request.comparison_analysis and (
+            request.overview_chart == "relative_performance"
+            or (not request.overview_chart and not request.deep_analysis)
+        ):
             if comparison_histories:
                 overview_histories = {symbol: history, **comparison_histories}
                 overview_benchmark = "SPY" if "SPY" in comparison_histories else deep_sector_benchmark
@@ -1285,7 +1288,7 @@ class LiveResearchProvider:
                 )
             if not request.comparison_analysis:
                 try:
-                    if request.overview_chart in {"", "price_trend"}:
+                    if request.overview_chart == "price_trend" or (request.deep_analysis and not request.overview_chart):
                         overview_chart = ChartRecord(
                             "Annotated Price Structure",
                             chart_path,
