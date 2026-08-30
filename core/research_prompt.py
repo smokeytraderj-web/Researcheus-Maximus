@@ -126,6 +126,7 @@ def classify_research_intent(value: str) -> str:
         for term in (
             "should i buy",
             "good opportunity to buy",
+            "good opportunity",
             "good decision to buy",
             "good choice to buy",
             "a good buy",
