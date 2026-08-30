@@ -272,6 +272,26 @@ class HistoryFallbackTests(unittest.TestCase):
         self.assertIn("regulatory-credit revenue", response)
         self.assertNotIn("fundamental screen combines", response)
 
+    def test_opportunity_question_gets_a_direct_answer_without_ai_synthesis(self):
+        request = ResearchRequest(
+            "AXON",
+            Horizon.ALL,
+            question="Is AXON a good opportunity?",
+            decision_intent="buy",
+        )
+        response = _request_specific_response(
+            request,
+            "Axon Enterprise",
+            "AXON",
+            {"quoteType": "EQUITY"},
+            Rating.ADD,
+            Rating.HOLD,
+            "The fundamental screen combines growth, valuation, leverage, and available analyst-consensus evidence.",
+        )
+        self.assertTrue(response.startswith("Direct answer:"))
+        self.assertIn("conditional add candidate", response.lower())
+        self.assertNotIn("could not fully answer", response)
+
     def test_portfolio_fit_identifies_fixed_income_sleeve(self):
         request = ResearchRequest(
             "BDMIX",
