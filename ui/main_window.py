@@ -506,13 +506,13 @@ class MainWindow(QMainWindow):
         self.ycharts_test_worker.start()
 
     def _build_review(self) -> QWidget:
-        page, outer = self._page_shell("Evidence Review", "Confirm the resolved security and preliminary analysis before creating the PDF.")
+        page, outer = self._page_shell("Evidence Review", "Confirm the resolved security and preliminary analysis before building the client report.")
         self.review_browser = MetricBrowser()
         outer.addWidget(self.review_browser, 1)
         actions = QHBoxLayout()
         back = QPushButton("Back", objectName="Secondary")
         back.clicked.connect(self._back_to_request)
-        approve = QPushButton("Approve & Generate PDF", objectName="Gold")
+        approve = QPushButton("Approve & Build Client Report", objectName="Gold")
         approve.clicked.connect(self._approve)
         actions.addWidget(back)
         actions.addStretch()
@@ -523,7 +523,7 @@ class MainWindow(QMainWindow):
     def _build_preview(self) -> QWidget:
         page, outer = self._page_shell(
             "Finalize Research",
-            "Open the completed PDF, request any final changes, or save the approved report.",
+            "Review the interactive client report, request final changes, or save the approved report.",
         )
         self.preview_browser = QTextBrowser()
         self.preview_browser.setOpenExternalLinks(True)
@@ -545,15 +545,16 @@ class MainWindow(QMainWindow):
         actions = QHBoxLayout()
         restart = QPushButton("Cancel & Start Over", objectName="Secondary")
         restart.clicked.connect(self._cancel)
-        open_pdf = QPushButton("Open PDF")
-        open_pdf.clicked.connect(self._open_pdf)
+        open_report = QPushButton("Open Client Report")
+        open_report.setObjectName("Gold")
+        open_report.clicked.connect(self._open_interactive_report)
         apply_changes = QPushButton("Apply Changes & Regenerate", objectName="Secondary")
         apply_changes.clicked.connect(self._apply_modifications)
         finalize = QPushButton("Finalize Research", objectName="Gold")
         finalize.clicked.connect(self._finalize)
         actions.addWidget(restart)
         actions.addStretch()
-        actions.addWidget(open_pdf)
+        actions.addWidget(open_report)
         actions.addWidget(apply_changes)
         actions.addWidget(finalize)
         outer.addLayout(actions)
@@ -852,12 +853,13 @@ class MainWindow(QMainWindow):
             mode_note += f"<p><b>Deep chartbook:</b> {len(self.prepared.result.chartbook) + 1} analyzed charts, including the primary price/trend chart.</p>"
         if self.prepared.request.comparison_analysis and self.prepared.result.comparison:
             mode_note += f"<p><b>Security comparison:</b> {escape(self.prepared.result.identity.ticker)} vs {escape(self.prepared.result.comparison.secondary_identity.ticker)}, with a transparent metric-by-metric evidence table.</p>"
-        self.preview_browser.setHtml(f"<h2>PDF ready for review</h2><p><b>{self.prepared.suggested_filename}</b></p><p>The branded report passed structural PDF validation.</p>{mode_note}<p>Use <b>Open PDF</b> for the complete rendered preview, then finalize it to a folder you select.</p>")
+        self.preview_browser.setHtml(f"<h2>Interactive client report ready</h2><p><b>{self.prepared.suggested_html_filename}</b></p><p>The approved Equity Note format was populated with this run's validated research data.</p>{mode_note}<p>The report includes <b>Print / save PDF</b>, which preserves this approved layout. The obsolete static PDF is no longer presented as the client report.</p>")
         self.stack.setCurrentIndex(2)
+        self._open_interactive_report()
 
-    def _open_pdf(self) -> None:
+    def _open_interactive_report(self) -> None:
         if self.prepared:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.prepared.preview_path)))
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.prepared.interactive_path)))
 
     def _apply_modifications(self) -> None:
         if not self.prepared:
@@ -921,7 +923,7 @@ class MainWindow(QMainWindow):
             return
         self.settings.setValue("outputFolder", directory)
         self.prepared = None
-        QMessageBox.information(self, "Research finalized", f"Saved and verified:\n{path}")
+        QMessageBox.information(self, "Research finalized", f"Interactive client report saved and verified.\n\n{path}\n\nUse Print / save PDF inside the report when a PDF copy is needed.")
         self.stack.setCurrentIndex(0)
 
     def _cancel(self) -> None:
