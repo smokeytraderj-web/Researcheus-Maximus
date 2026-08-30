@@ -8,8 +8,10 @@ from pathlib import Path
 import tempfile
 import traceback
 
-from PySide6.QtCore import QSettings, QThread, QUrl, Signal
+from PySide6.QtCore import QObject, QSettings, QThread, QUrl, Signal, Slot
 from PySide6.QtGui import QCursor, QDesktopServices
+from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QComboBox,
     QCheckBox,
@@ -166,6 +168,31 @@ class YChartsTestWorker(QThread):
             self.completed.emit(False, str(exc) or "YCharts connection test failed.")
 
 
+class _HomeBridge(QObject):
+    """Exposes the actions the Tailwind-rendered home page can trigger in Qt."""
+
+    def __init__(self, window: "MainWindow") -> None:
+        super().__init__(window)
+        self._window = window
+
+    @Slot(str)
+    def submitQuery(self, text: str) -> None:
+        self._window.query.setPlainText(text)
+        self._window._start_research()
+
+    @Slot()
+    def openDeepAnalysis(self) -> None:
+        self._window.stack.setCurrentIndex(3)
+
+    @Slot()
+    def openComparison(self) -> None:
+        self._window.stack.setCurrentIndex(4)
+
+    @Slot()
+    def openSettings(self) -> None:
+        self._window.settings_dialog.open()
+
+
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -193,9 +220,14 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.preview_page)
         self.stack.addWidget(self.deep_analysis_page)
         self.stack.addWidget(self.comparison_page)
-        layout.addWidget(self._topbar())
+        self.topbar = self._topbar()
+        layout.addWidget(self.topbar)
         layout.addWidget(self.stack, 1)
         self.setCentralWidget(root)
+        # The home page (index 0) carries its own minimal branding and has no
+        # header by design; every other page keeps the shared app chrome.
+        self.stack.currentChanged.connect(lambda index: self.topbar.setVisible(index != 0))
+        self.topbar.setVisible(self.stack.currentIndex() != 0)
 
     def _topbar(self) -> QFrame:
         frame = QFrame(objectName="TopBar")
@@ -227,11 +259,6 @@ class MainWindow(QMainWindow):
         return page, outer
 
     def _build_intake(self) -> QWidget:
-        page = QWidget()
-        outer = QVBoxLayout(page)
-        outer.setContentsMargins(48, 32, 48, 36)
-        outer.setSpacing(18)
-
         self.research_mode = QComboBox()
         self.research_mode.addItems(["Live Market Research", "Demo / Offline Test"])
         self.synthesis_provider = QComboBox()
@@ -241,127 +268,28 @@ class MainWindow(QMainWindow):
         self.api_key.setPlaceholderText("Optional; used in memory only and never saved")
         self.model_name = QLineEdit()
         self.model_name.setPlaceholderText("Optional model override")
+        self.tvremix_api_key = QLineEdit()
+        self.tvremix_api_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.tvremix_api_key.setPlaceholderText("Optional tvr_... key; used in memory only and never saved")
+        self.use_tvremix = QCheckBox("Query TV Remix for supplemental swing-structure evidence")
+        self.use_tvremix.setChecked(True)
         self.use_ycharts = QCheckBox("Query the installed YCharts Excel add-in")
         self.use_ycharts.setChecked(True)
         self.settings_dialog = self._build_settings_dialog()
 
-        content = QWidget()
-        content.setMinimumWidth(820)
-        content.setMaximumWidth(1560)
-        content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(16)
-
-        hero = QFrame(objectName="HeroPanel")
-        hero_layout = QVBoxLayout(hero)
-        hero_layout.setContentsMargins(40, 28, 40, 28)
-        hero_layout.setSpacing(8)
-        hero_layout.addWidget(QLabel("What would you like to research?", objectName="HeroTitle"))
-        hero_subtitle = QLabel(
-            "Ask a decision question, build a technical study, or compare two securities.",
-            objectName="HeroSubtitle",
-        )
-        hero_subtitle.setWordWrap(True)
-        hero_layout.addWidget(hero_subtitle)
-        content_layout.addWidget(hero)
-
-        content_layout.addWidget(QLabel("RESEARCH TYPES", objectName="ResearchPaths"))
-
-        card = QFrame(objectName="PrimaryModePanel")
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(40, 26, 40, 28)
-        card_layout.setSpacing(10)
-        card_heading = QHBoxLayout()
-        card_heading.addWidget(QLabel("01", objectName="ModeNumber"))
-        card_heading.addSpacing(10)
-        card_heading.addWidget(QLabel("Research Overview", objectName="ModeTitle"))
-        card_heading.addStretch()
-        card_layout.addLayout(card_heading)
-        helper = QLabel(
-            "Ask naturally. Your exact question will lead the report and the technical action plan.",
-            objectName="ModeDescription",
-        )
-        helper.setWordWrap(True)
-        card_layout.addWidget(helper)
+        # _start_research reads the submitted question from here; the web-rendered
+        # home page collects the text and hands it to us through the bridge below.
         self.query = QPlainTextEdit()
-        self.query.setPlaceholderText(
-            "Example: Is TSLA a good opportunity to buy now, and where should I place a stop loss?"
-        )
-        self.query.setObjectName("ResearchQuery")
-        self.query.setMinimumHeight(136)
-        begin = QPushButton("Generate Research", objectName="Gold")
-        begin.setMinimumHeight(44)
-        begin.setFixedWidth(190)
-        begin.clicked.connect(lambda: self._start_research())
-        card_layout.addWidget(self.query)
-        overview_actions = QHBoxLayout()
-        overview_hint = QLabel("Buy  /  Sell  /  Hold  /  Position review  /  Full analysis", objectName="ModeHint")
-        overview_actions.addWidget(overview_hint)
-        overview_actions.addStretch()
-        overview_actions.addWidget(begin)
-        card_layout.addLayout(overview_actions)
-        content_layout.addWidget(card)
+        self.query.hide()
 
-        mode_row = QHBoxLayout()
-        mode_row.setSpacing(16)
-        deep_panel = QFrame(objectName="ModePanel")
-        deep_layout = QVBoxLayout(deep_panel)
-        deep_layout.setContentsMargins(34, 24, 34, 26)
-        deep_layout.setSpacing(9)
-        deep_layout.addWidget(QLabel("02", objectName="ModeNumber"))
-        deep_title = QLabel("Deep Technical Analysis", objectName="ModeTitle")
-        deep_title.setWordWrap(True)
-        deep_description = QLabel(
-            "Build a chart-led study with custom ranges, Fibonacci, stop-loss evidence, momentum, risk, and benchmarks.",
-            objectName="ModeDescription",
-        )
-        deep_description.setWordWrap(True)
-        deep_button = QPushButton("Start analysis  →", objectName="ModeLink")
-        deep_button.setMinimumHeight(28)
-        deep_button.clicked.connect(lambda: self.stack.setCurrentIndex(3))
-        deep_layout.addWidget(deep_title)
-        deep_layout.addWidget(deep_description)
-        deep_layout.addStretch()
-        deep_layout.addWidget(deep_button)
-
-        compare_panel = QFrame(objectName="ModePanel")
-        compare_layout = QVBoxLayout(compare_panel)
-        compare_layout.setContentsMargins(34, 24, 34, 26)
-        compare_layout.setSpacing(9)
-        compare_layout.addWidget(QLabel("03", objectName="ModeNumber"))
-        compare_title = QLabel("Security Comparison", objectName="ModeTitle")
-        compare_title.setWordWrap(True)
-        compare_description = QLabel(
-            "Compare two stocks or funds across performance, value, growth, technical setup, and risk.",
-            objectName="ModeDescription",
-        )
-        compare_description.setWordWrap(True)
-        compare_button = QPushButton("Start comparison  →", objectName="ModeLink")
-        compare_button.setMinimumHeight(28)
-        compare_button.clicked.connect(lambda: self.stack.setCurrentIndex(4))
-        compare_layout.addWidget(compare_title)
-        compare_layout.addWidget(compare_description)
-        compare_layout.addStretch()
-        compare_layout.addWidget(compare_button)
-
-        mode_row.addWidget(deep_panel, 1)
-        mode_row.addWidget(compare_panel, 1)
-        content_layout.addLayout(mode_row)
-
-        centered = QHBoxLayout()
-        centered.setContentsMargins(0, 0, 0, 0)
-        centered.addStretch()
-        centered.addWidget(content, 1)
-        centered.addStretch()
-        outer.addLayout(centered)
-        outer.addStretch(1)
-
-        scroll = QScrollArea(objectName="IntakeScroll")
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setWidget(page)
-        return scroll
+        view = QWebEngineView()
+        self._home_bridge = _HomeBridge(self)
+        self._home_channel = QWebChannel()
+        self._home_channel.registerObject("bridge", self._home_bridge)
+        view.page().setWebChannel(self._home_channel)
+        home_path = Path(__file__).resolve().parents[1] / "resources" / "home.html"
+        view.load(QUrl.fromLocalFile(str(home_path)))
+        return view
 
     def _build_comparison(self) -> QWidget:
         page, outer = self._page_shell(
@@ -466,6 +394,8 @@ class MainWindow(QMainWindow):
         form.addRow("Synthesis provider", self.synthesis_provider)
         form.addRow("OpenAI API key", self.api_key)
         form.addRow("Model override", self.model_name)
+        form.addRow("TV Remix API key", self.tvremix_api_key)
+        form.addRow("TV Remix", self.use_tvremix)
         form.addRow("YCharts", self.use_ycharts)
         outer.addLayout(form)
         ycharts_note = QLabel(
@@ -630,6 +560,7 @@ class MainWindow(QMainWindow):
                     self.api_key.text().strip(),
                     self.model_name.text().strip(),
                     self.use_ycharts.isChecked(),
+                    self.tvremix_api_key.text().strip() if self.use_tvremix.isChecked() else "",
                 )
             )
         else:

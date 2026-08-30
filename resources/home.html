@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Researcheus Maximus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="vendor/tailwind.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        ink: '#1B2A4A',
+        ink2: '#2C3A57',
+        body: '#3E4759',
+        muted: '#657386',
+        gold: '#BFA054',
+        goldSoft: '#EFE4C7',
+        line: '#DDE1E7',
+        line2: '#EDF0F3',
+        panel: '#F6F7F9',
+      },
+      fontFamily: {
+        serif: ['Source Serif 4', 'Georgia', 'Times New Roman', 'serif'],
+        sans: ['IBM Plex Sans', 'Segoe UI', 'system-ui', 'sans-serif'],
+        mono: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
+      },
+    },
+  },
+}
+</script>
+<style>
+  html, body { height: 100%; background: #FFFFFF; }
+  textarea::placeholder { color: #9AA5B4; }
+  textarea:focus { outline: none; }
+  ::selection { background: #EFE4C7; }
+</style>
+</head>
+<body class="min-h-screen font-sans text-body antialiased">
+
+<div class="min-h-screen flex flex-col">
+
+  <div class="flex-1 flex items-center justify-center px-6 py-16">
+    <div class="w-full max-w-2xl">
+
+      <div class="text-center mb-9">
+        <div class="font-mono text-[10px] tracking-[0.2em] text-gold uppercase mb-4">
+          Gottfried &amp; Somberg Wealth Management
+        </div>
+        <h1 class="font-serif text-4xl sm:text-[42px] font-semibold tracking-tight text-ink leading-tight">
+          What would we research?
+        </h1>
+        <div class="h-[3px] w-14 bg-gold mx-auto mt-4"></div>
+        <p class="mt-4 text-[14px] text-muted max-w-md mx-auto leading-relaxed">
+          Ask a decision question, build a technical study, or compare two securities.
+        </p>
+      </div>
+
+      <div class="rounded-md bg-white border border-line border-t-[3px] border-t-gold p-6 sm:p-7 shadow-[0_1px_3px_rgba(22,35,63,0.06)]">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="font-serif text-[15px] font-semibold text-gold">01</span>
+          <span class="font-serif text-[19px] font-semibold text-ink">Research Overview</span>
+        </div>
+        <p class="text-[13px] text-muted mb-3">
+          Ask naturally. Your exact question will lead the report and the technical action plan.
+        </p>
+        <textarea
+          id="queryBox"
+          rows="3"
+          placeholder="Example: Is TSLA a good opportunity to buy now, and where should I place a stop loss?"
+          class="w-full resize-none bg-panel border border-line rounded-[7px] text-[15px] text-ink leading-relaxed placeholder:text-muted p-4 focus:border-gold focus:border-2"
+        ></textarea>
+        <div class="flex items-center justify-between mt-4">
+          <span class="font-mono text-[11px] text-muted">Buy &middot; Sell &middot; Hold &middot; Position review &middot; Full analysis</span>
+          <button
+            onclick="submitQuery()"
+            class="shrink-0 rounded-[7px] bg-gold text-white font-sans font-bold text-sm px-6 py-2.5 hover:bg-[#A88742] transition-colors"
+          >
+            Generate Research
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-4 rounded-md border border-line grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line">
+        <button onclick="openDeep()" class="group text-left px-6 py-6 hover:bg-panel transition-colors">
+          <span class="font-serif text-[15px] font-semibold text-gold">02</span>
+          <span class="block font-serif text-[19px] font-semibold text-ink mt-1">Deep Technical Analysis</span>
+          <span class="block text-[13px] text-muted mt-1.5 leading-snug">Custom ranges, Fibonacci, stop-loss evidence, momentum, risk, and benchmarks.</span>
+          <span class="block font-serif text-[13px] font-bold text-ink mt-3 group-hover:text-gold transition-colors">Start analysis &nbsp;&rarr;</span>
+        </button>
+        <button onclick="openCompare()" class="group text-left px-6 py-6 hover:bg-panel transition-colors">
+          <span class="font-serif text-[15px] font-semibold text-gold">03</span>
+          <span class="block font-serif text-[19px] font-semibold text-ink mt-1">Security Comparison</span>
+          <span class="block text-[13px] text-muted mt-1.5 leading-snug">Performance, value, growth, technical setup, and risk, side by side.</span>
+          <span class="block font-serif text-[13px] font-bold text-ink mt-3 group-hover:text-gold transition-colors">Start comparison &nbsp;&rarr;</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="flex items-center justify-between px-8 py-4 border-t border-line2 font-mono text-[10.5px] text-muted">
+    <span>Researcheus Maximus</span>
+    <button onclick="openSettings()" class="hover:text-gold transition-colors">Settings</button>
+  </div>
+
+</div>
+
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>
+  var bridge = null;
+  if (typeof QWebChannel !== 'undefined' && typeof qt !== 'undefined') {
+    new QWebChannel(qt.webChannelTransport, function (channel) {
+      bridge = channel.objects.bridge;
+    });
+  }
+  function submitQuery() {
+    var text = document.getElementById('queryBox').value.trim();
+    if (!text || !bridge) return;
+    bridge.submitQuery(text);
+  }
+  function openDeep() { if (bridge) bridge.openDeepAnalysis(); }
+  function openCompare() { if (bridge) bridge.openComparison(); }
+  function openSettings() { if (bridge) bridge.openSettings(); }
+  document.getElementById('queryBox').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      submitQuery();
+    }
+  });
+</script>
+</body>
+</html>

@@ -38,7 +38,13 @@ def _approved_css(reference: str) -> str:
 
 
 _DYNAMIC_CSS = r"""
-.chart-image{display:block;width:100%;height:auto;max-height:560px;object-fit:contain}
+.chart-image{display:block;width:100%;height:auto;max-height:700px;object-fit:contain}
+#charts .chart{padding:18px 20px 12px}
+.page-view[hidden]{display:none}
+.p2-strip{display:flex;align-items:center;gap:14px;padding-bottom:14px;margin-bottom:22px;border-bottom:1px solid var(--line)}
+.p2-co{font-family:'Source Serif 4',Georgia,serif;font-size:15px;font-weight:600;color:var(--ink)}
+.p2-px{font-size:14px;color:var(--ink-2);margin-left:auto}
+.rail a.page-tab{font-size:13.5px}
 .chart-empty{min-height:280px;display:grid;place-items:center;background:var(--panel);color:var(--muted);font-size:12px}
 .question-line{font-family:'Source Serif 4',Georgia,serif;font-size:18px;line-height:1.5;color:var(--ink);margin:0 0 16px}
 .question-line span{display:block;font-family:'IBM Plex Sans',Arial,sans-serif;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:5px}
@@ -60,7 +66,7 @@ _DYNAMIC_CSS = r"""
 .rating-word.v-bear{background:none;color:var(--bear)}
 .rating-word.v-neu{background:none;color:var(--neutral)}
 @media(max-width:900px){.reason-row{grid-template-columns:34px minmax(0,1fr)}.reason-copy{grid-column:2}.chart-image{max-height:none}}
-@media print{.chart-image{max-height:178mm}.btn,.rail-tools{display:none!important}.reason-row{break-inside:avoid}}
+@media print{.chart-image{max-height:178mm}.btn,.rail-tools{display:none!important}.reason-row{break-inside:avoid}.page-view[hidden]{display:block!important}.page-view:not(:last-child){break-after:page}}
 """
 
 
@@ -357,7 +363,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
 <div class="shell">
 <nav class="rail" aria-label="Sections">
   <div class="rail-label">General Research</div>
-  <a href="#answer" class="on">The answer</a><a href="#action">What I would do</a><a href="#evidence">Evidence</a><a href="#data">Essential data</a><a href="#risks">Risks &amp; triggers</a><a href="#sources">Sources</a>
+  <a href="#answer" class="on">The answer</a><a href="#action">What we should do</a><a href="#evidence">Evidence</a><a href="#data">Essential data</a><a href="#risks">Risks &amp; triggers</a><a href="#sources">Sources</a>
   <div class="rail-tools"><button class="btn" onclick="window.print()">Print / save PDF</button></div>
 </nav>
 <main class="page">
@@ -368,7 +374,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
   <div class="answer-card"><div class="answer-label">Direct answer</div><p class="answer">{escape(answer)}</p></div>
   <div class="reason-list" style="margin-top:20px">{reason_html}</div>{demo}
 </section>
-<section id="action"><div class="sec-head"><h2>What I would do</h2></div><div class="action-grid">{action_html}</div></section>
+<section id="action"><div class="sec-head"><h2>What we should do</h2></div><div class="action-grid">{action_html}</div></section>
 <section id="evidence"><div class="sec-head"><h2>Evidence</h2><span class="verdict v-neu">One decision chart</span></div>{_chart_html(_general_chart(result), 'generalEvidence')}</section>
 <section id="data"><div class="sec-head"><h2>Essential data</h2></div><dl class="dl">{metric_rows}</dl></section>
 <section id="risks"><div class="sec-head"><h2>Risks and decision triggers</h2></div><div class="grid3"><div><div class="dl-h">Primary risks</div><ul class="risk-list">{risks}</ul></div><div><div class="dl-h">What changes the view</div><ul class="risk-list">{triggers}</ul></div><div><div class="dl-h">Current sentiment</div><p>{escape(result.sentiment)}</p></div></div></section>
@@ -445,32 +451,34 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
         separators=(",", ":"),
     )
     demo = '<div class="demo-note">Demonstration mode uses synthetic evidence and is not a client investment recommendation.</div>' if result.demo_mode else ""
+    scenario_tab = f'<button class="evidence-tab" role="tab" aria-selected="false" aria-controls="evidenceScenario" id="evidenceScenarioTab">Scenario tester</button>'
+    scenario_panel = f'''<div class="evidence-panel" id="evidenceScenario" role="tabpanel" aria-labelledby="evidenceScenarioTab" hidden><div class="scen"><div><div class="slider-lab"><span class="big num" id="sPrice">{_money(result.current_price)}</span><span class="k" id="sDelta">At today's price</span></div><div class="slider-control"><input type="range" id="slider" min="{slider_min:.2f}" max="{slider_max:.2f}" step="0.01" value="{result.current_price:.2f}" aria-label="Test a future price"><div class="ticks"><span style="left:0%">{_money(slider_min)}</span><span style="left:100%">{_money(slider_max)}</span></div></div><div class="zone" id="zone" aria-live="polite"></div></div><div class="out"><div class="o-row"><span class="o-k">Change from today</span><span class="o-v num" id="oChg">0.0%</span></div><div class="o-row"><span class="o-k">Vs. entry midpoint</span><span class="o-v num" id="oEntry">—</span></div><div class="o-row"><span class="o-k">Distance to stop</span><span class="o-v num" id="oStop">—</span></div><div class="o-row"><span class="o-k">On a $100,000 position</span><span class="o-v num" id="oPnl">$0</span></div><div class="o-note">Illustrative only. Excludes dividends, commissions, taxes and execution differences.</div></div></div></div>'''
+    page2_strip = f'''<div class="p2-strip"><span class="p2-co">{escape(result.identity.company_name)} <span class="num">{escape(result.identity.ticker)}</span></span><span class="p2-px num">{_money(result.current_price)}</span><span class="verdict {tone_class}">{escape(result.lead_rating.value)}</span></div>'''
     body = f"""
 <div class="shell">
-<nav class="rail" aria-label="Sections">
+<nav class="rail" aria-label="Report pages">
   <div class="rail-label">Technical Research</div>
-  <a href="#call" class="on">The call</a><a href="#plan">Position &amp; risk</a>
-  <a href="#evidence" data-evidence-index="0">Price structure</a><a href="#evidence" data-evidence-index="1">Momentum</a><a href="#evidence" data-evidence-index="2">Relative strength</a><a href="#evidence" data-evidence-index="3">Fibonacci</a>
-  <a href="#fundamentals">Fundamentals</a><a href="#data">Data</a><a href="#sources">Sources</a>
+  <a href="#page1" class="page-tab on" data-page="page1">1 — The call</a>
+  <a href="#page2" class="page-tab" data-page="page2">2 — Charts &amp; data</a>
   <div class="rail-tools"><button class="btn" id="advBtn" aria-pressed="false">Advisor detail: off</button><button class="btn" onclick="window.print()">Print / save PDF</button></div>
 </nav>
 <main class="page">
+<div class="page-view" id="page1">
 {_masthead(result, 'Technical Research')}{_topline(result)}
 <section id="call"><div class="sec-head"><h2>The call</h2><span class="verdict {tone_class}">{escape(result.lead_rating.value)}</span></div><p class="lede">{escape(result.request_response or result.executive_summary)}</p><p>{escape(result.technical.summary)}</p>{demo}</section>
-<section id="plan"><div class="sec-head"><h2>Position and risk plan</h2><span class="verdict v-neu">{escape(plan.stance)}</span></div>
-  <div class="report-tabs" role="tablist"><button class="report-tab" role="tab" aria-selected="true" aria-controls="actionPlan" id="actionPlanTab">Action plan</button><button class="report-tab" role="tab" aria-selected="false" aria-controls="scenarioLab" id="scenarioLabTab">Scenario tester</button></div>
-  <div class="report-panel" id="actionPlan" role="tabpanel" aria-labelledby="actionPlanTab">
-    <div class="ladder-wrap"><div class="ladder" id="ladder"></div><div class="rr"><div class="rr-k">Reward to risk</div><div class="rr-big num">{plan.reward_risk:.2f}×</div><div class="rr-note">Entry midpoint {_money(entry_mid)} to first target {_money(plan.first_target)}, measured against a {_money(plan.stop_level)} stop.</div><div class="rrbar"><div class="up" style="flex:{max(plan.reward_risk, 0.01):.2f}"></div><div class="dn" style="flex:1"></div></div><div class="rrleg"><span>+{_money(max(0, plan.first_target-entry_mid))} upside</span><span>−{_money(max(0, entry_mid-plan.stop_level))} risk</span></div></div></div>
-    <div class="plan" style="margin-top:16px"><div class="pc"><div class="pc-k">Entry zone</div><div class="pc-v">{_money(plan.entry_low)} – {_money(plan.entry_high)}</div><div class="pc-n">{escape(plan.confirmation)}</div></div><div class="pc"><div class="pc-k">Stop / invalidation</div><div class="pc-v" style="color:var(--bear)">{_money(plan.stop_level)}</div><div class="pc-n">{plan.stop_pct:.1%} below entry midpoint. {escape(plan.invalidation)}</div></div><div class="pc"><div class="pc-k">Targets</div><div class="pc-v" style="color:var(--bull)">{_money(plan.first_target)} / {_money(plan.second_target)}</div><div class="pc-n">Planning references, not guaranteed outcomes.</div></div></div>
-    <details><summary>Why these levels, and what invalidates them</summary><div class="det-body"><ul>{reasons}</ul></div></details>
-    {f'<details class="adv"><summary>Options / hedging reference <span class="adv-flag">Advisor</span></summary><div class="det-body"><p>{escape(plan.options_strategy)} — {escape(plan.options_structure)}</p><p>{escape(plan.options_risk)}</p></div></details>' if plan.options_strategy else ''}
-  </div>
-  <div class="report-panel" id="scenarioLab" role="tabpanel" aria-labelledby="scenarioLabTab" hidden><div class="scen"><div><div class="slider-lab"><span class="big num" id="sPrice">{_money(result.current_price)}</span><span class="k" id="sDelta">At today's price</span></div><div class="slider-control"><input type="range" id="slider" min="{slider_min:.2f}" max="{slider_max:.2f}" step="0.01" value="{result.current_price:.2f}" aria-label="Test a future price"><div class="ticks"><span style="left:0%">{_money(slider_min)}</span><span style="left:100%">{_money(slider_max)}</span></div></div><div class="zone" id="zone" aria-live="polite"></div></div><div class="out"><div class="o-row"><span class="o-k">Change from today</span><span class="o-v num" id="oChg">0.0%</span></div><div class="o-row"><span class="o-k">Vs. entry midpoint</span><span class="o-v num" id="oEntry">—</span></div><div class="o-row"><span class="o-k">Distance to stop</span><span class="o-v num" id="oStop">—</span></div><div class="o-row"><span class="o-k">On a $100,000 position</span><span class="o-v num" id="oPnl">$0</span></div><div class="o-note">Illustrative only. Excludes dividends, commissions, taxes and execution differences.</div></div></div></div>
+<section id="plan"><div class="sec-head"><h2>Action plan</h2><span class="verdict v-neu">{escape(plan.stance)}</span></div>
+  <div class="ladder-wrap"><div class="ladder" id="ladder"></div><div class="rr"><div class="rr-k">Reward to risk</div><div class="rr-big num">{plan.reward_risk:.2f}×</div><div class="rr-note">Entry midpoint {_money(entry_mid)} to first target {_money(plan.first_target)}, measured against a {_money(plan.stop_level)} stop.</div><div class="rrbar"><div class="up" style="flex:{max(plan.reward_risk, 0.01):.2f}"></div><div class="dn" style="flex:1"></div></div><div class="rrleg"><span>+{_money(max(0, plan.first_target-entry_mid))} upside</span><span>−{_money(max(0, entry_mid-plan.stop_level))} risk</span></div></div></div>
+  <div class="plan" style="margin-top:16px"><div class="pc"><div class="pc-k">Entry zone</div><div class="pc-v">{_money(plan.entry_low)} – {_money(plan.entry_high)}</div><div class="pc-n">{escape(plan.confirmation)}</div></div><div class="pc"><div class="pc-k">Stop / invalidation</div><div class="pc-v" style="color:var(--bear)">{_money(plan.stop_level)}</div><div class="pc-n">{plan.stop_pct:.1%} below entry midpoint. {escape(plan.invalidation)}</div></div><div class="pc"><div class="pc-k">Targets</div><div class="pc-v" style="color:var(--bull)">{_money(plan.first_target)} / {_money(plan.second_target)}</div><div class="pc-n">Planning references, not guaranteed outcomes.</div></div></div>
+  <details><summary>Why these levels, and what invalidates them</summary><div class="det-body"><ul>{reasons}</ul></div></details>
+  {f'<details class="adv"><summary>Options / hedging reference <span class="adv-flag">Advisor</span></summary><div class="det-body"><p>{escape(plan.options_strategy)} — {escape(plan.options_structure)}</p><p>{escape(plan.options_risk)}</p></div></details>' if plan.options_strategy else ''}
 </section>
-<section id="evidence"><div class="sec-head"><h2>Evidence</h2><span class="verdict v-neu">Four charts, one panel</span></div><div class="evidence-tabs" role="tablist">{tabs}</div>{panels}</section>
-<section id="fundamentals"><div class="sec-head"><h2>Fundamentals</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p><details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*result.fundamental.signals, *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details></section>
-<section id="data"><div class="sec-head"><h2>Data</h2></div><div class="grid3">{data_columns}</div></section>
+</div>
+<div class="page-view" id="page2" hidden>
+{page2_strip}
+<section id="charts"><div class="sec-head"><h2>Charts</h2><span class="verdict v-neu">Five views, one panel</span></div><div class="evidence-tabs" role="tablist">{tabs}{scenario_tab}</div>{panels}{scenario_panel}</section>
+<section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p><details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*result.fundamental.signals, *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div></section>
 <section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div><p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
+</div>
 </main></div>"""
     script = f"const PLAN={plan_json};\n" + _technical_script()
     return _document(
@@ -499,8 +507,15 @@ function bindTabs(buttonSelector,panelSelector){
     button.setAttribute('aria-selected','true');document.getElementById(button.getAttribute('aria-controls')).hidden=false;
   })});
 }
-bindTabs('.report-tab','.report-panel');bindTabs('.evidence-tab','.evidence-panel');
+bindTabs('.evidence-tab','.evidence-panel');
 document.querySelectorAll('[data-evidence-index]').forEach(function(link){link.addEventListener('click',function(){var i=Number(link.dataset.evidenceIndex);var tabs=document.querySelectorAll('.evidence-tab');if(tabs[i])tabs[i].click()})});
+var pageTabs=[].slice.call(document.querySelectorAll('.page-tab'));
+pageTabs.forEach(function(tab){tab.addEventListener('click',function(event){
+  event.preventDefault();
+  pageTabs.forEach(function(item){item.classList.remove('on')});
+  tab.classList.add('on');
+  document.querySelectorAll('.page-view').forEach(function(view){view.hidden=(view.id!==tab.dataset.page)});
+})});
 var adv=document.getElementById('advBtn');if(adv)adv.addEventListener('click',function(){var on=document.body.classList.toggle('advisor');adv.setAttribute('aria-pressed',String(on));adv.textContent='Advisor detail: '+(on?'on':'off')});
 function money(v){return '$'+v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
 function pct(v){return (v>=0?'+':'')+(v*100).toFixed(1)+'%'}

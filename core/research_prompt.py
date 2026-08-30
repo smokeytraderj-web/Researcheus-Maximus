@@ -8,6 +8,22 @@ import re
 
 
 _TICKER = re.compile(r"(?<![A-Za-z0-9])\$?([A-Z]{1,5}(?:[.-][A-Z])?)(?![A-Za-z0-9])")
+
+# Shared right-hand boundary for the open-ended "analysis of X", "what about X",
+# and "evaluate X" patterns below. Without a broad stop-word list here, the
+# non-greedy capture keeps eating trailing conversational words (e.g. "is this
+# a buying opportunity") into the security candidate instead of stopping at
+# the ticker/company name itself.
+_QUERY_STOP_BOUNDARY = (
+    r"(?=\s+(?:and|to|from|since|with|as|is|are|was|given|right|now|today|"
+    r"currently|still|buying|selling|holding|adding|worth|good|bad|great|"
+    r"opportunity|opportunities|position|positions|entry|chart|charts|"
+    r"analysis|analyze|after|before|near|at|following|for|because)\b|[?!.,]|$)"
+)
+
+# Filler words the verb-prefix regex can latch onto when the verb follows the
+# ticker rather than precedes it, e.g. "a good opportunity to buy now".
+_VERB_ADJACENT_FILLERS = {"now", "today", "here", "again", "later", "then", "it", "that", "this", "one", "soon"}
 _TICKER_STOPWORDS = {
     "A",
     "ADD",
@@ -71,18 +87,22 @@ def parse_research_prompt(value: str) -> tuple[str, str]:
         r"\b(?:research|analyze|buy|sell|hold|add)\s+"
         r"(?:my\s+)?(?:shares?\s+(?:of|in)\s+)?"
         r"([A-Z][A-Za-z0-9.&' -]{1,60}?)"
-        r"(?=\s+(?:after|before|near|at|following|for|because)\b|[?!.,]|$)",
+        + _QUERY_STOP_BOUNDARY,
         first_line,
         flags=re.IGNORECASE,
     )
-    if company:
+    # "Is TSLA a good opportunity to buy now" puts the verb after the ticker, so
+    # the pattern above latches onto a filler word ("now") following the verb
+    # instead. Skip a filler-word match so the ticker scan below can find the
+    # real security earlier in the sentence.
+    if company and company.group(1).strip().lower() not in _VERB_ADJACENT_FILLERS:
         candidate = re.sub(r"\s+position$", "", company.group(1).strip(), flags=re.IGNORECASE)
         return _clean_security_candidate(candidate), prompt
 
     open_ended_company_patterns = (
-        r"\b(?:full|complete|detailed)?\s*analysis\s+of\s+([A-Z][A-Za-z0-9.&' -]{1,60}?)(?=\s+(?:and|to|from|since|with)\b|[?!.,]|$)",
-        r"\bwhat\s+about\s+(?:my\s+)?([A-Z][A-Za-z0-9.&' -]{1,60}?)(?:\s+position)?(?=[?!.,]|$)",
-        r"\bevaluate\s+(?:my\s+)?([A-Z][A-Za-z0-9.&' -]{1,60}?)(?:\s+position)?(?=[?!.,]|$)",
+        r"\b(?:full|complete|detailed)?\s*analysis\s+of\s+([A-Z][A-Za-z0-9.&' -]{1,60}?)" + _QUERY_STOP_BOUNDARY,
+        r"\bwhat\s+about\s+(?:my\s+)?([A-Z][A-Za-z0-9.&' -]{1,60}?)" + _QUERY_STOP_BOUNDARY,
+        r"\bevaluate\s+(?:my\s+)?([A-Z][A-Za-z0-9.&' -]{1,60}?)" + _QUERY_STOP_BOUNDARY,
     )
     for pattern in open_ended_company_patterns:
         match = re.search(pattern, first_line, flags=re.IGNORECASE)

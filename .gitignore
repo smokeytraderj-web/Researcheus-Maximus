@@ -6,4 +6,5 @@ dist/
 build/
 *.spec
 output/
+.tvremix_key.local
 

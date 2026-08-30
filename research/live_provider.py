@@ -8,7 +8,8 @@ from pathlib import Path
 from urllib.parse import quote
 
 from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
-from core.models import ChartRecord, Confidence, Horizon, PortfolioFitAssessment, Rating, ResearchRequest, ResearchResult, SecurityIdentity, SourceRecord
+from core.models import ChartRecord, Confidence, Horizon, PortfolioFitAssessment, Rating, ResearchRequest, ResearchResult, SecurityIdentity, SourceRecord, TechnicalActionPlan
+from research.tvremix_provider import fetch_tvremix_evidence
 from core.research_prompt import parse_portfolio_exposure
 from research.comparison import build_comparison_assessment
 from research.synthesis import deterministic_synthesis, ollama_synthesize, openai_synthesize
@@ -123,7 +124,52 @@ def _combine_ratings(
     return ratings[max(0, min(len(ratings) - 1, index))], technical_weight, fundamental_weight
 
 
+def _compound_subquestion_answers(request: ResearchRequest, plan: "TechnicalActionPlan | None") -> str:
+    """Answer additional clauses of a compound question, e.g. "...and where should I place a
+    stop loss?" alongside "Is TSLA a good opportunity to buy now?" Reuses the same deterministic
+    entry/stop/target evidence already shown in the Action Plan; it does not compute anything new,
+    it only states it back in the direct answer so every part of the question gets addressed there.
+    """
+    if plan is None:
+        return ""
+    question = request.question.lower()
+    clauses: list[str] = []
+    if any(term in question for term in ("stop loss", "stop-loss", "place a stop", "protective stop", "where to stop")):
+        clauses.append(
+            f"On the stop-loss question, the plan places one near {_metric(plan.stop_level, money=True)}, "
+            f"{plan.stop_pct:.1%} below the entry midpoint."
+        )
+    if any(term in question for term in ("price target", "how high", "how much upside", " upside")):
+        clauses.append(
+            f"On price targets, the first objective is {_metric(plan.first_target, money=True)}, with a second "
+            f"objective at {_metric(plan.second_target, money=True)}."
+        )
+    if any(term in question for term in ("when should i", "good time to", "entry point", "when to buy", "wait for")):
+        clauses.append(
+            f"On timing, the suggested entry zone is {_metric(plan.entry_low, money=True)}–{_metric(plan.entry_high, money=True)}. "
+            f"{plan.confirmation}"
+        )
+    if any(term in question for term in ("risk reward", "risk/reward", "reward to risk", "reward-to-risk", "worth the risk")):
+        clauses.append(f"On reward versus risk, the estimated ratio is {plan.reward_risk:.2f}x to the first target.")
+    return (" " + " ".join(clauses)) if clauses else ""
+
+
 def _direct_decision_answer(
+    request: ResearchRequest,
+    company: str,
+    lead: Rating,
+    technical: Rating,
+    portfolio_fit: PortfolioFitAssessment | None = None,
+    historical_case_count: int = 0,
+    plan: "TechnicalActionPlan | None" = None,
+) -> str:
+    """Answer the user's decision directly, then answer any additional clauses of a compound
+    question (stop-loss, targets, timing, reward/risk) using the same Action Plan evidence."""
+    base = _direct_decision_answer_core(request, company, lead, technical, portfolio_fit, historical_case_count)
+    return base + _compound_subquestion_answers(request, plan)
+
+
+def _direct_decision_answer_core(
     request: ResearchRequest,
     company: str,
     lead: Rating,
@@ -201,11 +247,11 @@ def _portfolio_context_answer(
     negative = {Rating.REDUCE, Rating.SELL, Rating.AVOID}
     timing = technical_setup(technical).lower()
     if lead in negative or technical in negative:
-        decision = f"I would not add {company} now; the {timing} setup does not justify increasing portfolio risk."
+        decision = f"We would not add {company} now; the {timing} setup does not justify increasing portfolio risk."
     elif lead in positive and technical in positive:
         decision = f"A small, deliberately sized {company} purchase can be reasonable, but not as an unrestricted full position."
     else:
-        decision = f"I would wait before adding {company}; the current {lead.value} view does not offer a strong enough reason to increase concentration."
+        decision = f"We would wait before adding {company}; the current {lead.value} view does not offer a strong enough reason to increase concentration."
 
     context = ""
     if equity_pct is not None and sector_pct is not None and sector_is_of_equity:
@@ -300,6 +346,7 @@ def _request_specific_response(
     portfolio_fit: PortfolioFitAssessment | None = None,
     historical_case_count: int = 0,
     comparison_verdict: str = "",
+    plan: "TechnicalActionPlan | None" = None,
 ) -> str:
     """Answer the user's stated research focus before the standard report framework."""
     question = request.question.lower()
@@ -315,13 +362,13 @@ def _request_specific_response(
         return comparison_verdict
     if request.decision_intent == "portfolio_context":
         return _portfolio_context_answer(request, company, info, lead, technical)
-    direct = _direct_decision_answer(request, company, lead, technical, portfolio_fit, historical_case_count)
+    direct = _direct_decision_answer(request, company, lead, technical, portfolio_fit, historical_case_count, plan)
     if request.decision_intent != "research":
         return direct
     if request.question.strip() and fundamental_summary.strip():
         generic_fallback = "fundamental screen combines growth, valuation, leverage" in fundamental_summary.lower()
         if not generic_fallback:
-            return fundamental_summary.strip()
+            return fundamental_summary.strip() + _compound_subquestion_answers(request, plan)
         generic_request = any(
             phrase in question
             for phrase in (
@@ -337,7 +384,7 @@ def _request_specific_response(
             return direct
         requested_focus = " ".join(request.question.split())[:240]
         return (
-            f"I could not fully answer the specific question from the available deterministic evidence: “{requested_focus}” "
+            f"We could not fully answer the specific question from the available deterministic evidence: “{requested_focus}” "
             f"The current screen rates {company} {lead.value}, but a configured research provider and current primary-source review "
             "are required to answer that focus responsibly."
         )
@@ -702,11 +749,19 @@ def _nasdaq_quote_metadata(session, symbol: str) -> dict:
 
 
 class LiveResearchProvider:
-    def __init__(self, synthesis_provider: str = "Automatic", api_key: str = "", model: str = "", use_ycharts: bool = True):
+    def __init__(
+        self,
+        synthesis_provider: str = "Automatic",
+        api_key: str = "",
+        model: str = "",
+        use_ycharts: bool = True,
+        tvremix_api_key: str = "",
+    ):
         self.synthesis_provider = synthesis_provider
         self.api_key = api_key
         self.model = model
         self.use_ycharts = use_ycharts
+        self.tvremix_api_key = tvremix_api_key
         self._market_session = None
 
     def _resolve(self, query: str):
@@ -729,11 +784,16 @@ class LiveResearchProvider:
                 ]
             except Exception:
                 candidates = []
+        if not looks_like_ticker and not candidates:
+            raise ValueError(
+                f'Couldn\'t find a security matching "{cleaned}". Try leading with just the ticker '
+                f'or company name, for example "UPRO - is this a good entry point?"'
+            )
         exact = next((item for item in candidates if str(item.get("symbol", "")).upper() == upper), None)
         selected = exact or (candidates[0] if candidates else {"symbol": upper})
         symbol = str(selected.get("symbol", upper)).upper()
         if not symbol or len(symbol) > 20:
-            raise ValueError("The company or ticker could not be resolved.")
+            raise ValueError(f'"{cleaned}" does not look like a valid ticker or company name.')
         selected = dict(selected)
         selected["originalQuery"] = cleaned
         return yf, yf.Ticker(symbol, session=self._market_session), selected
@@ -1437,6 +1497,12 @@ class LiveResearchProvider:
                 trade_cases = tuple(rendered_cases)
         history_source = str(history.attrs.get("market_data_source") or "Yahoo Finance market data")
         history_url = str(history.attrs.get("market_data_url") or f"https://finance.yahoo.com/quote/{quote(symbol)}")
+        # Supplemental only: TV Remix never sets the technical rating, only adds
+        # extra swing-structure signals and metrics alongside the deterministic
+        # Yahoo-based analysis above. Silently skipped if not configured or unreachable.
+        tvremix_evidence = fetch_tvremix_evidence(symbol, self.tvremix_api_key) if request.deep_analysis else None
+        if tvremix_evidence is not None and tvremix_evidence.available:
+            technical = replace(technical, signals=technical.signals + tvremix_evidence.signals)
         sources = [
             SourceRecord(history_source, history_url, now, "Price history used for the technical analysis"),
             SourceRecord("Yahoo Finance security page", f"https://finance.yahoo.com/quote/{quote(symbol)}", now, "Quote metadata, fundamentals, and news feed when available"),
@@ -1444,6 +1510,15 @@ class LiveResearchProvider:
             SourceRecord("YCharts", f"https://ycharts.com/companies/{quote(symbol)}", now, "Authenticated supplemental review link; no YCharts values were silently inferred"),
             SourceRecord("SEC EDGAR", f"https://www.sec.gov/edgar/search/#/q={quote(symbol)}", now, "Official filing research link"),
         ]
+        if tvremix_evidence is not None and tvremix_evidence.available:
+            sources.append(
+                SourceRecord(
+                    "TV Remix",
+                    "https://tvremix.xyz/mcp/prompts",
+                    now,
+                    "Supplemental swing-structure evidence for the technical analysis",
+                )
+            )
         if "SPY" in overview_histories and symbol != "SPY" and "SPY" not in comparison_histories:
             spy_overview_history = overview_histories["SPY"]
             spy_source = str(spy_overview_history.attrs.get("market_data_source") or "Yahoo Finance market data")
@@ -1586,10 +1661,12 @@ class LiveResearchProvider:
             ("Analyst mean target", _metric(analyst_target, money=True)),
             ("Analyst target implied upside", _metric(analyst_upside, percent=True)),
             ("Street consensus (Yahoo)", str(info.get("recommendationKey") or "Unavailable").replace("_", " ").title()),
-        ) + ycharts_metrics + snapshot.as_metrics() + relative_metrics
+        ) + ycharts_metrics + snapshot.as_metrics() + relative_metrics + (
+            tvremix_evidence.metrics if tvremix_evidence is not None and tvremix_evidence.available else ()
+        )
         interpretation = assessment_interpretation(technical.rating, synthesis.fundamental.rating)
         executive = (
-            f"{_direct_decision_answer(request, company, lead, technical.rating, portfolio_fit, len(trade_cases))} "
+            f"{_direct_decision_answer(request, company, lead, technical.rating, portfolio_fit, len(trade_cases), technical_plan)} "
             f"{company} receives a {lead.value} rating for the {request.horizon.value.lower()} horizon. "
             f"The lead framework weights fundamental evidence {fundamental_weight}% and technical evidence {technical_weight}% for this horizon. "
             f"The technical setup is {technical_setup(technical.rating).lower()}, and the fundamental outlook is "
@@ -1607,6 +1684,7 @@ class LiveResearchProvider:
             portfolio_fit,
             len(trade_cases),
             comparison_assessment.verdict if comparison_assessment else "",
+            technical_plan,
         )
         result = ResearchResult(
             identity=primary_identity,
