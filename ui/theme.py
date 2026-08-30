@@ -5,9 +5,9 @@ QWidget { font-family: "Segoe UI", Arial, sans-serif; font-size: 13px; }
 QWidget#AppRoot { background: #FFFFFF; color: #1B2A4A; }
 QScrollArea#IntakeScroll, QScrollArea#IntakeScroll > QWidget > QWidget { background: #FFFFFF; border: 0; }
 QFrame#TopBar { background: #1B2A4A; border-bottom: 2px solid #BFA054; }
-QLabel#Brand { color: #FFFFFF; font-family: Georgia, "Times New Roman", serif; font-size: 19px; font-weight: 700; }
+QLabel#Brand { color: #FFFFFF; font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: 700; }
+QFrame#BrandDivider { background: #46567A; }
 QLabel#Firm { color: #D8BF7D; font-size: 9px; font-weight: 700; letter-spacing: 0.3px; }
-QLabel#Workspace { color: #F2E9D3; font-size: 9px; font-weight: 700; }
 QLabel#Title { color: #1B2A4A; font-family: Georgia, "Times New Roman", serif; font-size: 30px; font-weight: 700; }
 QLabel#Subtitle { color: #657386; font-size: 12px; }
 QLabel#Section { color: #1B2A4A; font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: 700; }
@@ -15,9 +15,7 @@ QLabel#PrimaryTitle { color: #1B2A4A; font-family: Georgia, "Times New Roman", s
 QLabel#Eyebrow { color: #A7863F; font-size: 10px; font-weight: 700; }
 QLabel#FieldHelp { color: #718096; font-size: 11px; }
 QLabel#SettingsSummary { color: #64748B; font-size: 11px; padding: 6px 2px; }
-QFrame#HeroPanel { background: #1B2A4A; border: 1px solid #1B2A4A; border-radius: 10px; }
-QFrame#HeroRule { background: #BFA054; border: 0; }
-QLabel#HeroEyebrow { color: #E1C77F; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; }
+QFrame#HeroPanel { background: #1B2A4A; border: 1px solid #1B2A4A; border-left: 4px solid #BFA054; border-radius: 10px; }
 QLabel#HeroTitle { color: #FFFFFF; font-family: Georgia, "Times New Roman", serif; font-size: 42px; font-weight: 700; }
 QLabel#HeroSubtitle { color: #E8EDF5; font-size: 15px; }
 QLabel#ResearchPaths { color: #9A7A35; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding-top: 6px; }

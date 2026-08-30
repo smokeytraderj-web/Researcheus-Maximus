@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 import mimetypes
+import re
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
@@ -96,6 +97,53 @@ def _find_metric(result: ResearchResult, *terms: str, default: str = "—") -> s
     return default
 
 
+# Keyword rules for sorting key metrics into the Data section's three columns.
+# Checked in order; the first matching bucket wins, so more specific terms
+# (an explicit "price target") must be listed before generic ones.
+_POSITION_TERMS = (
+    "purchase price",
+    "quantity",
+    "position value",
+    "entry zone",
+    "stop / invalidation",
+    "first / second target",  # plan-specific — distinct from analyst/YCharts price targets
+    "reward / risk",
+)
+_VALUATION_TERMS = (
+    "market cap",
+    "p/e",
+    "revenue growth",
+    "earnings growth",
+    "analyst",
+    "street consensus",
+    "ycharts",
+    "debt",
+    "expense ratio",
+    "distribution yield",
+    "fund ",
+    "security type",
+    "current price",
+    "range-end price",
+)
+
+
+def _metric_group(label: str) -> int:
+    lowered = label.lower()
+    if any(term in lowered for term in _POSITION_TERMS):
+        return 0
+    if any(term in lowered for term in _VALUATION_TERMS):
+        return 2
+    return 1  # trend & momentum is the default bucket
+
+
+def _grouped_metrics(result: ResearchResult) -> tuple[list[_Metric], list[_Metric], list[_Metric]]:
+    """Sort key metrics into (position & risk, trend & momentum, company & valuation)."""
+    groups: tuple[list[_Metric], list[_Metric], list[_Metric]] = ([], [], [])
+    for metric in _metrics(result):
+        groups[_metric_group(metric.label)].append(metric)
+    return groups
+
+
 def _image_data_url(path_value: str) -> str:
     if not path_value:
         return ""
@@ -107,7 +155,7 @@ def _image_data_url(path_value: str) -> str:
     return f"data:{mime};base64,{encoded}"
 
 
-def _chart_html(chart: ChartRecord | None, element_id: str) -> str:
+def _chart_html(chart: ChartRecord | None, element_id: str, legend: tuple[tuple[str, str], ...] = ()) -> str:
     if chart is None:
         return '<div class="chart-empty">No validated chart was available for this view.</div>'
     data_url = _image_data_url(chart.path)
@@ -116,6 +164,13 @@ def _chart_html(chart: ChartRecord | None, element_id: str) -> str:
         visual = f'<img class="chart-image" src="{data_url}" alt="{title}">'
     else:
         visual = '<div class="chart-empty">The validated chart image could not be loaded.</div>'
+    legend_html = ""
+    if legend:
+        keys = "".join(
+            f'<span class="key"><i class="swatch" style="background:{color}"></i>{escape(text)}</span>'
+            for color, text in legend
+        )
+        legend_html = f'<div class="chart-legend">{keys}</div>'
     insight = escape(chart.insight or (chart.insights[0] if chart.insights else ""))
     implication = (
         f'<div class="takeaway"><span class="tk">Decision implication</span><p>{insight}</p></div>'
@@ -124,8 +179,67 @@ def _chart_html(chart: ChartRecord | None, element_id: str) -> str:
     )
     return (
         f'<figure class="chart" id="{escape(element_id)}">'
-        f'<div class="chart-title">{title}</div>{visual}</figure>{implication}'
+        f'<div class="chart-title">{title}</div>{visual}{legend_html}</figure>{implication}'
     )
+
+
+def _legend_metric(result: ResearchResult, *terms: str) -> str | None:
+    value = _find_metric(result, *terms, default="")
+    return value or None
+
+
+def _price_chart_legend(result: ResearchResult, plan) -> tuple[tuple[str, str], ...]:
+    items: list[tuple[str, str]] = [("var(--ink)", "Close")]
+    sma20 = _legend_metric(result, "20-day moving average")
+    if sma20:
+        items.append(("var(--gold)", f"20-day avg {sma20}"))
+    sma50 = _legend_metric(result, "50-day moving average")
+    if sma50:
+        items.append(("#5B7BA8", f"50-day avg {sma50}"))
+    if plan is not None:
+        items.append(("var(--gold-soft)", f"Entry zone {_money(plan.entry_low)}–{_money(plan.entry_high)}"))
+        items.append(("var(--bear)", f"Stop {_money(plan.stop_level)}"))
+    return tuple(items)
+
+
+def _momentum_chart_legend(result: ResearchResult) -> tuple[tuple[str, str], ...]:
+    items: list[tuple[str, str]] = []
+    rsi = _legend_metric(result, "RSI")
+    if rsi:
+        items.append(("var(--ink)", f"RSI {rsi}"))
+    macd_signal = _legend_metric(result, "MACD / signal")
+    if macd_signal and "/" in macd_signal:
+        macd_value, signal_value = (part.strip() for part in macd_signal.split("/", 1))
+        items.append(("#5B7BA8", f"MACD {macd_value}"))
+        items.append(("var(--gold)", f"Signal {signal_value}"))
+    return tuple(items)
+
+
+def _relative_chart_legend(result: ResearchResult) -> tuple[tuple[str, str], ...]:
+    for metric in _metrics(result):
+        label = metric.label.lower()
+        if "return vs." not in label:
+            continue
+        benchmark = metric.label.split("vs.", 1)[1].strip()
+        match = re.match(r"\s*([+-]?[\d.]+%)\s*vs\.\s*([+-]?[\d.]+%)", metric.value)
+        if not match:
+            continue
+        return (
+            ("var(--ink)", f"{result.identity.ticker} {match.group(1)}"),
+            ("var(--gold)", f"{benchmark} {match.group(2)}"),
+        )
+    return ()
+
+
+def _fibonacci_chart_legend(result: ResearchResult) -> tuple[tuple[str, str], ...]:
+    items: list[tuple[str, str]] = [("var(--ink)", "Close")]
+    levels = _legend_metric(result, "fibonacci 38.2")
+    if levels:
+        items.append(("var(--muted)", f"Retracement levels {levels}"))
+    swing = _legend_metric(result, "fibonacci swing range")
+    if swing:
+        items.append(("var(--gold)", f"Swing range {swing}"))
+    return tuple(items)
 
 
 def _source_html(result: ResearchResult) -> str:
@@ -282,24 +396,26 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
     if plan is None:
         return _general_report(result, request)
     tone_class, _ = _tone(result.lead_rating)
-    price_chart = ChartRecord("Price structure", result.chart_path, result.technical.summary) if result.chart_path else result.overview_chart
+    # Use the raw price-vs-average signal (not the full narrative summary) so this
+    # chart's takeaway doesn't just repeat "The call" section verbatim.
+    price_insight = result.technical.signals[0] if result.technical.signals else result.technical.summary
+    price_chart = ChartRecord("Price structure", result.chart_path, price_insight) if result.chart_path else result.overview_chart
     charts = (
-        ("Price structure", "evidencePrice", price_chart),
-        ("Momentum", "evidenceMomentum", _chart_by_title(result, "momentum")),
-        ("Relative strength", "evidenceRelative", _chart_by_title(result, "relative")),
-        ("Fibonacci", "evidenceFibonacci", _chart_by_title(result, "fibonacci")),
+        ("Price structure", "evidencePrice", price_chart, _price_chart_legend(result, plan)),
+        ("Momentum", "evidenceMomentum", _chart_by_title(result, "momentum"), _momentum_chart_legend(result)),
+        ("Relative strength", "evidenceRelative", _chart_by_title(result, "relative"), _relative_chart_legend(result)),
+        ("Fibonacci", "evidenceFibonacci", _chart_by_title(result, "fibonacci"), _fibonacci_chart_legend(result)),
     )
     tabs = "".join(
         f'<button class="evidence-tab" role="tab" aria-selected="{str(index == 0).lower()}" aria-controls="{panel_id}" id="{panel_id}Tab">{escape(label)}</button>'
-        for index, (label, panel_id, _chart) in enumerate(charts)
+        for index, (label, panel_id, _chart, _legend) in enumerate(charts)
     )
     panels = "".join(
-        f'<div class="evidence-panel" id="{panel_id}" role="tabpanel" aria-labelledby="{panel_id}Tab"{("" if index == 0 else " hidden")}>{_chart_html(chart, panel_id + "Chart")}</div>'
-        for index, (_label, panel_id, chart) in enumerate(charts)
+        f'<div class="evidence-panel" id="{panel_id}" role="tabpanel" aria-labelledby="{panel_id}Tab"{("" if index == 0 else " hidden")}>{_chart_html(chart, panel_id + "Chart", legend)}</div>'
+        for index, (_label, panel_id, chart, legend) in enumerate(charts)
     )
     reasons = "".join(f"<li>{escape(item)}</li>" for item in plan.rationale)
-    metrics = _metrics(result)
-    groups = [metrics[index::3] for index in range(3)]
+    groups = _grouped_metrics(result)
     group_names = ("Position and risk", "Trend and momentum", "Company and valuation")
     data_columns = "".join(
         '<dl class="dl"><div class="dl-h">{}</div>{}</dl>'.format(
