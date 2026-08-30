@@ -14,12 +14,6 @@ QLabel#PrimaryTitle { color: #1B2A4A; font-family: Georgia, "Times New Roman", s
 QLabel#Eyebrow { color: #A7863F; font-size: 10px; font-weight: 700; }
 QLabel#FieldHelp { color: #718096; font-size: 11px; }
 QLabel#SettingsSummary { color: #64748B; font-size: 11px; padding: 6px 2px; }
-QFrame#Card, QFrame#PrimaryPanel, QFrame#ToolPanel {
-    background: #FFFFFF;
-    border: 1px solid #D8DEE8;
-    border-radius: 9px;
-}
-QFrame#PrimaryPanel { border-top: 3px solid #BFA054; }
 QLineEdit, QComboBox, QDoubleSpinBox, QPlainTextEdit {
     background: #FBFCFE;
     border: 1px solid #CBD4E1;
@@ -33,16 +27,6 @@ QLineEdit:hover, QComboBox:hover, QPlainTextEdit:hover { border-color: #AAB6C6; 
 QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus { background: #FFFFFF; border: 2px solid #BFA054; }
 QComboBox::drop-down, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
     min-width: 24px;
-}
-QPlainTextEdit#DeepResearchQuery {
-    min-height: 150px;
-    font-size: 15px;
-    padding: 10px 12px;
-}
-QPlainTextEdit#ComparisonQuery {
-    min-height: 150px;
-    font-size: 15px;
-    padding: 10px 12px;
 }
 QPlainTextEdit#ModificationRequest {
     min-height: 66px;

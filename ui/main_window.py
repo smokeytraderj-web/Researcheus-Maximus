@@ -193,8 +193,12 @@ class YChartsTestWorker(QThread):
             self.completed.emit(False, str(exc) or "YCharts connection test failed.")
 
 
-class _HomeBridge(QObject):
-    """Exposes the actions the Tailwind-rendered home page can trigger in Qt."""
+class _Bridge(QObject):
+    """Exposes the actions the Tailwind-rendered pages can trigger in Qt.
+
+    Shared across the home, Deep Technical Analysis, and Comparison pages --
+    each has its own QWebChannel registering this same instance as "bridge".
+    """
 
     def __init__(self, window: "MainWindow") -> None:
         super().__init__(window)
@@ -204,6 +208,20 @@ class _HomeBridge(QObject):
     def submitQuery(self, text: str) -> None:
         self._window.query.setPlainText(text)
         self._window._start_research()
+
+    @Slot(str)
+    def submitDeepQuery(self, text: str) -> None:
+        self._window.deep_query.setPlainText(text)
+        self._window._start_research(deep=True)
+
+    @Slot(str)
+    def submitComparisonQuery(self, text: str) -> None:
+        self._window.comparison_query.setPlainText(text)
+        self._window._start_research(comparison=True)
+
+    @Slot()
+    def openOverview(self) -> None:
+        self._window.stack.setCurrentIndex(0)
 
     @Slot()
     def openDeepAnalysis(self) -> None:
@@ -229,6 +247,7 @@ class MainWindow(QMainWindow):
         self.worker: ResearchWorker | None = None
         self.ycharts_test_worker: YChartsTestWorker | None = None
         self.settings = QSettings("GottfriedSomberg", "ResearcheusMaximus")
+        self._bridge = _Bridge(self)
 
         root = QWidget(objectName="AppRoot")
         layout = QVBoxLayout(root)
@@ -249,10 +268,12 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.topbar)
         layout.addWidget(self.stack, 1)
         self.setCentralWidget(root)
-        # The home page (index 0) carries its own minimal branding and has no
-        # header by design; every other page keeps the shared app chrome.
-        self.stack.currentChanged.connect(lambda index: self.topbar.setVisible(index != 0))
-        self.topbar.setVisible(self.stack.currentIndex() != 0)
+        # The web-rendered pages (home, Deep Analysis, Comparison) carry their
+        # own minimal branding and have no header by design; the remaining
+        # native pages keep the shared app chrome.
+        web_page_indices = {0, 3, 4}
+        self.stack.currentChanged.connect(lambda index: self.topbar.setVisible(index not in web_page_indices))
+        self.topbar.setVisible(self.stack.currentIndex() not in web_page_indices)
 
     def _topbar(self) -> QFrame:
         frame = QFrame(objectName="TopBar")
@@ -306,101 +327,31 @@ class MainWindow(QMainWindow):
         # home page collects the text and hands it to us through the bridge below.
         self.query = QPlainTextEdit()
         self.query.hide()
+        return self._build_web_page("home.html")
 
+    def _build_web_page(self, filename: str) -> QWebEngineView:
+        """A page rendered from resources/<filename>, wired to self._bridge via QWebChannel."""
         view = QWebEngineView()
-        self._home_bridge = _HomeBridge(self)
-        self._home_channel = QWebChannel()
-        self._home_channel.registerObject("bridge", self._home_bridge)
-        view.page().setWebChannel(self._home_channel)
-        home_path = Path(__file__).resolve().parents[1] / "resources" / "home.html"
-        view.load(QUrl.fromLocalFile(str(home_path)))
+        channel = QWebChannel(view)
+        channel.registerObject("bridge", self._bridge)
+        view.page().setWebChannel(channel)
+        path = Path(__file__).resolve().parents[1] / "resources" / filename
+        view.load(QUrl.fromLocalFile(str(path)))
         return view
 
     def _build_comparison(self) -> QWidget:
-        page, outer = self._page_shell(
-            "Compare Securities",
-            "Compare two stocks or funds with one transparent, side-by-side decision framework.",
-        )
-        outer.addStretch(1)
-        card = QFrame(objectName="Card")
-        card.setMaximumWidth(880)
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(34, 28, 34, 28)
-        card_layout.setSpacing(12)
-        card_layout.addWidget(QLabel("What would you like to compare?", objectName="Section"))
+        # _start_research reads the submitted comparison text from here; the
+        # web-rendered page collects it and hands it to us through the bridge.
         self.comparison_query = QPlainTextEdit()
-        self.comparison_query.setObjectName("ComparisonQuery")
-        self.comparison_query.setMinimumHeight(168)
-        self.comparison_query.setPlaceholderText(
-            "Name two securities, then add the decision you are considering.\n\n"
-            "Example: AVGO vs NVDA - Which currently offers better value and risk-adjusted opportunity from January 2024 to today?"
-        )
-        explanation = QLabel(
-            "The report compares only like-for-like available evidence, including Fibonacci-based technical setup, relative performance, valuation, growth, margins, analyst-target upside, and fund costs when applicable.",
-            objectName="Subtitle",
-        )
-        explanation.setWordWrap(True)
-        card_layout.addWidget(self.comparison_query)
-        card_layout.addWidget(explanation)
-        actions = QHBoxLayout()
-        back = QPushButton("Back to Overview", objectName="Secondary")
-        back.clicked.connect(lambda: self.stack.setCurrentIndex(0))
-        run = QPushButton("Run Comparison", objectName="Gold")
-        run.clicked.connect(lambda: self._start_research(comparison=True))
-        actions.addWidget(back)
-        actions.addStretch()
-        actions.addWidget(run)
-        card_layout.addLayout(actions)
-        centered = QHBoxLayout()
-        centered.addStretch()
-        centered.addWidget(card)
-        centered.addStretch()
-        outer.addLayout(centered)
-        outer.addStretch(2)
-        return page
+        self.comparison_query.hide()
+        return self._build_web_page("comparison.html")
 
     def _build_deep_analysis(self) -> QWidget:
-        page, outer = self._page_shell(
-            "Deep Technical Analysis",
-            "Request specific real-market charts, compare a stock with peers or benchmarks, and build a chart-led decision report.",
-        )
-        outer.addStretch(1)
-        card = QFrame(objectName="Card")
-        card.setMaximumWidth(880)
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(34, 28, 34, 28)
-        card_layout.setSpacing(12)
-        card_layout.addWidget(QLabel("What would you like to analyze?", objectName="Section"))
+        # _start_research reads the submitted analysis text from here; the
+        # web-rendered page collects it and hands it to us through the bridge.
         self.deep_query = QPlainTextEdit()
-        self.deep_query.setObjectName("DeepResearchQuery")
-        self.deep_query.setMinimumHeight(168)
-        self.deep_query.setPlaceholderText(
-            "Start with the primary ticker, then describe the analysis and comparison symbols.\n\n"
-            "Example: AVGO - Compare with NVDA and SPY from 2024-01-01 to 2026-08-26. Analyze Fibonacci, stop-loss evidence, trend, RSI, MACD, relative performance, drawdown, and volatility."
-        )
-        supported = QLabel(
-            "Use phrases such as “from 2024-01-01 to 2025-12-31,” “from January 2024 to June 2025,” or “since March 2024.” Fibonacci automatically uses the selected range. SPY is used when no benchmark is named.",
-            objectName="Subtitle",
-        )
-        supported.setWordWrap(True)
-        card_layout.addWidget(self.deep_query)
-        card_layout.addWidget(supported)
-        actions = QHBoxLayout()
-        back = QPushButton("Back to Overview", objectName="Secondary")
-        back.clicked.connect(lambda: self.stack.setCurrentIndex(0))
-        run = QPushButton("Run Deep Analysis", objectName="Gold")
-        run.clicked.connect(lambda: self._start_research(deep=True))
-        actions.addWidget(back)
-        actions.addStretch()
-        actions.addWidget(run)
-        card_layout.addLayout(actions)
-        centered = QHBoxLayout()
-        centered.addStretch()
-        centered.addWidget(card)
-        centered.addStretch()
-        outer.addLayout(centered)
-        outer.addStretch(2)
-        return page
+        self.deep_query.hide()
+        return self._build_web_page("deep_analysis.html")
 
     def _build_settings_dialog(self) -> QDialog:
         dialog = QDialog(self)
