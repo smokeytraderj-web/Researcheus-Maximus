@@ -114,19 +114,19 @@ _DYNAMIC_CSS = r"""
    shown as checkboxes with a headline score.  Supplementary evidence, never a rating label.
    Horizontal, one column per criterion, so the whole thing reads at a glance right under
    the masthead -- this is the report's most-scanned piece of reasoning, not a buried detail. */
-.cc-card{margin-top:16px}
-.cc-top{display:flex;align-items:center;gap:14px;padding:0 1px 12px}
+.cc-card{margin-top:18px;margin-bottom:20px}
+.cc-top{display:flex;align-items:center;gap:14px;padding:0 1px 16px}
 .cc-score{font-family:'Source Serif 4',Georgia,serif;font-size:26px;font-weight:700;color:var(--ink);line-height:1;white-space:nowrap}
 .cc-score.perfect{color:var(--bull)}
 .cc-toptext{flex:1}
 .cc-title{font-size:12.5px;font-weight:600;color:var(--ink)}
 .cc-sub{font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4}
-.cc-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.cc-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
 /* Each criterion is its own elevated card -- "floating" above the page rather
    than a row in a flat table, so the five read as independent, weighable checks. */
-.cc-col{background:#fff;border:1px solid var(--line);border-radius:10px;padding:13px 13px 12px;position:relative;box-shadow:0 2px 7px rgba(22,35,63,.08);transition:box-shadow .15s ease}
+.cc-col{background:#fff;border:1px solid var(--line);border-radius:10px;padding:17px 15px 15px;position:relative;box-shadow:0 2px 7px rgba(22,35,63,.08);transition:box-shadow .15s ease}
 .cc-col:hover{box-shadow:0 5px 14px rgba(22,35,63,.14)}
-.cc-col-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.cc-col-top{display:flex;align-items:center;gap:7px;margin-bottom:9px}
 .cc-box{flex:none;width:16px;height:16px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
 .cc-box.pass{background:var(--bull);color:#fff}
 .cc-box.fail{background:#fff;border:1.5px solid var(--line);color:transparent}
@@ -221,11 +221,12 @@ _DYNAMIC_CSS = r"""
 .general-brief .answer{font-size:14px;line-height:1.45}
 .general-brief .why-block{margin-top:12px;padding:11px 14px}
 .general-brief .why-block p{font-size:11.5px;line-height:1.5}
-.general-brief .cc-card{margin-top:10px;margin-bottom:12px}
-.general-brief .cc-top{padding:0 1px 9px}
+.general-brief .cc-card{margin-top:12px;margin-bottom:14px}
+.general-brief .cc-top{padding:0 1px 11px}
 .general-brief .cc-score{font-size:21px}
-.general-brief .cc-grid{gap:7px}
-.general-brief .cc-col{padding:9px 10px 8px}
+.general-brief .cc-grid{gap:10px}
+.general-brief .cc-col{padding:11px 12px 10px}
+.general-brief .cc-col-top{margin-bottom:7px}
 .general-brief .cc-label{font-size:9.5px}
 .general-brief .cc-detail{font-size:9px}
 .general-brief .cc-explain{font-size:8px}
