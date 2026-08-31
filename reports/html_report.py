@@ -114,33 +114,35 @@ _DYNAMIC_CSS = r"""
    shown as checkboxes with a headline score.  Supplementary evidence, never a rating label.
    Horizontal, one column per criterion, so the whole thing reads at a glance right under
    the masthead -- this is the report's most-scanned piece of reasoning, not a buried detail. */
-.cc-card{margin-top:18px;margin-bottom:20px}
-.cc-top{display:flex;align-items:center;gap:14px;padding:0 1px 16px}
-.cc-score{font-family:'Source Serif 4',Georgia,serif;font-size:26px;font-weight:700;color:var(--ink);line-height:1;white-space:nowrap}
+.cc-card{margin-top:22px;margin-bottom:26px}
+.cc-top{display:flex;align-items:center;gap:16px;padding:0 1px 20px}
+.cc-score{font-family:'Source Serif 4',Georgia,serif;font-size:34px;font-weight:700;color:var(--ink);line-height:1;white-space:nowrap}
 .cc-score.perfect{color:var(--bull)}
 .cc-toptext{flex:1}
-.cc-title{font-size:12.5px;font-weight:600;color:var(--ink)}
-.cc-sub{font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4}
-.cc-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px}
+.cc-title{font-size:15px;font-weight:600;color:var(--ink)}
+.cc-sub{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+.cc-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:20px}
 /* Each criterion is its own elevated card -- "floating" above the page rather
-   than a row in a flat table, so the five read as independent, weighable checks. */
-.cc-col{background:#fff;border:1px solid var(--line);border-radius:10px;padding:17px 15px 15px;position:relative;box-shadow:0 2px 7px rgba(22,35,63,.08);transition:box-shadow .15s ease}
-.cc-col:hover{box-shadow:0 5px 14px rgba(22,35,63,.14)}
-.cc-col-top{display:flex;align-items:center;gap:7px;margin-bottom:9px}
-.cc-box{flex:none;width:16px;height:16px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+   than a row in a flat table, so the five read as independent, weighable checks.
+   This is the report's most-scanned reasoning, so the cards are sized to command
+   real screen space, not tucked away as a compact aside. */
+.cc-col{background:#fff;border:1px solid var(--line);border-radius:12px;padding:26px 22px 24px;min-height:200px;position:relative;box-shadow:0 3px 10px rgba(22,35,63,.09);transition:box-shadow .15s ease}
+.cc-col:hover{box-shadow:0 7px 18px rgba(22,35,63,.15)}
+.cc-col-top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.cc-box{flex:none;width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700}
 .cc-box.pass{background:var(--bull);color:#fff}
 .cc-box.fail{background:#fff;border:1.5px solid var(--line);color:transparent}
-.cc-box.unconfirmed{background:var(--panel);border:1.5px solid var(--line);color:var(--muted);font-size:9px}
-.cc-label{flex:1;font-size:10.5px;font-weight:600;color:var(--ink);line-height:1.25}
+.cc-box.unconfirmed{background:var(--panel);border:1.5px solid var(--line);color:var(--muted);font-size:12px}
+.cc-label{flex:1;font-size:15px;font-weight:600;color:var(--ink);line-height:1.25}
 /* The info circle takes hover OR focus, so a click (which focuses a button) works
    identically to a hover -- no JS needed, and it stays keyboard-reachable. */
-.cc-info{flex:none;width:14px;height:14px;padding:0;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--muted);font:italic 700 9px/1 'Source Serif 4',Georgia,serif;display:flex;align-items:center;justify-content:center;cursor:help}
+.cc-info{flex:none;width:19px;height:19px;padding:0;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--muted);font:italic 700 11px/1 'Source Serif 4',Georgia,serif;display:flex;align-items:center;justify-content:center;cursor:help}
 .cc-info:hover,.cc-info:focus{background:var(--ink);border-color:var(--ink);color:#fff;outline:none}
-.cc-tip{position:absolute;z-index:20;top:100%;left:14px;margin-top:6px;width:172px;background:var(--ink);color:#fff;font-size:10px;line-height:1.45;padding:9px 10px;border-radius:6px;box-shadow:0 4px 14px rgba(22,35,63,.22);visibility:hidden;opacity:0;transition:opacity .12s ease}
+.cc-tip{position:absolute;z-index:20;top:100%;left:22px;margin-top:8px;width:210px;background:var(--ink);color:#fff;font-size:11.5px;line-height:1.5;padding:11px 12px;border-radius:7px;box-shadow:0 4px 14px rgba(22,35,63,.22);visibility:hidden;opacity:0;transition:opacity .12s ease}
 .cc-col:first-child .cc-tip{left:0}
 .cc-col:last-child .cc-tip{left:auto;right:0}
 .cc-info:hover+.cc-tip,.cc-info:focus+.cc-tip{visibility:visible;opacity:1}
-.cc-detail{font-size:10px;color:var(--body);line-height:1.4}
+.cc-detail{font-size:12.5px;color:var(--body);line-height:1.5}
 /* Screen relies on the hover/click tooltip above; print can't hover, so it gets the
    same explanation as a small static caption instead of losing it entirely. */
 .cc-explain{display:none}
@@ -154,7 +156,7 @@ _DYNAMIC_CSS = r"""
 .trigger-list{margin:0;padding:0;list-style:none}
 .trigger-list li{font-size:12.5px;color:var(--body);line-height:1.5;padding:6px 0 6px 15px;position:relative}
 .trigger-list li:before{content:"→";position:absolute;left:0;color:var(--gold);font-weight:600}
-@media(max-width:900px){.reason-row{grid-template-columns:34px minmax(0,1fr)}.reason-row.stance{grid-template-columns:104px minmax(0,1fr)}.reason-copy{grid-column:2}.chart-image{max-height:none}.grid3{grid-template-columns:1fr}.cc-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.reason-row{grid-template-columns:34px minmax(0,1fr)}.reason-row.stance{grid-template-columns:104px minmax(0,1fr)}.reason-copy{grid-column:2}.chart-image{max-height:none}.grid3{grid-template-columns:1fr}.cc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media print{.chart-image{max-height:178mm}.btn,.rail-tools{display:none!important}.reason-row{break-inside:avoid}.page-view[hidden]{display:block!important}.page-view:not(:last-child){break-after:page}
 /* The @page margin supplies the printed gutter; the screen one would double it. */
 .shell{padding-left:0;padding-right:0}
@@ -195,7 +197,7 @@ _DYNAMIC_CSS = r"""
 .general-brief .tl{border-left:1px solid var(--line);padding-left:12px}
 .general-brief .tl:first-child{border-left:0;padding-left:0}
 .general-brief .action-grid,.general-brief .data-grid,.general-brief .risk-grid,.general-brief .grid3{grid-template-columns:repeat(3,1fr)}
-.general-brief .cc-grid{grid-template-columns:repeat(5,1fr)}
+.general-brief .cc-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
 .general-brief .reason-row.stance{grid-template-columns:92px 148px minmax(0,1fr)}
 .general-brief .reason-copy{grid-column:auto}
 .general-brief section{break-inside:auto;margin-top:14px}
@@ -225,8 +227,12 @@ _DYNAMIC_CSS = r"""
 .general-brief .cc-top{padding:0 1px 11px}
 .general-brief .cc-score{font-size:21px}
 .general-brief .cc-grid{gap:10px}
-.general-brief .cc-col{padding:11px 12px 10px}
-.general-brief .cc-col-top{margin-bottom:7px}
+/* The screen cards are deliberately oversized (min-height, generous padding) to
+   command real screen space; print has no such budget, so reset both here rather
+   than let the enlarged base bleed into the page count. */
+.general-brief .cc-col{padding:11px 12px 10px;min-height:0}
+.general-brief .cc-col-top{gap:6px;margin-bottom:7px}
+.general-brief .cc-box{width:14px;height:14px;border-radius:4px;font-size:10px}
 .general-brief .cc-label{font-size:9.5px}
 .general-brief .cc-detail{font-size:9px}
 .general-brief .cc-explain{font-size:8px}
@@ -686,14 +692,14 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
 </nav>
 <main class="page general-brief">
 {_masthead(result, 'General Research')}
+<div class="verdict-hero">
+  <div class="vh-cap">Our recommendation</div>
+  <div class="vh-word {tone_class}">{escape(result.lead_rating.value)}</div>
+  <div class="vh-sub">Confidence <b>{escape(result.confidence.value)}</b></div>
+</div>
 {_conviction_checklist_html(result.conviction_checklist)}
 {_topline(result)}
 <section id="answer">
-  <div class="verdict-hero">
-    <div class="vh-cap">Our recommendation</div>
-    <div class="vh-word {tone_class}">{escape(result.lead_rating.value)}</div>
-    <div class="vh-sub">Confidence <b>{escape(result.confidence.value)}</b></div>
-  </div>
   <p class="question-line" style="margin-top:24px"><span>Your question</span>{escape(question)}</p>
   <div class="answer-card"><div class="answer-label">Direct answer</div><p class="answer">{escape(answer)}</p></div>
   <div class="why-block">
