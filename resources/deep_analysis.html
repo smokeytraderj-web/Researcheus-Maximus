@@ -109,7 +109,7 @@ tailwind.config = {
   function goBack() { if (bridge) bridge.openOverview(); }
   function openSettings() { if (bridge) bridge.openSettings(); }
   document.getElementById('queryBox').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       submitQuery();
     }

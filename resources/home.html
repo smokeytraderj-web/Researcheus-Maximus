@@ -141,7 +141,7 @@ tailwind.config = {
   function openTrack() { if (bridge) bridge.openTrackRecord(); }
   function openSettings() { if (bridge) bridge.openSettings(); }
   document.getElementById('queryBox').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       submitQuery();
     }
