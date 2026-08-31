@@ -764,6 +764,12 @@ class MainWindow(QMainWindow):
             self.runner.cancel(replacing)
             self.modification_request.clear()
         self.prepared = prepared
+        # Open the report the moment it exists, not only after the Evidence Review
+        # is approved -- the file is already fully built by this point, and making
+        # the user click through to see it (again, on every regeneration) is pure
+        # friction. The Evidence Review and Finalize Research steps still run in
+        # full; this just stops gating the first look at the report behind them.
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(prepared.interactive_path)))
         r = prepared.result
         ycharts_alert = ""
         if r.ycharts_status and not r.ycharts_status.startswith("YCharts connected") and not r.demo_mode:
