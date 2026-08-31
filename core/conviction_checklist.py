@@ -39,6 +39,17 @@ POLICY_VERSION = "1.0"
 _RSI_FLOOR = 40.0
 _RSI_CEILING = 75.0
 
+# Plain-English, client-facing gloss for each criterion -- what it measures, not
+# what this security scored.  Fixed per key, versioned with the policy above;
+# `detail` on the criterion itself carries the security-specific evaluation.
+_EXPLANATIONS = {
+    "trend": "The stock's price relative to its own longer-run moving averages -- a measure of whether it sits in a sustained uptrend or downtrend.",
+    "momentum": "The strength of short-term buying pressure: trending with participation, short of the overbought extreme where a pullback becomes likely.",
+    "relative_strength": "The stock's total return against the S&P 500 over the same period -- outperformance, not simply a rising price.",
+    "growth": "Year-over-year growth in both revenue and earnings -- evidence the underlying business is expanding, not just the share price.",
+    "street_conviction": "The average Wall Street analyst price target compared with the current price, expressed as implied upside or downside.",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class ConvictionCriterion:
@@ -46,6 +57,11 @@ class ConvictionCriterion:
     label: str
     passed: bool | None  # None = not confirmable from the available evidence
     detail: str
+    explanation: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.explanation:
+            object.__setattr__(self, "explanation", _EXPLANATIONS.get(self.key, ""))
 
     @property
     def status(self) -> str:

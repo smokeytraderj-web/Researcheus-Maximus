@@ -111,29 +111,50 @@ _DYNAMIC_CSS = r"""
 .ch-row .ch-v{font-family:'IBM Plex Mono',monospace;color:var(--ink);font-weight:500}
 .chart-hint{font-size:10px;color:var(--muted);margin-top:6px;font-style:italic}
 /* Conviction Checklist: five deterministic, independent criteria (core/conviction_checklist.py)
-   shown as checkboxes with a headline score.  Supplementary evidence, never a rating label. */
-.cc-card{margin-top:22px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.cc-head{display:flex;align-items:center;gap:16px;padding:16px 20px;background:var(--panel);border-bottom:1px solid var(--line)}
-.cc-score{font-family:'Source Serif 4',Georgia,serif;font-size:30px;font-weight:700;color:var(--ink);line-height:1;white-space:nowrap}
+   shown as checkboxes with a headline score.  Supplementary evidence, never a rating label.
+   Horizontal, one column per criterion, so the whole thing reads at a glance right under
+   the masthead -- this is the report's most-scanned piece of reasoning, not a buried detail. */
+.cc-card{margin-top:16px}
+.cc-top{display:flex;align-items:center;gap:14px;padding:0 1px 12px}
+.cc-score{font-family:'Source Serif 4',Georgia,serif;font-size:26px;font-weight:700;color:var(--ink);line-height:1;white-space:nowrap}
 .cc-score.perfect{color:var(--bull)}
-.cc-headtext{flex:1}
-.cc-title{font-size:13.5px;font-weight:600;color:var(--ink)}
-.cc-sub{font-size:10.5px;color:var(--muted);margin-top:2px}
-.cc-rows{display:block}
-.cc-row{display:flex;align-items:flex-start;gap:12px;padding:11px 20px;border-bottom:1px solid var(--line-2)}
-.cc-row:last-child{border-bottom:none}
-.cc-box{flex:none;width:18px;height:18px;border-radius:4px;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.cc-toptext{flex:1}
+.cc-title{font-size:12.5px;font-weight:600;color:var(--ink)}
+.cc-sub{font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4}
+.cc-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+/* Each criterion is its own elevated card -- "floating" above the page rather
+   than a row in a flat table, so the five read as independent, weighable checks. */
+.cc-col{background:#fff;border:1px solid var(--line);border-radius:10px;padding:13px 13px 12px;position:relative;box-shadow:0 2px 7px rgba(22,35,63,.08);transition:box-shadow .15s ease}
+.cc-col:hover{box-shadow:0 5px 14px rgba(22,35,63,.14)}
+.cc-col-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.cc-box{flex:none;width:16px;height:16px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
 .cc-box.pass{background:var(--bull);color:#fff}
 .cc-box.fail{background:#fff;border:1.5px solid var(--line);color:transparent}
-.cc-box.unconfirmed{background:var(--panel);border:1.5px solid var(--line);color:var(--muted);font-size:10px}
-.cc-body{flex:1}
-.cc-label{font-size:12.5px;font-weight:600;color:var(--ink)}
-.cc-detail{font-size:11.5px;color:var(--body);margin-top:2px;line-height:1.45}
-@media print{.cc-box.pass{-webkit-print-color-adjust:exact;print-color-adjust:exact}.cc-head{break-inside:avoid;break-after:avoid}.cc-row{break-inside:avoid}}
+.cc-box.unconfirmed{background:var(--panel);border:1.5px solid var(--line);color:var(--muted);font-size:9px}
+.cc-label{flex:1;font-size:10.5px;font-weight:600;color:var(--ink);line-height:1.25}
+/* The info circle takes hover OR focus, so a click (which focuses a button) works
+   identically to a hover -- no JS needed, and it stays keyboard-reachable. */
+.cc-info{flex:none;width:14px;height:14px;padding:0;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--muted);font:italic 700 9px/1 'Source Serif 4',Georgia,serif;display:flex;align-items:center;justify-content:center;cursor:help}
+.cc-info:hover,.cc-info:focus{background:var(--ink);border-color:var(--ink);color:#fff;outline:none}
+.cc-tip{position:absolute;z-index:20;top:100%;left:14px;margin-top:6px;width:172px;background:var(--ink);color:#fff;font-size:10px;line-height:1.45;padding:9px 10px;border-radius:6px;box-shadow:0 4px 14px rgba(22,35,63,.22);visibility:hidden;opacity:0;transition:opacity .12s ease}
+.cc-col:first-child .cc-tip{left:0}
+.cc-col:last-child .cc-tip{left:auto;right:0}
+.cc-info:hover+.cc-tip,.cc-info:focus+.cc-tip{visibility:visible;opacity:1}
+.cc-detail{font-size:10px;color:var(--body);line-height:1.4}
+/* Screen relies on the hover/click tooltip above; print can't hover, so it gets the
+   same explanation as a small static caption instead of losing it entirely. */
+.cc-explain{display:none}
+@media print{
+.cc-card{break-inside:avoid}
+.cc-col{box-shadow:none}
+.cc-box.pass{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cc-info,.cc-tip{display:none!important}
+.cc-explain{display:block;font-size:8.5px;color:var(--muted);font-style:italic;line-height:1.35;margin-top:3px}
+}
 .trigger-list{margin:0;padding:0;list-style:none}
 .trigger-list li{font-size:12.5px;color:var(--body);line-height:1.5;padding:6px 0 6px 15px;position:relative}
 .trigger-list li:before{content:"→";position:absolute;left:0;color:var(--gold);font-weight:600}
-@media(max-width:900px){.reason-row{grid-template-columns:34px minmax(0,1fr)}.reason-row.stance{grid-template-columns:104px minmax(0,1fr)}.reason-copy{grid-column:2}.chart-image{max-height:none}.grid3{grid-template-columns:1fr}}
+@media(max-width:900px){.reason-row{grid-template-columns:34px minmax(0,1fr)}.reason-row.stance{grid-template-columns:104px minmax(0,1fr)}.reason-copy{grid-column:2}.chart-image{max-height:none}.grid3{grid-template-columns:1fr}.cc-grid{grid-template-columns:repeat(2,1fr)}}
 @media print{.chart-image{max-height:178mm}.btn,.rail-tools{display:none!important}.reason-row{break-inside:avoid}.page-view[hidden]{display:block!important}.page-view:not(:last-child){break-after:page}
 /* The @page margin supplies the printed gutter; the screen one would double it. */
 .shell{padding-left:0;padding-right:0}
@@ -174,6 +195,7 @@ _DYNAMIC_CSS = r"""
 .general-brief .tl{border-left:1px solid var(--line);padding-left:12px}
 .general-brief .tl:first-child{border-left:0;padding-left:0}
 .general-brief .action-grid,.general-brief .data-grid,.general-brief .risk-grid,.general-brief .grid3{grid-template-columns:repeat(3,1fr)}
+.general-brief .cc-grid{grid-template-columns:repeat(5,1fr)}
 .general-brief .reason-row.stance{grid-template-columns:92px 148px minmax(0,1fr)}
 .general-brief .reason-copy{grid-column:auto}
 .general-brief section{break-inside:auto;margin-top:14px}
@@ -199,11 +221,14 @@ _DYNAMIC_CSS = r"""
 .general-brief .answer{font-size:14px;line-height:1.45}
 .general-brief .why-block{margin-top:12px;padding:11px 14px}
 .general-brief .why-block p{font-size:11.5px;line-height:1.5}
-.general-brief .cc-card{margin-top:12px}
-.general-brief .cc-head{padding:11px 15px}
-.general-brief .cc-score{font-size:24px}
-.general-brief .cc-row{padding:8px 15px}
-.general-brief .cc-detail{font-size:10.5px}
+.general-brief .cc-card{margin-top:10px;margin-bottom:12px}
+.general-brief .cc-top{padding:0 1px 9px}
+.general-brief .cc-score{font-size:21px}
+.general-brief .cc-grid{gap:7px}
+.general-brief .cc-col{padding:9px 10px 8px}
+.general-brief .cc-label{font-size:9.5px}
+.general-brief .cc-detail{font-size:9px}
+.general-brief .cc-explain{font-size:8px}
 .general-brief .reason-list{margin-top:12px!important}
 .general-brief .reason-row{padding:6px 0}
 .general-brief .reason-copy{font-size:11.5px;line-height:1.45}
@@ -250,14 +275,28 @@ def _tone(rating: Rating) -> tuple[str, str]:
 
 
 def _conviction_checklist_html(checklist) -> str:
-    """The five-point checklist card, or nothing when a result carries none."""
+    """The five-point checklist card, or nothing when a result carries none.
+
+    Horizontal, one column per criterion, meant to sit right under the masthead
+    where it reads at a glance -- this is the report's most-scanned reasoning,
+    not a buried detail. Each column carries a hover/click info circle with a
+    plain-English explanation of what that criterion measures (`explanation`,
+    fixed per criterion in core/conviction_checklist.py), kept separate from
+    `detail`, which is this security's actual reading against it. Print can't
+    hover, so `.cc-explain` repeats the same explanation as a static caption
+    instead of losing it there.
+    """
     if checklist is None or not checklist.criteria:
         return ""
     icons = {"pass": "✓", "fail": "", "unconfirmed": "?"}
-    rows = "".join(
-        f'<div class="cc-row"><div class="cc-box {item.status}">{icons[item.status]}</div>'
-        f'<div class="cc-body"><div class="cc-label">{escape(item.label)}</div>'
-        f'<div class="cc-detail">{escape(item.detail)}</div></div></div>'
+    cols = "".join(
+        f'<div class="cc-col"><div class="cc-col-top">'
+        f'<div class="cc-box {item.status}">{icons[item.status]}</div>'
+        f'<div class="cc-label">{escape(item.label)}</div>'
+        f'<button type="button" class="cc-info" aria-label="What {escape(item.label)} measures">i</button>'
+        f'<div class="cc-tip" role="tooltip">{escape(item.explanation)}</div>'
+        f'</div><div class="cc-detail">{escape(item.detail)}</div>'
+        f'<div class="cc-explain">{escape(item.explanation)}</div></div>'
         for item in checklist.criteria
     )
     score_class = "perfect" if checklist.is_perfect else ""
@@ -265,11 +304,11 @@ def _conviction_checklist_html(checklist) -> str:
     if checklist.unconfirmed_count:
         sub += f" {checklist.unconfirmed_count} could not be confirmed from the available evidence."
     return f"""<div class="cc-card">
-  <div class="cc-head">
+  <div class="cc-top">
     <div class="cc-score {score_class}">{checklist.passed_count}/{checklist.total_count}</div>
-    <div class="cc-headtext"><div class="cc-title">Conviction Checklist</div><div class="cc-sub">{escape(sub)}</div></div>
+    <div class="cc-toptext"><div class="cc-title">Conviction Checklist</div><div class="cc-sub">{escape(sub)}</div></div>
   </div>
-  <div class="cc-rows">{rows}</div>
+  <div class="cc-grid">{cols}</div>
 </div>"""
 
 
@@ -645,7 +684,9 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
   <div class="rail-tools"><button class="btn" onclick="window.print()">Print / save PDF</button></div>
 </nav>
 <main class="page general-brief">
-{_masthead(result, 'General Research')}{_topline(result)}
+{_masthead(result, 'General Research')}
+{_conviction_checklist_html(result.conviction_checklist)}
+{_topline(result)}
 <section id="answer">
   <div class="verdict-hero">
     <div class="vh-cap">Our recommendation</div>
@@ -659,7 +700,6 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
     <p>{escape(qualitative_summary)}</p>
   </div>
   <div class="reason-list" style="margin-top:20px">{reason_html}</div>
-  {_conviction_checklist_html(result.conviction_checklist)}
   {demo}
 </section>
 <section id="action">
