@@ -110,6 +110,13 @@ _DYNAMIC_CSS = r"""
 .ch-row .ch-k{color:var(--muted)}
 .ch-row .ch-v{font-family:'IBM Plex Mono',monospace;color:var(--ink);font-weight:500}
 .chart-hint{font-size:10px;color:var(--muted);margin-top:6px;font-style:italic}
+/* The scenario tester's live price ladder reuses the position/risk plan's ladder
+   markup and CSS (.ladder/.lrow/.lzone, defined in the approved base template) --
+   these are just the additions for the one moving "test price" marker the base
+   template doesn't have, plus a shorter variant for the tighter tester panel. */
+.ladder.compact{min-height:190px}
+.lrow.test .lrule{background:var(--gold);height:2px}
+.ltest-chip{background:var(--gold);color:#fff;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;padding:2px 7px;border-radius:2px}
 /* Conviction Checklist: five deterministic, independent criteria (core/conviction_checklist.py)
    shown as checkboxes with a headline score.  Supplementary evidence, never a rating label.
    Horizontal, one column per criterion, so the whole thing reads at a glance right under
@@ -859,7 +866,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
     tv_tab = '<button class="evidence-tab" role="tab" aria-selected="false" aria-controls="evidenceTradingView" id="evidenceTradingViewTab">TradingView</button>'
     tv_panel = '<div class="evidence-panel" id="evidenceTradingView" role="tabpanel" aria-labelledby="evidenceTradingViewTab" hidden><figure class="chart" style="padding:0"><div id="tvWidget" class="tv-widget"></div></figure></div>'
     scenario_tab = f'<button class="evidence-tab" role="tab" aria-selected="false" aria-controls="evidenceScenario" id="evidenceScenarioTab">Scenario tester</button>'
-    scenario_panel = f'''<div class="evidence-panel" id="evidenceScenario" role="tabpanel" aria-labelledby="evidenceScenarioTab" hidden><div class="scen"><div><div class="slider-lab"><span class="big num" id="sPrice">{_money(result.current_price)}</span><span class="k" id="sDelta">At today's price</span></div><div class="slider-control"><input type="range" id="slider" min="{slider_min:.2f}" max="{slider_max:.2f}" step="0.01" value="{result.current_price:.2f}" aria-label="Test a future price"><div class="ticks"><span style="left:0%">{_money(slider_min)}</span><span style="left:100%">{_money(slider_max)}</span></div></div><div class="zone" id="zone" aria-live="polite"></div></div><div class="out"><div class="o-row"><span class="o-k">Change from today</span><span class="o-v num" id="oChg">0.0%</span></div><div class="o-row"><span class="o-k">Vs. entry midpoint</span><span class="o-v num" id="oEntry">—</span></div><div class="o-row"><span class="o-k">Distance to stop</span><span class="o-v num" id="oStop">—</span></div><div class="o-row"><span class="o-k">On a $100,000 position</span><span class="o-v num" id="oPnl">$0</span></div><div class="o-note">Illustrative only. Excludes dividends, commissions, taxes and execution differences.</div></div></div></div>'''
+    scenario_panel = f'''<div class="evidence-panel" id="evidenceScenario" role="tabpanel" aria-labelledby="evidenceScenarioTab" hidden><div class="scen"><div><div class="slider-lab"><span class="big num" id="sPrice">{_money(result.current_price)}</span><span class="k" id="sDelta">At today's price</span></div><div class="slider-control"><input type="range" id="slider" min="{slider_min:.2f}" max="{slider_max:.2f}" step="0.01" value="{result.current_price:.2f}" aria-label="Test a future price"><div class="ticks"><span style="left:0%">{_money(slider_min)}</span><span style="left:100%">{_money(slider_max)}</span></div></div><div class="zone" id="zone" aria-live="polite"></div><div class="ladder compact" id="scenarioLadder"></div></div><div class="out"><div class="o-row"><span class="o-k">Change from today</span><span class="o-v num" id="oChg">0.0%</span></div><div class="o-row"><span class="o-k">Vs. entry midpoint</span><span class="o-v num" id="oEntry">—</span></div><div class="o-row"><span class="o-k">Distance to stop</span><span class="o-v num" id="oStop">—</span></div><div class="o-row"><span class="o-k">On a $100,000 position</span><span class="o-v num" id="oPnl">$0</span></div><div class="o-note">Illustrative only. Excludes dividends, commissions, taxes and execution differences.</div></div></div></div>'''
     page2_strip = f'''<div class="p2-strip"><span class="p2-co">{escape(result.identity.company_name)} <span class="num">{escape(result.identity.ticker)}</span></span><span class="p2-px num">{_money(result.current_price)}</span><span class="verdict {tone_class}">{escape(result.lead_rating.value)}</span></div>'''
     body = f"""
 <div class="shell">
@@ -1012,17 +1019,17 @@ pageTabs.forEach(function(tab){tab.addEventListener('click',function(event){
 var adv=document.getElementById('advBtn');if(adv)adv.addEventListener('click',function(){var on=document.body.classList.toggle('advisor');adv.setAttribute('aria-pressed',String(on));adv.textContent='Advisor detail: '+(on?'on':'off')});
 function money(v){return '$'+v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
 function pct(v){return (v>=0?'+':'')+(v*100).toFixed(1)+'%'}
-function updateScenario(){
-  var slider=document.getElementById('slider');if(!slider)return;var p=Number(slider.value),chg=p/PLAN.current-1,entry=p/PLAN.entryMid-1,dist=p-PLAN.stop;
-  document.getElementById('sPrice').textContent=money(p);document.getElementById('sDelta').textContent=Math.abs(chg)<.0001?"At today's price":pct(chg)+' from today';
-  document.getElementById('oChg').textContent=pct(chg);document.getElementById('oEntry').textContent=pct(entry);document.getElementById('oStop').textContent=money(Math.abs(dist))+' '+(dist>=0?'above':'below');document.getElementById('oPnl').textContent=(chg>=0?'+':'−')+money(Math.abs(chg*100000));
-  var z=document.getElementById('zone');if(p<PLAN.stop)z.innerHTML='<b>Invalidated.</b> Price is below the planned stop; the setup no longer qualifies.';else if(p<PLAN.entryLow)z.innerHTML='<b>Below the entry zone.</b> Wait for price to reclaim structure before considering an order.';else if(p<=PLAN.entryHigh)z.innerHTML='<b>Inside the entry zone.</b> Act only if the stated confirmation is present.';else if(p<PLAN.target1)z.innerHTML='<b>Above the entry zone.</b> Avoid chasing; reassess reward to risk.';else if(p<PLAN.target2)z.innerHTML='<b>First target reached.</b> Review risk, sizing and whether to trail the stop.';else z.innerHTML='<b>Second target reached.</b> Re-underwrite rather than assuming further upside.';
-}
-var slider=document.getElementById('slider');if(slider){slider.addEventListener('input',updateScenario);updateScenario()}
-(function(){
-  var levels=[{p:PLAN.target2,l:'Second target',c:'tgt'},{p:PLAN.target1,l:'First target',c:'tgt'},{p:PLAN.entryMid,l:'Entry midpoint',c:'entry'},{p:PLAN.current,l:'Now',c:'now'},{p:PLAN.stop,l:'Stop',c:'stop'}];
-  var lo=Math.min(PLAN.stop,PLAN.current,PLAN.entryLow),hi=Math.max(PLAN.target2,PLAN.current,PLAN.entryHigh),pad=(hi-lo)*.08;lo-=pad;hi+=pad;
-  var H=238;
+// Shared by the static position/risk ladder and the scenario tester's live
+// version below -- passing a testPrice adds one more level (styled distinctly)
+// through the same declutter pass, so it never overlaps a fixed label either.
+function renderLadder(containerId,testPrice,height){
+  var container=document.getElementById(containerId);if(!container)return;
+  var H=height||238;
+  var levels=[{p:PLAN.target2,l:'Second target',c:'tgt'},{p:PLAN.target1,l:'First target',c:'tgt'},{p:PLAN.entryMid,l:'Entry midpoint',c:'entry'},{p:PLAN.stop,l:'Stop',c:'stop'}];
+  levels.push(testPrice==null?{p:PLAN.current,l:'Now',c:'now'}:{p:testPrice,l:'Test price',c:'test'});
+  var extremes=[PLAN.stop,PLAN.entryLow,PLAN.entryHigh,PLAN.target2,PLAN.current];
+  if(testPrice!=null)extremes.push(testPrice);
+  var lo=Math.min.apply(null,extremes),hi=Math.max.apply(null,extremes),pad=(hi-lo)*.08;lo-=pad;hi+=pad;
   function y(p){return (1-(p-lo)/(hi-lo))*H}
   var zTop=y(PLAN.entryHigh),zBottom=y(PLAN.entryLow);
   var h='<div class="lzone" style="top:'+(zTop/H*100)+'%;height:'+((zBottom-zTop)/H*100)+'%"></div>';
@@ -1035,11 +1042,20 @@ var slider=document.getElementById('slider');if(slider){slider.addEventListener(
   }
   placed.forEach(function(item){
     var level=item.level;
-    var tag=level.c==='now'?'<span class="lnow-chip">Now</span>':'<span class="ltag"><strong>'+level.l+'</strong></span>';
+    var tag=level.c==='now'?'<span class="lnow-chip">Now</span>':level.c==='test'?'<span class="ltest-chip">Test price</span>':'<span class="ltag"><strong>'+level.l+'</strong></span>';
     h+='<div class="lrow '+level.c+'" style="top:'+(item.y/H*100)+'%"><span class="lprice num">'+money(level.p)+'</span><span class="lrule"></span>'+tag+'</div>';
   });
-  var ladder=document.getElementById('ladder');if(ladder)ladder.innerHTML=h;
-})();
+  container.innerHTML=h;
+}
+function updateScenario(){
+  var slider=document.getElementById('slider');if(!slider)return;var p=Number(slider.value),chg=p/PLAN.current-1,entry=p/PLAN.entryMid-1,dist=p-PLAN.stop;
+  document.getElementById('sPrice').textContent=money(p);document.getElementById('sDelta').textContent=Math.abs(chg)<.0001?"At today's price":pct(chg)+' from today';
+  document.getElementById('oChg').textContent=pct(chg);document.getElementById('oEntry').textContent=pct(entry);document.getElementById('oStop').textContent=money(Math.abs(dist))+' '+(dist>=0?'above':'below');document.getElementById('oPnl').textContent=(chg>=0?'+':'−')+money(Math.abs(chg*100000));
+  var z=document.getElementById('zone');if(p<PLAN.stop)z.innerHTML='<b>Invalidated.</b> Price is below the planned stop; the setup no longer qualifies.';else if(p<PLAN.entryLow)z.innerHTML='<b>Below the entry zone.</b> Wait for price to reclaim structure before considering an order.';else if(p<=PLAN.entryHigh)z.innerHTML='<b>Inside the entry zone.</b> Act only if the stated confirmation is present.';else if(p<PLAN.target1)z.innerHTML='<b>Above the entry zone.</b> Avoid chasing; reassess reward to risk.';else if(p<PLAN.target2)z.innerHTML='<b>First target reached.</b> Review risk, sizing and whether to trail the stop.';else z.innerHTML='<b>Second target reached.</b> Re-underwrite rather than assuming further upside.';
+  renderLadder('scenarioLadder',p,190);
+}
+var slider=document.getElementById('slider');if(slider){slider.addEventListener('input',updateScenario);updateScenario()}
+renderLadder('ladder',null,238);
 """
 
 
