@@ -12,6 +12,7 @@ import hashlib
 import numpy as np
 import pandas as pd
 
+from core.conviction_checklist import evaluate_conviction_checklist
 from core.research_prompt import parse_portfolio_exposure
 from core.models import (
     ComparisonAssessment,
@@ -37,6 +38,7 @@ from research.technical import (
     render_total_return_chart,
     stop_loss_decision_insights,
     total_return_chart_insights,
+    windowed_return_pct,
 )
 
 
@@ -113,6 +115,7 @@ class DemoResearchProvider:
         chart_path = ""
         overview_chart = None
         chartbook = []
+        conviction_checklist = None
         if workspace is not None and not request.comparison_analysis:
             if request.custom_start and request.custom_end:
                 dates = pd.bdate_range(request.custom_start, request.custom_end)
@@ -149,6 +152,28 @@ class DemoResearchProvider:
                 index=dates,
             )
             demo_snapshot = analyze_history(primary_history)
+            # Synthetic growth/target figures, deterministic per ticker like `price` above --
+            # so the checklist card renders (and scores honestly against synthetic data) in
+            # demo mode too, not only against live evidence.
+            revenue_growth_pct = -0.05 + (digest[3] / 255) * 0.45
+            earnings_growth_pct = -0.20 + (digest[4] / 255) * 0.60
+            analyst_target = price * (0.90 + (digest[5] / 255) * 0.35)
+            custom_range = bool(request.custom_start and request.custom_end)
+            conviction_checklist = evaluate_conviction_checklist(
+                price=price,
+                sma50=demo_snapshot.sma50,
+                sma200=demo_snapshot.sma200,
+                rsi14=demo_snapshot.rsi14,
+                macd=demo_snapshot.macd,
+                macd_signal=demo_snapshot.macd_signal,
+                security_return_pct=windowed_return_pct(primary_history, custom_range=custom_range),
+                benchmark_return_pct=(
+                    windowed_return_pct(spy_history, custom_range=custom_range) if ticker != "SPY" else None
+                ),
+                revenue_growth_pct=revenue_growth_pct,
+                earnings_growth_pct=earnings_growth_pct,
+                analyst_target=analyst_target,
+            )
             chart_path = str(
                 render_chart(
                     primary_history,
@@ -399,6 +424,7 @@ class DemoResearchProvider:
             ycharts_status="YCharts is not queried in Demo / Offline Test mode.",
             technical_plan=technical_plan,
             overview_chart=overview_chart,
+            conviction_checklist=conviction_checklist,
         )
         result.validate()
         return result
