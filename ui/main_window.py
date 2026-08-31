@@ -658,18 +658,36 @@ class MainWindow(QMainWindow):
             self.runner = ResearchRunner(provider=DemoResearchProvider())
         self._run_request(request, replacing=self.prepared)
 
+    def _make_progress(self, message: str) -> QProgressBar:
+        """A slim, brand-colored indeterminate bar in place of the chunky OS default.
+
+        The status message and the bar are separated -- Qt draws `setFormat` text
+        centered on top of the bar itself, which reads cluttered at this size --
+        so the label lives in the status bar's own message area instead.
+        """
+        self.statusBar().showMessage(message)
+        bar = QProgressBar()
+        bar.setRange(0, 0)
+        bar.setTextVisible(False)
+        bar.setFixedWidth(200)
+        bar.setFixedHeight(6)
+        bar.setStyleSheet(
+            "QProgressBar{background:#EDF0F3;border:none;border-radius:3px;}"
+            "QProgressBar::chunk{background:#16233F;border-radius:3px;}"
+        )
+        self.statusBar().addPermanentWidget(bar)
+        return bar
+
     def _run_request(self, request: ResearchRequest, *, replacing: PreparedResearch | None = None) -> None:
-        progress = QProgressBar()
-        progress.setRange(0, 0)
         if replacing:
-            progress.setFormat("Applying requested changes…")
+            message = "Applying requested changes…"
         elif request.comparison_analysis:
-            progress.setFormat("Comparing securities…")
+            message = "Comparing securities…"
         elif request.deep_analysis:
-            progress.setFormat("Building technical chartbook…")
+            message = "Building technical chartbook…"
         else:
-            progress.setFormat("Preparing evidence…")
-        self.statusBar().addPermanentWidget(progress)
+            message = "Preparing evidence…"
+        progress = self._make_progress(message)
         self.worker = ResearchWorker(self.runner, request, self)
         self.worker.completed.connect(
             lambda prepared: self._research_ready(prepared, progress, replacing=replacing)
@@ -695,10 +713,7 @@ class MainWindow(QMainWindow):
                 "Add a TV Remix API key in Settings and enable TV Remix to use Technical Analysis.",
             )
             return
-        progress = QProgressBar()
-        progress.setRange(0, 0)
-        progress.setFormat("Reading TV Remix technical structure…")
-        self.statusBar().addPermanentWidget(progress)
+        progress = self._make_progress("Reading TV Remix technical structure…")
         self.technical_worker = TechnicalWorker(TechnicalRunner(api_key=api_key), query_text, self)
         self.technical_worker.completed.connect(lambda prepared: self._technical_ready(prepared, progress))
         self.technical_worker.failed.connect(lambda message: self._research_failed(message, progress, keep_preview=False))
@@ -717,10 +732,7 @@ class MainWindow(QMainWindow):
             if not folder:
                 return
             self.settings.setValue("outputFolder", folder)
-        progress = QProgressBar()
-        progress.setRange(0, 0)
-        progress.setFormat("Scoring recorded calls…")
-        self.statusBar().addPermanentWidget(progress)
+        progress = self._make_progress("Scoring recorded calls…")
         self.track_worker = TrackRecordWorker(TrackRecordRunner(), Path(folder), self)
         self.track_worker.completed.connect(lambda path, session: self._track_ready(path, session, progress))
         self.track_worker.failed.connect(lambda message: self._research_failed(message, progress, keep_preview=False))
@@ -729,6 +741,7 @@ class MainWindow(QMainWindow):
     def _track_ready(self, path: Path, session, progress: QProgressBar) -> None:
         self.statusBar().removeWidget(progress)
         progress.deleteLater()
+        self.statusBar().clearMessage()
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
         # Give the browser time to read the file before the temp session goes.
         QTimer.singleShot(3000, session.cleanup)
@@ -736,6 +749,7 @@ class MainWindow(QMainWindow):
     def _technical_ready(self, prepared: PreparedTechnical, progress: QProgressBar) -> None:
         self.statusBar().removeWidget(progress)
         progress.deleteLater()
+        self.statusBar().clearMessage()
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(prepared.interactive_path)))
         self.stack.setCurrentIndex(0)
         # No approval gate for this single-source view -- the report is opened
@@ -760,6 +774,7 @@ class MainWindow(QMainWindow):
     ) -> None:
         self.statusBar().removeWidget(progress)
         progress.deleteLater()
+        self.statusBar().clearMessage()
         if replacing:
             self.runner.cancel(replacing)
             self.modification_request.clear()
@@ -927,6 +942,7 @@ class MainWindow(QMainWindow):
     def _research_failed(self, message: str, progress: QProgressBar, *, keep_preview: bool = False) -> None:
         self.statusBar().removeWidget(progress)
         progress.deleteLater()
+        self.statusBar().clearMessage()
         QMessageBox.critical(self, "Research failed", message)
         if keep_preview:
             self.stack.setCurrentIndex(2)
