@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import datetime as dt
 from enum import Enum
 
+from core.conviction_checklist import ConvictionChecklist
+
 
 class Horizon(str, Enum):
     SHORT = "Short Term"
@@ -216,6 +218,7 @@ class ResearchResult:
     portfolio_fit: PortfolioFitAssessment | None = None
     technical_plan: TechnicalActionPlan | None = None
     overview_chart: ChartRecord | None = None
+    conviction_checklist: ConvictionChecklist | None = None
 
     def validate(self) -> None:
         if self.current_price <= 0:
@@ -224,3 +227,53 @@ class ResearchResult:
             raise ValueError("At least one source record is required.")
         if not self.executive_summary.strip():
             raise ValueError("Executive summary is required.")
+
+
+@dataclass(frozen=True, slots=True)
+class TVGaugeReading:
+    timeframe: str
+    rating_label: str
+    rating_value: float
+    oscillators_label: str
+    moving_averages_label: str
+    indicators: tuple[tuple[str, str, str], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TVLevel:
+    label: str
+    price: float
+    pct_from_now: float
+
+
+@dataclass(frozen=True, slots=True)
+class TVTechnicalReport:
+    query: str
+    resolved_symbol: str
+    company_name: str
+    current_price: float
+    change_pct: float
+    as_of: str
+    gauges: tuple[TVGaugeReading, ...]
+    confluence_label: str
+    levels: tuple[TVLevel, ...]
+    summary_bullets: tuple[tuple[str, str], ...]
+    headline: str
+    chart_read: str
+    market_cap: float | None
+    volume: float | None
+    beta: float | None
+    period_returns: tuple[tuple[str, float], ...]
+    analyst_rating: str
+    analyst_score: float | None
+    price_target_low: float | None
+    price_target_avg: float | None
+    price_target_high: float | None
+    price_chart_path: str
+    sparkline_path: str
+    sources: tuple[SourceRecord, ...]
+    error: str = ""
+
+    @property
+    def available(self) -> bool:
+        return not self.error and bool(self.resolved_symbol)

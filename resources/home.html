@@ -37,6 +37,10 @@ tailwind.config = {
   textarea::placeholder { color: #9AA5B4; }
   textarea:focus { outline: none; }
   ::selection { background: #EFE4C7; }
+  /* Tailwind's generated .font-serif came out with an empty font-family, so every
+     heading silently fell back to the sans stack. Declare it explicitly. */
+  .font-serif { font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif; }
+  .font-mono  { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
 </style>
 </head>
 <body class="min-h-screen font-sans text-body antialiased">
@@ -44,37 +48,27 @@ tailwind.config = {
 <div class="min-h-screen flex flex-col">
 
   <div class="flex-1 flex items-center justify-center px-6 py-16">
-    <div class="w-full max-w-2xl">
+    <div class="w-full max-w-3xl">
 
       <div class="text-center mb-9">
-        <div class="font-mono text-[10px] tracking-[0.2em] text-gold uppercase mb-4">
-          Gottfried &amp; Somberg Wealth Management
-        </div>
-        <h1 class="font-serif text-4xl sm:text-[42px] font-semibold tracking-tight text-ink leading-tight">
-          What would we research?
+        <h1 class="font-serif text-[34px] sm:text-[46px] font-semibold tracking-tight text-ink leading-[1.12]">
+          Gottfried &amp; Somberg<br class="sm:hidden"> Wealth Management
         </h1>
-        <div class="h-[3px] w-14 bg-gold mx-auto mt-4"></div>
-        <p class="mt-4 text-[14px] text-muted max-w-md mx-auto leading-relaxed">
-          Ask a decision question, build a technical study, or compare two securities.
-        </p>
+        <div class="h-[3px] w-14 bg-gold mx-auto mt-5"></div>
       </div>
 
       <div class="rounded-md bg-white border border-line border-t-[3px] border-t-gold p-6 sm:p-7 shadow-[0_1px_3px_rgba(22,35,63,0.06)]">
-        <div class="flex items-center gap-2 mb-3">
+        <div class="flex items-center gap-2 mb-4">
           <span class="font-serif text-[15px] font-semibold text-gold">01</span>
           <span class="font-serif text-[19px] font-semibold text-ink">Research Overview</span>
         </div>
-        <p class="text-[13px] text-muted mb-3">
-          Ask naturally. Your exact question will lead the report and the technical action plan.
-        </p>
         <textarea
           id="queryBox"
           rows="3"
           placeholder="Example: Is TSLA a good opportunity to buy now, and where should I place a stop loss?"
           class="w-full resize-none bg-panel border border-line rounded-[7px] text-[15px] text-ink leading-relaxed placeholder:text-muted p-4 focus:border-gold focus:border-2"
         ></textarea>
-        <div class="flex items-center justify-between mt-4">
-          <span class="font-mono text-[11px] text-muted">Buy &middot; Sell &middot; Hold &middot; Position review &middot; Full analysis</span>
+        <div class="flex items-center justify-end mt-4">
           <button
             onclick="submitQuery()"
             class="shrink-0 rounded-[7px] bg-gold text-white font-sans font-bold text-sm px-6 py-2.5 hover:bg-[#A88742] transition-colors"
@@ -84,25 +78,41 @@ tailwind.config = {
         </div>
       </div>
 
-      <div class="mt-4 rounded-md border border-line grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line">
-        <button onclick="openDeep()" class="group text-left px-6 py-6 hover:bg-panel transition-colors">
+      <div class="mt-4 rounded-md bg-white border border-line border-t-[3px] border-t-gold p-6 sm:p-7 shadow-[0_1px_3px_rgba(22,35,63,0.06)]">
+        <div class="flex items-center gap-2 mb-4">
           <span class="font-serif text-[15px] font-semibold text-gold">02</span>
-          <span class="block font-serif text-[19px] font-semibold text-ink mt-1">Deep Technical Analysis</span>
-          <span class="block text-[13px] text-muted mt-1.5 leading-snug">Custom ranges, Fibonacci, stop-loss evidence, momentum, risk, and benchmarks.</span>
-          <span class="block font-serif text-[13px] font-bold text-ink mt-3 group-hover:text-gold transition-colors">Start analysis &nbsp;&rarr;</span>
+          <span class="font-serif text-[19px] font-semibold text-ink">Technical Analysis</span>
+        </div>
+        <input
+          id="technicalBox"
+          type="text"
+          placeholder="Ticker or company name, e.g. AAPL or Apple"
+          class="w-full bg-panel border border-line rounded-[7px] text-[15px] text-ink leading-relaxed placeholder:text-muted p-4 focus:border-gold focus:border-2"
+        >
+        <div class="flex items-center justify-between mt-4">
+          <span class="text-[12.5px] text-body">Rating gauge, key levels, and price structure from TV Remix.</span>
+          <button
+            onclick="submitTechnical()"
+            class="shrink-0 rounded-[7px] bg-gold text-white font-sans font-bold text-sm px-6 py-2.5 hover:bg-[#A88742] transition-colors"
+          >
+            Run Technical Analysis
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-center gap-3">
+        <button onclick="openDeep()" class="text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2.5 hover:bg-panel hover:border-muted transition-colors">
+          Deep Technical Analysis &nbsp;&rarr;
         </button>
-        <button onclick="openCompare()" class="group text-left px-6 py-6 hover:bg-panel transition-colors">
-          <span class="font-serif text-[15px] font-semibold text-gold">03</span>
-          <span class="block font-serif text-[19px] font-semibold text-ink mt-1">Security Comparison</span>
-          <span class="block text-[13px] text-muted mt-1.5 leading-snug">Performance, value, growth, technical setup, and risk, side by side.</span>
-          <span class="block font-serif text-[13px] font-bold text-ink mt-3 group-hover:text-gold transition-colors">Start comparison &nbsp;&rarr;</span>
+        <button onclick="openTrack()" class="text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2.5 hover:bg-panel hover:border-muted transition-colors">
+          Track Record &nbsp;&rarr;
         </button>
       </div>
 
     </div>
   </div>
 
-  <div class="flex items-center justify-between px-8 py-4 border-t border-line2 font-mono text-[10.5px] text-muted">
+  <div class="flex items-center justify-between px-8 py-4 border-t border-line2 font-mono text-[10.5px] text-ink/40">
     <span>Researcheus Maximus</span>
     <button onclick="openSettings()" class="hover:text-gold transition-colors">Settings</button>
   </div>
@@ -122,13 +132,24 @@ tailwind.config = {
     if (!text || !bridge) return;
     bridge.submitQuery(text);
   }
+  function submitTechnical() {
+    var text = document.getElementById('technicalBox').value.trim();
+    if (!text || !bridge) return;
+    bridge.submitTechnicalQuery(text);
+  }
   function openDeep() { if (bridge) bridge.openDeepAnalysis(); }
-  function openCompare() { if (bridge) bridge.openComparison(); }
+  function openTrack() { if (bridge) bridge.openTrackRecord(); }
   function openSettings() { if (bridge) bridge.openSettings(); }
   document.getElementById('queryBox').addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       submitQuery();
+    }
+  });
+  document.getElementById('technicalBox').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submitTechnical();
     }
   });
 </script>

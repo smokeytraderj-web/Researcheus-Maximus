@@ -9,7 +9,14 @@ from urllib.parse import quote
 
 from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
 from core.models import ChartRecord, Confidence, Horizon, PortfolioFitAssessment, Rating, ResearchRequest, ResearchResult, SecurityIdentity, SourceRecord, TechnicalActionPlan
-from research.tvremix_provider import fetch_tvremix_evidence
+from core.conviction_checklist import evaluate_conviction_checklist
+from research.events import build_event_context, event_metrics, event_signals
+from research.options import options_insight
+from research.tvremix_provider import (
+    fetch_earnings_history,
+    fetch_options_snapshot,
+    fetch_tvremix_evidence,
+)
 from core.research_prompt import parse_portfolio_exposure
 from research.comparison import build_comparison_assessment
 from research.synthesis import deterministic_synthesis, ollama_synthesize, openai_synthesize
@@ -21,6 +28,8 @@ from research.technical import (
     momentum_decision_insight,
     render_chart,
     render_fibonacci_chart,
+    render_options_chart,
+    render_volume_profile_chart,
     render_momentum_chart,
     render_relative_performance_chart,
     render_risk_chart,
@@ -33,7 +42,10 @@ from research.technical import (
     strategies,
     technical_action_plan,
     technical_finding,
+    volume_profile,
+    volume_profile_insight,
     total_return_chart_insights,
+    windowed_return_pct,
 )
 from research.ycharts_excel import METRICS as YCHARTS_METRICS, retrieve_ycharts_metrics
 from security.certificates import verified_market_session
@@ -227,6 +239,58 @@ def _direct_decision_answer_core(
             )
         return (
             f"Direct answer: the evidence supports holding or trimming selectively rather than an automatic full sale of {company}."
+        )
+    if request.decision_intent == "stop_loss":
+        if technical_plan is not None:
+            return (
+                f"Direct answer: the evidence supports a stop at ${technical_plan.stop_level:,.2f}, "
+                f"{technical_plan.stop_pct:.1%} below the entry midpoint, because that is where the "
+                f"{timing} structure breaks rather than a round percentage. {technical_plan.invalidation}"
+            )
+        return (
+            f"Direct answer: no defensible stop level can be placed from the available evidence for {company}; "
+            "the structure needed to anchor one is not present, so a level is not invented here."
+        )
+    if request.decision_intent == "options":
+        if technical_plan is not None and technical_plan.options_strategy:
+            return (
+                f"Direct answer: with a {timing} setup and a {lead.value} overall view, the defined-risk structure "
+                f"the evidence supports is {technical_plan.options_strategy.lower()}. "
+                f"{technical_plan.options_risk} Options require separate suitability, approval and live-chain review."
+            )
+        return (
+            f"Direct answer: the current evidence does not support a specific options structure on {company}; "
+            "the reward-to-risk needed to justify one is not present in this setup."
+        )
+    if request.decision_intent == "valuation":
+        return (
+            f"Valuation answer: on the available evidence {company} rates {lead.value}, with the valuation "
+            "measures set out below against its own history and the analyst reference where both are comparable. "
+            "Valuation is one input; the technical setup is "
+            f"{timing}."
+        )
+    if request.decision_intent == "timing":
+        if technical_plan is not None:
+            return (
+                f"Timing answer: the evidence favours acting into ${technical_plan.entry_low:,.2f}–"
+                f"${technical_plan.entry_high:,.2f} rather than at the current price, with the {timing} setup "
+                f"needing this confirmation first: {technical_plan.confirmation}"
+            )
+        return (
+            f"Timing answer: the {timing} setup does not yet offer a defensible entry zone on {company}; "
+            "the conditions that would create one are listed below."
+        )
+    if request.decision_intent == "income":
+        return (
+            f"Income answer: the yield and payout evidence available for {company} is set out below, alongside a "
+            f"{lead.value} overall view. Distribution durability depends on the cash-flow and balance-sheet items shown, "
+            "not on yield alone."
+        )
+    if request.decision_intent == "earnings":
+        return (
+            f"Earnings answer: {company} rates {lead.value} on the available evidence with a {timing} setup. "
+            "The scheduled report date, recent surprise history, and how the market last reacted to a result are "
+            "shown below, because they can override the technical picture in the short run."
         )
     if request.decision_intent == "position":
         action = "hold or add only on confirmation" if lead in positive else "review for reduction" if lead in negative else "hold and monitor"
@@ -943,10 +1007,10 @@ class LiveResearchProvider:
         exchange = str(info.get("fullExchangeName") or resolved.get("exchange") or "Unconfirmed")
         currency = str(info.get("currency") or "USD")
         quote_type = str(info.get("quoteType") or resolved.get("quoteType") or "")
-        if request.deep_analysis and any(
-            term in request.question.lower()
-            for term in ("sector", "industry benchmark", "respective benchmark", "benchmarks")
-        ):
+        # Deep Technical always carries both a broad-market and a sector benchmark.
+        # These used to be fetched only if the question happened to contain the word
+        # "sector", which left most runs judging relative strength against nothing.
+        if request.deep_analysis:
             requested_benchmarks = ["SPY"]
             sector_ticker, _sector_label = _comparison_benchmark(info, info)
             deep_sector_benchmark = sector_ticker
@@ -967,7 +1031,8 @@ class LiveResearchProvider:
                     )
                 except Exception:
                     comparison_failures.append(
-                        f"{requested_benchmark}: requested benchmark history was unavailable"
+                        f"{requested_benchmark}: benchmark history was unavailable, so relative "
+                        "strength against it was not used"
                     )
             technical = technical_finding(snapshot)
             relative_metrics = ()
@@ -1453,6 +1518,42 @@ class LiveResearchProvider:
                         fibonacci_decision_insight(snapshot, technical.rating),
                     )
                 )
+                # Volume-by-price: omitted entirely when the security reports no
+                # usable volume, rather than publishing an empty panel.
+                profile = volume_profile(history)
+                if profile is not None:
+                    profile_path = render_volume_profile_chart(
+                        history,
+                        symbol,
+                        profile,
+                        workspace / "volume-profile.png",
+                    )
+                    chartbook.append(
+                        ChartRecord(
+                            "Volume by Price",
+                            str(profile_path),
+                            volume_profile_insight(profile, snapshot.price),
+                        )
+                    )
+                # Options-implied evidence needs TV Remix and a listed option chain;
+                # securities without one simply carry no volatility panel.
+                if self.tvremix_api_key:
+                    options = fetch_options_snapshot(symbol, self.tvremix_api_key)
+                    if options.available and options.smile_strikes:
+                        options_path = render_options_chart(
+                            options,
+                            symbol,
+                            workspace / "options-volatility.png",
+                        )
+                        chartbook.append(
+                            ChartRecord(
+                                "Options and Volatility",
+                                str(options_path),
+                                options_insight(options),
+                            )
+                        )
+                    elif options.error:
+                        limitations.append(f"Options evidence unavailable: {options.error}")
                 if "momentum" in request.requested_charts:
                     momentum_path = render_momentum_chart(history, symbol, workspace / "momentum-chart.png")
                     chartbook.append(
@@ -1503,6 +1604,21 @@ class LiveResearchProvider:
         tvremix_evidence = fetch_tvremix_evidence(symbol, self.tvremix_api_key) if request.deep_analysis else None
         if tvremix_evidence is not None and tvremix_evidence.available:
             technical = replace(technical, signals=technical.signals + tvremix_evidence.signals)
+        # Scheduled-event and positioning context. Earnings surprise history sits with
+        # the fundamental workstream; the reaction to it is what qualifies the chart.
+        event_context = None
+        if request.deep_analysis and self.tvremix_api_key:
+            earnings_payload = fetch_earnings_history(symbol, self.tvremix_api_key)
+            if earnings_payload:
+                event_context = build_event_context(symbol, earnings_payload, info)
+                if event_context.available:
+                    synthesis = replace(
+                        synthesis,
+                        fundamental=replace(
+                            synthesis.fundamental,
+                            signals=synthesis.fundamental.signals + event_signals(event_context),
+                        ),
+                    )
         sources = [
             SourceRecord(history_source, history_url, now, "Price history used for the technical analysis"),
             SourceRecord("Yahoo Finance security page", f"https://finance.yahoo.com/quote/{quote(symbol)}", now, "Quote metadata, fundamentals, and news feed when available"),
@@ -1594,6 +1710,40 @@ class LiveResearchProvider:
         raw_analyst_target = info.get("targetMeanPrice")
         analyst_target = raw_analyst_target if isinstance(raw_analyst_target, (int, float)) and raw_analyst_target > 0 else None
         analyst_upside = analyst_target / snapshot.price - 1 if analyst_target is not None else None
+
+        # The Conviction Checklist reads relative strength against the broad market
+        # specifically, independent of whatever benchmark the user asked to compare
+        # against -- so it needs SPY even on a General Research (non-deep) run.
+        custom_range = bool(request.custom_start and request.custom_end)
+        checklist_spy_history = comparison_histories.get("SPY")
+        if checklist_spy_history is None and symbol != "SPY":
+            try:
+                spy_ticker_for_checklist = yf.Ticker("SPY", session=self._market_session)
+                checklist_spy_history = self._history(
+                    yf, spy_ticker_for_checklist, "SPY", self._market_session,
+                    request.custom_start, request.custom_end,
+                )
+            except Exception:
+                checklist_spy_history = None
+        raw_revenue_growth = info.get("revenueGrowth")
+        raw_earnings_growth = info.get("earningsGrowth")
+        conviction_checklist = evaluate_conviction_checklist(
+            price=snapshot.price,
+            sma50=snapshot.sma50,
+            sma200=snapshot.sma200,
+            rsi14=snapshot.rsi14,
+            macd=snapshot.macd,
+            macd_signal=snapshot.macd_signal,
+            security_return_pct=windowed_return_pct(history, custom_range=custom_range),
+            benchmark_return_pct=(
+                windowed_return_pct(checklist_spy_history, custom_range=custom_range)
+                if checklist_spy_history is not None
+                else None
+            ),
+            revenue_growth_pct=raw_revenue_growth if isinstance(raw_revenue_growth, (int, float)) else None,
+            earnings_growth_pct=raw_earnings_growth if isinstance(raw_earnings_growth, (int, float)) else None,
+            analyst_target=analyst_target,
+        )
         fund_metrics = []
         if quote_type.upper() in {"ETF", "MUTUALFUND", "MUTUAL FUND"} or portfolio_fit is not None:
             fund_metrics.append(("Security type", quote_type.replace("MUTUALFUND", "Mutual fund").title()))
@@ -1663,7 +1813,7 @@ class LiveResearchProvider:
             ("Street consensus (Yahoo)", str(info.get("recommendationKey") or "Unavailable").replace("_", " ").title()),
         ) + ycharts_metrics + snapshot.as_metrics() + relative_metrics + (
             tvremix_evidence.metrics if tvremix_evidence is not None and tvremix_evidence.available else ()
-        )
+        ) + (event_metrics(event_context) if event_context is not None and event_context.available else ())
         interpretation = assessment_interpretation(technical.rating, synthesis.fundamental.rating)
         executive = (
             f"{_direct_decision_answer(request, company, lead, technical.rating, portfolio_fit, len(trade_cases), technical_plan)} "
@@ -1723,6 +1873,7 @@ class LiveResearchProvider:
             portfolio_fit=portfolio_fit,
             technical_plan=technical_plan,
             overview_chart=overview_chart,
+            conviction_checklist=conviction_checklist,
         )
         result.validate()
         return result

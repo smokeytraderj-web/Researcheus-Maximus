@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +20,7 @@ from research.technical import (
     render_risk_chart,
     render_stop_loss_evidence_chart,
     render_total_return_chart,
+    render_volume_profile_chart,
     render_trade_case_chart,
     strategies,
     stop_loss_decision_insights,
@@ -26,6 +28,9 @@ from research.technical import (
     technical_finding,
     total_return_chart_insights,
     trend_decision_insight,
+    VALUE_AREA_SHARE,
+    volume_profile,
+    volume_profile_insight,
 )
 
 
@@ -279,6 +284,137 @@ class TechnicalAnalysisTests(unittest.TestCase):
             output = render_trade_case_chart(history, "QQQ", cases[0], Path(folder) / "trade.png")
             self.assertTrue(output.is_file())
             self.assertGreater(output.stat().st_size, 10_000)
+
+
+class VolumeProfileTests(unittest.TestCase):
+    def _history(self, volume=None) -> pd.DataFrame:
+        index = pd.bdate_range("2025-06-02", periods=200)
+        generator = np.random.default_rng(12)
+        close = pd.Series(300 + np.cumsum(generator.normal(0.1, 2.5, len(index))), index=index)
+        return pd.DataFrame(
+            {
+                "Open": close.shift(1).fillna(close),
+                "High": close * 1.01,
+                "Low": close * 0.99,
+                "Close": close,
+                "Volume": generator.integers(30_000_000, 90_000_000, len(index)) if volume is None else volume,
+            },
+            index=index,
+        )
+
+    def test_profile_conserves_volume_and_brackets_the_point_of_control(self):
+        history = self._history()
+        profile = volume_profile(history)
+        self.assertIsNotNone(profile)
+        # Every share traded is placed somewhere in the profile, never invented or lost.
+        self.assertAlmostEqual(profile.total_volume, float(history["Volume"].sum()), delta=1.0)
+        self.assertLessEqual(profile.value_area_low, profile.point_of_control)
+        self.assertGreaterEqual(profile.value_area_high, profile.point_of_control)
+        self.assertGreaterEqual(profile.point_of_control, float(history["Low"].min()))
+        self.assertLessEqual(profile.point_of_control, float(history["High"].max()))
+
+    def test_value_area_covers_at_least_the_target_share(self):
+        profile = volume_profile(self._history())
+        inside = sum(
+            level_volume
+            for price, level_volume in zip(profile.prices, profile.volumes)
+            if profile.value_area_low <= price <= profile.value_area_high
+        )
+        self.assertGreaterEqual(inside / profile.total_volume, VALUE_AREA_SHARE)
+
+    def test_point_of_control_lands_where_volume_concentrates(self):
+        # Pin most volume into a narrow band and check the profile finds it.
+        history = self._history()
+        history["Close"] = 300.0
+        history["High"] = 301.0
+        history["Low"] = 299.0
+        history.iloc[:20, history.columns.get_loc("Close")] = 260.0
+        history.iloc[:20, history.columns.get_loc("High")] = 261.0
+        history.iloc[:20, history.columns.get_loc("Low")] = 259.0
+        profile = volume_profile(history)
+        self.assertAlmostEqual(profile.point_of_control, 300.0, delta=2.0)
+
+    def test_zero_volume_security_publishes_no_profile(self):
+        self.assertIsNone(volume_profile(self._history(volume=0)))
+
+    def test_insight_states_where_price_sits_relative_to_value(self):
+        profile = volume_profile(self._history())
+        above = volume_profile_insight(profile, profile.value_area_high + 25.0)
+        below = volume_profile_insight(profile, profile.value_area_low - 25.0)
+        inside = volume_profile_insight(profile, profile.point_of_control)
+        self.assertIn("above the value area", above)
+        self.assertIn("below the value area", below)
+        self.assertIn("inside the value area", inside)
+
+    def test_chart_renders_from_a_valid_profile(self):
+        history = self._history()
+        profile = volume_profile(history)
+        with tempfile.TemporaryDirectory() as folder:
+            output = render_volume_profile_chart(history, "AAPL", profile, Path(folder) / "vp.png")
+            self.assertTrue(output.is_file())
+            self.assertGreater(output.stat().st_size, 10_000)
+
+
+class ChartHoverSidecarTests(unittest.TestCase):
+    """The hover overlay is positioned purely from these fractions, so if the
+    geometry drifts the read-out silently stops matching the pixels beneath it."""
+
+    def _history(self) -> pd.DataFrame:
+        index = pd.bdate_range("2025-06-02", periods=220)
+        generator = np.random.default_rng(3)
+        close = pd.Series(300 + np.cumsum(generator.normal(0.2, 3.0, len(index))), index=index)
+        return pd.DataFrame(
+            {
+                "Open": close.shift(1).fillna(close),
+                "High": close * 1.01,
+                "Low": close * 0.99,
+                "Close": close,
+                "Volume": generator.integers(30_000_000, 90_000_000, len(index)),
+            },
+            index=index,
+        )
+
+    def _sidecar(self, chart_path: Path) -> dict:
+        sidecar = chart_path.with_suffix(chart_path.suffix + ".json")
+        self.assertTrue(sidecar.is_file(), "chart did not write its hover sidecar")
+        return json.loads(sidecar.read_text(encoding="utf-8"))
+
+    def test_price_chart_sidecar_geometry_is_inside_the_image(self):
+        history = self._history()
+        snapshot = analyze_history(history)
+        with tempfile.TemporaryDirectory() as folder:
+            chart = render_chart(history, "AAPL", snapshot, Path(folder) / "price.png")
+            data = self._sidecar(chart)
+
+        frame = data["frame"]
+        for edge in ("left", "right", "top", "bottom"):
+            self.assertGreaterEqual(frame[edge], 0.0)
+            self.assertLessEqual(frame[edge], 1.0)
+        self.assertLess(frame["left"], frame["right"])
+        self.assertLess(frame["top"], frame["bottom"])
+
+        points = data["points"]
+        self.assertGreater(len(points), 50)
+        # Dates run left to right, and every close sits inside the plot area.
+        self.assertEqual([p["x"] for p in points], sorted(p["x"] for p in points))
+        for point in points:
+            self.assertGreaterEqual(point["x"], 0.0)
+            self.assertLessEqual(point["x"], 1.0)
+            self.assertGreaterEqual(point["y"], 0.0)
+            self.assertLessEqual(point["y"], 1.0)
+            self.assertEqual(len(point["values"]), len(data["series"]))
+
+    def test_momentum_sidecar_spans_both_panels_and_has_no_marker(self):
+        with tempfile.TemporaryDirectory() as folder:
+            chart = render_momentum_chart(self._history(), "AAPL", Path(folder) / "momentum.png")
+            data = self._sidecar(chart)
+
+        # RSI over MACD: the crosshair covers most of the image height.
+        self.assertGreater(data["frame"]["bottom"] - data["frame"]["top"], 0.5)
+        self.assertIn("RSI (14)", data["series"])
+        self.assertIn("MACD", data["series"])
+        # A dot would be ambiguous across two y-axes, so none is published.
+        self.assertTrue(all(point["y"] is None for point in data["points"]))
 
 
 if __name__ == "__main__":

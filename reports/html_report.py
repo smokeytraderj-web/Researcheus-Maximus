@@ -38,6 +38,10 @@ def _approved_css(reference: str) -> str:
 
 
 _DYNAMIC_CSS = r"""
+/* The shell is centred with a max width, but below that width it ran edge to edge,
+   leaving the navigation rail flush against the window with no gutter -- which reads
+   as the report being clipped on the left. */
+.shell{padding-left:26px;padding-right:26px;box-sizing:border-box}
 .chart-image{display:block;width:100%;height:auto;max-height:800px;object-fit:contain}
 #charts .chart{padding:18px 20px 12px}
 .page-view[hidden]{display:none}
@@ -65,8 +69,167 @@ _DYNAMIC_CSS = r"""
 .rating-word.v-bull{background:none;color:var(--bull)}
 .rating-word.v-bear{background:none;color:var(--bear)}
 .rating-word.v-neu{background:none;color:var(--neutral)}
-@media(max-width:900px){.reason-row{grid-template-columns:34px minmax(0,1fr)}.reason-copy{grid-column:2}.chart-image{max-height:none}}
-@media print{.chart-image{max-height:178mm}.btn,.rail-tools{display:none!important}.reason-row{break-inside:avoid}.page-view[hidden]{display:block!important}.page-view:not(:last-child){break-after:page}}
+.reason-row.stance{grid-template-columns:104px 178px minmax(0,1fr)}
+.stance-chip{display:inline-block;font-size:8.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:4px 9px;border-radius:11px;white-space:nowrap;margin-top:1px}
+.stance-chip.supports{background:#E7F1EB;color:var(--bull)}
+.stance-chip.challenges{background:#F6E9E9;color:var(--bear)}
+.stance-chip.partial{background:var(--panel);color:var(--neutral)}
+.stance-chip.watch{background:#FDF6E7;color:#8A6D2F}
+.verdict-hero{text-align:center;padding:30px 0 26px;border-bottom:1px solid var(--line)}
+.verdict-hero .vh-cap{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.13em;font-weight:600;margin-bottom:11px}
+/* The tone classes carry a fill for inline chips; the hero wants the colour only. */
+.verdict-hero .vh-word{font-family:'Source Serif 4',Georgia,serif;font-size:46px;line-height:1;font-weight:600;margin-bottom:9px;background:none!important;padding:0}
+.verdict-hero .vh-sub{font-size:12px;color:var(--muted)}
+.verdict-hero .vh-sub b{color:var(--ink)}
+.pos-bar{display:flex;flex-wrap:wrap;gap:0;background:var(--panel);border-radius:7px;margin-bottom:22px;overflow:hidden}
+.pos-cell{flex:1 1 180px;padding:13px 18px;border-right:1px solid var(--line)}
+.pos-cell:last-child{border-right:none}
+.pos-k{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:5px}
+.pos-v{font-size:14.5px;font-weight:600;color:var(--ink);font-family:'IBM Plex Mono',monospace}
+.pos-v.bull{color:var(--bull)}.pos-v.bear{color:var(--bear)}.pos-v.neutral{color:var(--neutral)}
+.action p{font-size:12.5px;line-height:1.5;color:var(--body);margin:0}
+.why-block{margin-top:20px;padding:16px 18px;border-left:3px solid var(--gold);background:var(--panel);border-radius:0 4px 4px 0}
+.why-block .why-k{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-bottom:9px}
+.why-block p{font-size:13.5px;color:var(--body);line-height:1.62;margin:0}
+.ev-note{font-size:12.5px;color:var(--body);margin-bottom:16px;padding:12px 15px;background:var(--panel);border-left:3px solid var(--gold);border-radius:0 4px 4px 0;line-height:1.6}
+.ev-note b{color:var(--ink)}
+.metric-group{margin-bottom:22px}
+/* .grid3 is defined only in the technical stylesheet, so the general brief -- which
+   uses the same markup -- was silently stacking these three columns. */
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 34px}
+/* Hover read-out layered over a static chart.  The image stays the source of
+   truth -- these are absolutely-positioned marks on top of it, so print and
+   no-JS keep the full chart and simply lose the interaction. */
+.chart-interactive{position:relative;display:block;line-height:0;cursor:crosshair}
+.chart-interactive .chart-image{display:block}
+.ch-cross{position:absolute;top:0;width:1px;background:var(--ink);opacity:.4;display:none;pointer-events:none;z-index:4}
+.ch-dot{position:absolute;width:9px;height:9px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--gold);border:2px solid #fff;box-shadow:0 0 0 1px var(--ink);display:none;pointer-events:none;z-index:5}
+.ch-readout{position:absolute;top:10px;display:none;pointer-events:none;z-index:6;background:#fff;border:1px solid var(--line);border-radius:6px;padding:9px 11px;box-shadow:0 2px 10px rgba(22,35,63,.13);min-width:158px;line-height:1.5}
+.ch-readout .ch-date{font-size:10px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--ink);margin-bottom:6px}
+.ch-row{display:flex;justify-content:space-between;gap:16px;font-size:11px}
+.ch-row .ch-k{color:var(--muted)}
+.ch-row .ch-v{font-family:'IBM Plex Mono',monospace;color:var(--ink);font-weight:500}
+.chart-hint{font-size:10px;color:var(--muted);margin-top:6px;font-style:italic}
+/* Conviction Checklist: five deterministic, independent criteria (core/conviction_checklist.py)
+   shown as checkboxes with a headline score.  Supplementary evidence, never a rating label. */
+.cc-card{margin-top:22px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.cc-head{display:flex;align-items:center;gap:16px;padding:16px 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+.cc-score{font-family:'Source Serif 4',Georgia,serif;font-size:30px;font-weight:700;color:var(--ink);line-height:1;white-space:nowrap}
+.cc-score.perfect{color:var(--bull)}
+.cc-headtext{flex:1}
+.cc-title{font-size:13.5px;font-weight:600;color:var(--ink)}
+.cc-sub{font-size:10.5px;color:var(--muted);margin-top:2px}
+.cc-rows{display:block}
+.cc-row{display:flex;align-items:flex-start;gap:12px;padding:11px 20px;border-bottom:1px solid var(--line-2)}
+.cc-row:last-child{border-bottom:none}
+.cc-box{flex:none;width:18px;height:18px;border-radius:4px;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.cc-box.pass{background:var(--bull);color:#fff}
+.cc-box.fail{background:#fff;border:1.5px solid var(--line);color:transparent}
+.cc-box.unconfirmed{background:var(--panel);border:1.5px solid var(--line);color:var(--muted);font-size:10px}
+.cc-body{flex:1}
+.cc-label{font-size:12.5px;font-weight:600;color:var(--ink)}
+.cc-detail{font-size:11.5px;color:var(--body);margin-top:2px;line-height:1.45}
+@media print{.cc-box.pass{-webkit-print-color-adjust:exact;print-color-adjust:exact}.cc-head{break-inside:avoid;break-after:avoid}.cc-row{break-inside:avoid}}
+.trigger-list{margin:0;padding:0;list-style:none}
+.trigger-list li{font-size:12.5px;color:var(--body);line-height:1.5;padding:6px 0 6px 15px;position:relative}
+.trigger-list li:before{content:"→";position:absolute;left:0;color:var(--gold);font-weight:600}
+@media(max-width:900px){.reason-row{grid-template-columns:34px minmax(0,1fr)}.reason-row.stance{grid-template-columns:104px minmax(0,1fr)}.reason-copy{grid-column:2}.chart-image{max-height:none}.grid3{grid-template-columns:1fr}}
+@media print{.chart-image{max-height:178mm}.btn,.rail-tools{display:none!important}.reason-row{break-inside:avoid}.page-view[hidden]{display:block!important}.page-view:not(:last-child){break-after:page}
+/* The @page margin supplies the printed gutter; the screen one would double it. */
+.shell{padding-left:0;padding-right:0}
+/* The stance chips, position bar and callout panels carry meaning through
+   colour, so keep their fills in print instead of letting them wash out. */
+.ch-cross,.ch-dot,.ch-readout,.chart-hint{display:none!important}
+.chart-interactive{cursor:auto}
+/* Deep Technical prints every chart panel, so the charts section must be allowed
+   to flow across pages.  With the template's blanket section{break-inside:avoid}
+   it jumped wholesale to the next page instead, stranding the running strip above
+   it on a near-empty page.  Keep each individual panel intact, not the whole set. */
+/* The TradingView panel is a live embed: in print it is a 760px empty box that
+   costs a whole blank page, so drop it and say where the live view lives. */
+.tech-report #evidenceTradingView{display:none!important}
+.tech-report #charts{break-inside:auto}
+.tech-report .p2-strip{break-after:avoid;break-inside:avoid}
+.tech-report .evidence-panel{break-inside:avoid;margin-top:14px}
+.tech-report .chart-image{max-height:132mm}
+.tech-report figure.chart{break-inside:avoid}
+.tech-report .takeaway{break-before:avoid;break-inside:avoid}
+.tech-report #fundamentals{break-inside:auto}
+.chart-empty{min-height:0;padding:14px;font-style:italic}
+.stance-chip,.pos-bar,.why-block,.ev-note,.demo-note{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.pos-bar,.metric-group,.why-block,.ev-note{break-inside:avoid}
+.verdict-hero{padding:14px 0 12px;break-inside:avoid}.verdict-hero .vh-word{font-size:34px}
+.pos-bar{margin-bottom:14px}.metric-group{margin-bottom:14px}
+/* Hold the approved three-page General Research brief: (1) answer and reasoning,
+   (2) action plan with its chart, (3) data, risks, sources.  The base template's
+   blanket per-section break rules would otherwise spread these across six pages,
+   so pin the two intended breaks and tighten the type enough to fit -- compressing
+   spacing and scale, never dropping evidence or dropping below readable sizes. */
+/* A printed Letter page is ~816px wide, which trips the approved template's
+   900px mobile breakpoint -- so print was silently getting the stacked phone
+   layout.  Restore the intended desktop grids for the brief. */
+.general-brief .head{flex-direction:row}
+.general-brief .rating{text-align:right}
+.general-brief .topline{grid-template-columns:repeat(4,1fr)}
+.general-brief .tl{border-left:1px solid var(--line);padding-left:12px}
+.general-brief .tl:first-child{border-left:0;padding-left:0}
+.general-brief .action-grid,.general-brief .data-grid,.general-brief .risk-grid,.general-brief .grid3{grid-template-columns:repeat(3,1fr)}
+.general-brief .reason-row.stance{grid-template-columns:92px 148px minmax(0,1fr)}
+.general-brief .reason-copy{grid-column:auto}
+.general-brief section{break-inside:auto;margin-top:14px}
+.general-brief #answer{break-before:auto}
+/* #action no longer forces its own page: the Conviction Checklist makes the answer
+   section's length vary with the score (an all-pass or all-fail read is shorter
+   than a mixed one with several detail lines), and a fixed break here was
+   stranding a mostly-empty page whenever that content ran long. Letting it flow
+   costs the guaranteed page-1/page-2 split but never strands blank space. */
+.general-brief #action{break-before:auto}
+.general-brief #evidence{break-before:auto}
+.general-brief #data{break-before:page}
+.general-brief #risks,.general-brief #sources{break-before:auto}
+.general-brief .sec-head{margin-bottom:9px}
+.general-brief .sec-head h2{font-size:16px}
+.general-brief .topline{margin-top:10px}
+.general-brief .tl{padding:8px 12px}
+.general-brief .tl-v{font-size:14px}
+.general-brief .verdict-hero{padding:11px 0 9px}
+.general-brief .verdict-hero .vh-word{font-size:29px;margin-bottom:5px}
+.general-brief .question-line{font-size:14.5px;margin-bottom:11px}
+.general-brief .answer-card{padding:11px 14px}
+.general-brief .answer{font-size:14px;line-height:1.45}
+.general-brief .why-block{margin-top:12px;padding:11px 14px}
+.general-brief .why-block p{font-size:11.5px;line-height:1.5}
+.general-brief .cc-card{margin-top:12px}
+.general-brief .cc-head{padding:11px 15px}
+.general-brief .cc-score{font-size:24px}
+.general-brief .cc-row{padding:8px 15px}
+.general-brief .cc-detail{font-size:10.5px}
+.general-brief .reason-list{margin-top:12px!important}
+.general-brief .reason-row{padding:6px 0}
+.general-brief .reason-copy{font-size:11.5px;line-height:1.45}
+.general-brief .pos-cell{padding:9px 14px}
+.general-brief .action-grid{gap:11px}
+.general-brief .ev-note{padding:9px 13px;font-size:11px;margin-bottom:11px}
+.general-brief .chart-image{max-height:108mm}
+/* .takeaway is a sibling of figure.chart, not nested in it (see _chart_html), so
+   avoiding a break inside the figure alone still let its caption strip separate
+   onto the next page by itself.  break-before:avoid on the caption is what keeps
+   image and caption together, pulling the whole pair to the next page as a unit
+   when they do not both fit. */
+.general-brief figure.chart{break-inside:avoid;break-after:avoid}
+.general-brief .takeaway{break-inside:avoid;break-before:avoid}
+.general-brief .dr{padding:3px 0}
+.general-brief .dl-h{margin-bottom:4px}
+.general-brief .metric-group{margin-bottom:11px}
+.general-brief .risk-list li,.general-brief .trigger-list li{font-size:11px;margin-bottom:2px;padding-top:2px;padding-bottom:2px}
+.general-brief #sources{margin-top:11px}
+.general-brief #sources .sec-head{break-after:avoid}
+.general-brief .sources{font-size:10px}
+/* Same orphan risk as the chart caption above: nothing stopped the disclosure
+   paragraph or the firm footer from splitting onto a page of their own beneath
+   an otherwise-full sources list. */
+.general-brief .disc{font-size:8.5px;line-height:1.38;margin-top:7px;break-before:avoid;break-inside:avoid}
+.general-brief footer{margin-top:8px;padding-top:8px;break-before:avoid}}
 """
 
 
@@ -84,6 +247,46 @@ def _tone(rating: Rating) -> tuple[str, str]:
     if rating in {Rating.REDUCE, Rating.SELL, Rating.AVOID}:
         return "v-bear", "bear"
     return "v-neu", "neutral"
+
+
+def _conviction_checklist_html(checklist) -> str:
+    """The five-point checklist card, or nothing when a result carries none."""
+    if checklist is None or not checklist.criteria:
+        return ""
+    icons = {"pass": "✓", "fail": "", "unconfirmed": "?"}
+    rows = "".join(
+        f'<div class="cc-row"><div class="cc-box {item.status}">{icons[item.status]}</div>'
+        f'<div class="cc-body"><div class="cc-label">{escape(item.label)}</div>'
+        f'<div class="cc-detail">{escape(item.detail)}</div></div></div>'
+        for item in checklist.criteria
+    )
+    score_class = "perfect" if checklist.is_perfect else ""
+    sub = "Five independent, deterministic criteria — supplementary evidence, not a rating."
+    if checklist.unconfirmed_count:
+        sub += f" {checklist.unconfirmed_count} could not be confirmed from the available evidence."
+    return f"""<div class="cc-card">
+  <div class="cc-head">
+    <div class="cc-score {score_class}">{checklist.passed_count}/{checklist.total_count}</div>
+    <div class="cc-headtext"><div class="cc-title">Conviction Checklist</div><div class="cc-sub">{escape(sub)}</div></div>
+  </div>
+  <div class="cc-rows">{rows}</div>
+</div>"""
+
+
+def _stance(specialist: Rating, lead: Rating) -> tuple[str, str]:
+    """Whether a specialist rating agrees with the lead rating, as (css_class, label).
+
+    Directional agreement only -- Buy vs Strong Buy still "supports".  A neutral
+    on either side is "partial" rather than a conflict, and only an outright
+    bull/bear split counts as "challenges".
+    """
+    specialist_tone = _tone(specialist)[1]
+    lead_tone = _tone(lead)[1]
+    if specialist_tone == lead_tone:
+        return "supports", "Supports"
+    if "neutral" in (specialist_tone, lead_tone):
+        return "partial", "Partial"
+    return "challenges", "Challenges"
 
 
 def _metrics(result: ResearchResult) -> tuple[_Metric, ...]:
@@ -161,6 +364,22 @@ def _image_data_url(path_value: str) -> str:
     return f"data:{mime};base64,{encoded}"
 
 
+def _hover_payload(path_value: str) -> str:
+    """The read-out data a chart renderer wrote beside its PNG, if it wrote any.
+
+    Charts that expose their plotted series get a hover read-out in the browser;
+    charts that don't simply stay static, so this is safe to call for all of them.
+    """
+    if not path_value:
+        return ""
+    sidecar = Path(path_value + ".json")
+    if not sidecar.is_file():
+        return ""
+    raw = sidecar.read_text(encoding="utf-8")
+    # Escaped so the payload can never close its own <script> element.
+    return raw.replace("<", "\\u003c")
+
+
 def _chart_html(chart: ChartRecord | None, element_id: str, legend: tuple[tuple[str, str], ...] = ()) -> str:
     if chart is None:
         return '<div class="chart-empty">No validated chart was available for this view.</div>'
@@ -168,6 +387,14 @@ def _chart_html(chart: ChartRecord | None, element_id: str, legend: tuple[tuple[
     title = escape(chart.title)
     if data_url:
         visual = f'<img class="chart-image" src="{data_url}" alt="{title}">'
+        hover = _hover_payload(chart.path)
+        if hover:
+            visual = (
+                f'<div class="chart-interactive">{visual}'
+                '<div class="ch-cross"></div><div class="ch-dot"></div><div class="ch-readout"></div>'
+                f'<script type="application/json" class="ch-data">{hover}</script></div>'
+                '<div class="chart-hint">Hover the chart for the values on any date.</div>'
+            )
     else:
         visual = '<div class="chart-empty">The validated chart image could not be loaded.</div>'
     legend_html = ""
@@ -237,6 +464,15 @@ def _relative_chart_legend(result: ResearchResult) -> tuple[tuple[str, str], ...
     return ()
 
 
+def _volume_chart_legend(result: ResearchResult) -> tuple[tuple[str, str], ...]:
+    return (
+        ("var(--ink)", "Close"),
+        ("var(--gold)", "Point of control — most-traded price"),
+        ("#5378A5", "Value area — 70% of volume"),
+        ("var(--bear)", "Current price"),
+    )
+
+
 def _fibonacci_chart_legend(result: ResearchResult) -> tuple[tuple[str, str], ...]:
     items: list[tuple[str, str]] = [("var(--ink)", "Close")]
     levels = _legend_metric(result, "fibonacci 38.2")
@@ -260,8 +496,8 @@ def _source_html(result: ResearchResult) -> str:
     return "".join(rows)
 
 
-def _document(title: str, css_reference: str, body: str, script: str = "") -> str:
-    css = _approved_css(css_reference) + _DYNAMIC_CSS
+def _document(title: str, css_reference: str, body: str, script: str = "", extra_css: str = "") -> str:
+    css = _approved_css(css_reference) + _DYNAMIC_CSS + extra_css
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -318,47 +554,89 @@ def _general_chart(result: ResearchResult) -> ChartRecord | None:
 
 
 def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
-    tone_class, _ = _tone(result.lead_rating)
+    tone_class, tone_name = _tone(result.lead_rating)
     question = request.question.strip() or f"What does the current evidence say about {result.identity.ticker}?"
     answer = result.request_response.strip() or result.executive_summary.strip()
     technical_reason = result.technical.signals[0] if result.technical.signals else result.technical.summary
     fundamental_reason = result.fundamental.signals[0] if result.fundamental.signals else result.fundamental.summary
     risk_reason = result.risks[0] if result.risks else "The conclusion remains conditional on the cited evidence and decision triggers."
+    # Each supporting reason carries whether that workstream agrees with the lead
+    # rating.  This replaces a decorative 01/02/03 sequence -- these are parallel
+    # evidence dimensions, not steps -- and surfaces the agreement/disagreement
+    # the rating policy requires us to state explicitly.
     reasons = (
-        ("Technical timing", technical_reason),
-        ("Business and value", fundamental_reason),
-        ("Key risk", risk_reason),
+        ("Technical timing", technical_reason, _stance(result.technical.rating, result.lead_rating)),
+        ("Business and value", fundamental_reason, _stance(result.fundamental.rating, result.lead_rating)),
+        ("Key risk", risk_reason, ("watch", "Watch")),
     )
     reason_html = "".join(
-        f'<div class="reason-row"><div class="reason-index">{index:02d}</div><div class="reason-title">{escape(title)}</div><div class="reason-copy">{escape(copy)}</div></div>'
-        for index, (title, copy) in enumerate(reasons, 1)
+        f'<div class="reason-row stance"><div><span class="stance-chip {chip}">{escape(chip_label)}</span></div>'
+        f'<div class="reason-title">{escape(title)}</div><div class="reason-copy">{escape(copy)}</div></div>'
+        for title, copy, (chip, chip_label) in reasons
     )
+    # The bar states the three levels at a glance; the cards below then carry the
+    # conditions attached to them.  Keeping the levels out of the cards avoids
+    # printing the same three numbers twice in the same section.
     plan = result.technical_plan
+    strategy = result.strategies[0] if result.strategies else None
     if plan:
+        position_value = plan.stance
+        entry_value = f"{_money(plan.entry_low)} – {_money(plan.entry_high)}"
+        stop_value = _money(plan.stop_level)
         actions = (
-            ("Position", plan.stance, plan.market_condition),
-            ("Entry", f"{_money(plan.entry_low)} – {_money(plan.entry_high)}", plan.confirmation),
-            ("Risk", f"Stop {_money(plan.stop_level)}", plan.invalidation),
+            ("Market condition", plan.market_condition),
+            ("Confirmation needed", plan.confirmation),
+            ("Invalidation", plan.invalidation),
         )
     else:
-        strategy = result.strategies[0] if result.strategies else None
+        position_value = result.lead_rating.value
+        entry_value = strategy.action_zone if strategy else "No specific entry level supported"
+        stop_value = strategy.invalidation if strategy else "Use the cited decision triggers"
         actions = (
-            ("Position", result.lead_rating.value, result.executive_summary),
-            ("Entry", strategy.action_zone if strategy else "No specific entry level supported", strategy.confirmation if strategy else "Wait for new evidence"),
-            ("Risk", strategy.invalidation if strategy else "Use the cited decision triggers", strategy.risk if strategy else risk_reason),
+            ("Market condition", result.executive_summary),
+            ("Confirmation needed", strategy.confirmation if strategy else "Wait for new evidence"),
+            ("Invalidation", strategy.risk if strategy else risk_reason),
         )
     action_html = "".join(
-        f'<div class="action"><div class="action-k">{escape(label)}</div><div class="action-v">{escape(value)}</div><p>{escape(note)}</p></div>'
-        for label, value, note in actions
+        f'<div class="action"><div class="action-k">{escape(label)}</div><p>{escape(note)}</p></div>'
+        for label, note in actions
     )
-    metrics = _metrics(result)[:12]
-    metric_rows = "".join(
-        f'<div class="dr"><dt>{escape(metric.label)}</dt><dd>{escape(metric.value)}</dd></div>'
-        for metric in metrics
-    )
+    # Group the data by the story it tells rather than one flat list.  Reuses the
+    # same keyword rules as the technical report; the position/risk group is
+    # deliberately omitted here because the plan above already states those levels.
+    all_metrics = _metrics(result)
+    _position_metrics, trend_metrics, valuation_metrics = _grouped_metrics(result)
+
+    def metric_group_html(label: str, metrics: list[_Metric]) -> str:
+        if not metrics:
+            return ""
+        rows = "".join(f'<div class="dr"><dt>{escape(m.label)}</dt><dd>{escape(m.value)}</dd></div>' for m in metrics)
+        return f'<div class="metric-group"><div class="dl-h">{label}</div><dl class="dl">{rows}</dl></div>'
+
+    data_html = (
+        metric_group_html("Business and valuation", valuation_metrics[:6])
+        + metric_group_html("Trend and momentum", trend_metrics[:6])
+    ) or metric_group_html("Key figures", list(all_metrics[:8]))
+
     risks = "".join(f"<li>{escape(item)}</li>" for item in result.risks[:4]) or "<li>No additional risk item was reported.</li>"
-    triggers = "".join(f"<li>{escape(item)}</li>" for item in result.change_conditions[:4]) or "<li>Reassess when price structure or primary-source evidence changes.</li>"
+    trigger_items = result.change_conditions[:4] or (
+        "Reassess when price structure or primary-source evidence changes.",
+    )
+    triggers = "".join(f"<li>{escape(item)}</li>" for item in trigger_items)
     demo = '<div class="demo-note">Demonstration mode uses synthetic evidence and is not a client investment recommendation.</div>' if result.demo_mode else ""
+    qualitative_summary = result.executive_summary.strip() if result.executive_summary.strip() else answer
+
+    # Numbers behind the rating, alongside the chart -- the chart carries the
+    # visual case, so this strip carries the figures it cannot show.  Draw from
+    # valuation and trend, never the position plan: those levels are already
+    # stated in the action bar directly above, and repeating them says nothing.
+    key_metrics_list = (valuation_metrics[:2] + trend_metrics[:2]) or list(all_metrics[:3])
+    key_figures = (
+        " &nbsp;&middot;&nbsp; ".join(f"{escape(m.label)} <b>{escape(m.value)}</b>" for m in key_metrics_list)
+        if key_metrics_list
+        else "Supporting figures are listed under Essential data."
+    )
+
     body = f"""
 <div class="shell">
 <nav class="rail" aria-label="Sections">
@@ -366,19 +644,65 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
   <a href="#answer" class="on">The answer</a><a href="#action">What we should do</a><a href="#evidence">Evidence</a><a href="#data">Essential data</a><a href="#risks">Risks &amp; triggers</a><a href="#sources">Sources</a>
   <div class="rail-tools"><button class="btn" onclick="window.print()">Print / save PDF</button></div>
 </nav>
-<main class="page">
+<main class="page general-brief">
 {_masthead(result, 'General Research')}{_topline(result)}
 <section id="answer">
-  <div class="sec-head"><h2>The answer</h2><span class="verdict {tone_class}">{escape(result.lead_rating.value)}</span></div>
-  <p class="question-line"><span>Your question</span>{escape(question)}</p>
+  <div class="verdict-hero">
+    <div class="vh-cap">Our recommendation</div>
+    <div class="vh-word {tone_class}">{escape(result.lead_rating.value)}</div>
+    <div class="vh-sub">Confidence <b>{escape(result.confidence.value)}</b></div>
+  </div>
+  <p class="question-line" style="margin-top:24px"><span>Your question</span>{escape(question)}</p>
   <div class="answer-card"><div class="answer-label">Direct answer</div><p class="answer">{escape(answer)}</p></div>
-  <div class="reason-list" style="margin-top:20px">{reason_html}</div>{demo}
+  <div class="why-block">
+    <div class="why-k">Why</div>
+    <p>{escape(qualitative_summary)}</p>
+  </div>
+  <div class="reason-list" style="margin-top:20px">{reason_html}</div>
+  {_conviction_checklist_html(result.conviction_checklist)}
+  {demo}
 </section>
-<section id="action"><div class="sec-head"><h2>What we should do</h2></div><div class="action-grid">{action_html}</div></section>
-<section id="evidence"><div class="sec-head"><h2>Evidence</h2><span class="verdict v-neu">One decision chart</span></div>{_chart_html(_general_chart(result), 'generalEvidence')}</section>
-<section id="data"><div class="sec-head"><h2>Essential data</h2></div><dl class="dl">{metric_rows}</dl></section>
-<section id="risks"><div class="sec-head"><h2>Risks and decision triggers</h2></div><div class="grid3"><div><div class="dl-h">Primary risks</div><ul class="risk-list">{risks}</ul></div><div><div class="dl-h">What changes the view</div><ul class="risk-list">{triggers}</ul></div><div><div class="dl-h">Current sentiment</div><p>{escape(result.sentiment)}</p></div></div></section>
-<section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div><p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing involves risk, including possible loss of principal. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
+<section id="action">
+  <div class="sec-head"><h2>What we should do</h2></div>
+  <div class="pos-bar">
+    <div class="pos-cell"><div class="pos-k">Position</div><div class="pos-v {tone_name}">{escape(position_value)}</div></div>
+    <div class="pos-cell"><div class="pos-k">Entry</div><div class="pos-v">{escape(entry_value)}</div></div>
+    <div class="pos-cell"><div class="pos-k">Stop</div><div class="pos-v bear">{escape(stop_value)}</div></div>
+  </div>
+  <div class="action-grid">{action_html}</div>
+</section>
+<section id="evidence">
+  <div class="sec-head"><h2>Evidence</h2><span class="verdict v-neu">One decision chart</span></div>
+  <div class="ev-note"><b>Figures behind this view:</b> {key_figures}</div>
+  {_chart_html(_general_chart(result), 'generalEvidence')}
+</section>
+<section id="data">
+  <div class="sec-head"><h2>Essential data</h2></div>
+  {data_html}
+</section>
+<section id="risks">
+  <div class="sec-head"><h2>Risks and decision triggers</h2></div>
+  <div class="grid3">
+    <div>
+      <div class="dl-h">Primary risks</div>
+      <ul class="risk-list">{risks}</ul>
+    </div>
+    <div>
+      <div class="dl-h">What changes the view</div>
+      <ul class="trigger-list">{triggers}</ul>
+    </div>
+    <div>
+      <div class="dl-h">Current sentiment</div>
+      <p>{escape(result.sentiment)}</p>
+    </div>
+  </div>
+</section>
+<section id="sources">
+  <div class="sec-head"><h2>Sources</h2></div>
+  <div class="sources">{_source_html(result)}</div>
+  <p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing involves risk, including possible loss of principal. Firm compliance review is required before client distribution.</p>
+  <footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer>
+</section>
 </main></div>"""
     return _document(
         f"{result.identity.ticker} General Research — Researcheus Maximus",
@@ -426,6 +750,25 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
         ("Relative strength", "evidenceRelative", _chart_by_title(result, "relative"), _relative_chart_legend(result)),
         ("Fibonacci", "evidenceFibonacci", _chart_by_title(result, "fibonacci"), _fibonacci_chart_legend(result)),
     )
+    # Volume by price only exists when the security reported usable volume, so this
+    # tab appears alongside the fixed four rather than showing an empty panel.
+    volume_chart = _chart_by_title(result, "volume by price")
+    if volume_chart is not None:
+        charts += (("Volume by price", "evidenceVolume", volume_chart, _volume_chart_legend(result)),)
+    options_chart = _chart_by_title(result, "options and volatility")
+    if options_chart is not None:
+        charts += (
+            (
+                "Options & volatility",
+                "evidenceOptions",
+                options_chart,
+                (
+                    ("var(--ink)", "Implied volatility by strike"),
+                    ("#5378A5", "Expected move to expiry"),
+                    ("var(--bear)", "Spot"),
+                ),
+            ),
+        )
     tabs = "".join(
         f'<button class="evidence-tab" role="tab" aria-selected="{str(index == 0).lower()}" aria-controls="{panel_id}" id="{panel_id}Tab">{escape(label)}</button>'
         for index, (label, panel_id, _chart, _legend) in enumerate(charts)
@@ -480,10 +823,23 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
   <a href="#page3" class="page-tab" data-page="page3">3 — Fundamentals</a>
   <div class="rail-tools"><button class="btn" id="advBtn" aria-pressed="false">Advisor detail: off</button><button class="btn" onclick="window.print()">Print / save PDF</button></div>
 </nav>
-<main class="page">
+<main class="page tech-report">
 <div class="page-view" id="page1">
 {_masthead(result, 'Technical Research')}{_topline(result)}
-<section id="call"><div class="sec-head"><h2>The call</h2><span class="verdict {tone_class}">{escape(result.lead_rating.value)}</span></div><p class="lede">{escape(result.request_response or result.executive_summary)}</p><p>{escape(result.technical.summary)}</p>{demo}</section>
+<section id="call">
+  <div class="verdict-hero">
+    <div class="vh-cap">The call</div>
+    <div class="vh-word {tone_class}">{escape(result.lead_rating.value)}</div>
+    <div class="vh-sub">Confidence <b>{escape(result.confidence.value)}</b> &nbsp;·&nbsp; {escape(plan.stance)}</div>
+  </div>
+  <div class="pos-bar" style="margin-top:20px">
+    <div class="pos-cell"><div class="pos-k">Entry</div><div class="pos-v">{_money(plan.entry_low)} – {_money(plan.entry_high)}</div></div>
+    <div class="pos-cell"><div class="pos-k">Stop</div><div class="pos-v bear">{_money(plan.stop_level)}</div></div>
+    <div class="pos-cell"><div class="pos-k">First target</div><div class="pos-v bull">{_money(plan.first_target)}</div></div>
+    <div class="pos-cell"><div class="pos-k">Reward / risk</div><div class="pos-v">{plan.reward_risk:.2f}×</div></div>
+  </div>
+  <p class="lede" style="margin-top:18px">{escape(result.request_response or result.executive_summary)}</p><p>{escape(result.technical.summary)}</p>{demo}
+</section>
 <section id="plan"><div class="sec-head"><h2>Action plan</h2><span class="verdict v-neu">{escape(plan.stance)}</span></div>
   <div class="ladder-wrap"><div class="ladder" id="ladder"></div><div class="rr"><div class="rr-k">Reward to risk</div><div class="rr-big num">{plan.reward_risk:.2f}×</div><div class="rr-note">Entry midpoint {_money(entry_mid)} to first target {_money(plan.first_target)}, measured against a {_money(plan.stop_level)} stop.</div><div class="rrbar"><div class="up" style="flex:{max(plan.reward_risk, 0.01):.2f}"></div><div class="dn" style="flex:1"></div></div><div class="rrleg"><span>+{_money(max(0, plan.first_target-entry_mid))} upside</span><span>−{_money(max(0, entry_mid-plan.stop_level))} risk</span></div></div></div>
   <div class="plan" style="margin-top:16px"><div class="pc"><div class="pc-k">Entry zone</div><div class="pc-v">{_money(plan.entry_low)} – {_money(plan.entry_high)}</div><div class="pc-n">{escape(plan.confirmation)}</div></div><div class="pc"><div class="pc-k">Stop / invalidation</div><div class="pc-v" style="color:var(--bear)">{_money(plan.stop_level)}</div><div class="pc-n">{plan.stop_pct:.1%} below entry midpoint. {escape(plan.invalidation)}</div></div><div class="pc"><div class="pc-k">Targets</div><div class="pc-v" style="color:var(--bull)">{_money(plan.first_target)} / {_money(plan.second_target)}</div><div class="pc-n">Planning references, not guaranteed outcomes.</div></div></div>
@@ -514,6 +870,54 @@ def _navigation_script() -> str:
     return r"""
 document.querySelectorAll('.rail a').forEach(function(link){
   link.addEventListener('click',function(){document.querySelectorAll('.rail a').forEach(function(a){a.classList.remove('on')});link.classList.add('on')});
+});
+""" + _hover_script()
+
+
+def _hover_script() -> str:
+    """Crosshair read-out for charts whose renderer exported its plotted series.
+
+    Everything is measured off the rendered image box, so the marks stay aligned
+    at any width; charts without data, and printing, are untouched.
+    """
+    return r"""
+document.querySelectorAll('.chart-interactive').forEach(function(box){
+  var tag=box.querySelector('script.ch-data'); if(!tag) return;
+  var data; try{data=JSON.parse(tag.textContent);}catch(e){return;}
+  var points=(data&&data.points)||[]; if(!points.length) return;
+  var frame=data.frame, names=data.series||[];
+  var image=box.querySelector('img'), cross=box.querySelector('.ch-cross');
+  var dot=box.querySelector('.ch-dot'), readout=box.querySelector('.ch-readout');
+  function hide(){cross.style.display='none';dot.style.display='none';readout.style.display='none';}
+  function move(event){
+    var rect=image.getBoundingClientRect(); if(!rect.width) return;
+    var left=frame.left*rect.width, right=frame.right*rect.width;
+    var top=frame.top*rect.height, bottom=frame.bottom*rect.height;
+    var x=event.clientX-rect.left;
+    if(x<left||x>right){hide();return;}
+    var wanted=(x-left)/(right-left), pick=0, best=Infinity;
+    for(var i=0;i<points.length;i++){
+      var gap=Math.abs(points[i].x-wanted);
+      if(gap<best){best=gap;pick=i;}
+    }
+    var point=points[pick], px=left+point.x*(right-left);
+    cross.style.display='block';cross.style.left=px+'px';
+    cross.style.top=top+'px';cross.style.height=(bottom-top)+'px';
+    if(point.y===null||point.y===undefined){dot.style.display='none';}
+    else{dot.style.display='block';dot.style.left=px+'px';dot.style.top=(top+point.y*(bottom-top))+'px';}
+    var rows='';
+    for(var s=0;s<names.length;s++){
+      rows+='<div class="ch-row"><span class="ch-k">'+names[s]+'</span><span class="ch-v">'+((point.values&&point.values[s])||'—')+'</span></div>';
+    }
+    readout.innerHTML='<div class="ch-date">'+point.label+'</div>'+rows;
+    readout.style.display='block';
+    var width=readout.offsetWidth, place=px+16;
+    if(place+width>rect.width-4){place=px-width-16;}
+    if(place<4){place=4;}
+    readout.style.left=place+'px';
+  }
+  box.addEventListener('mousemove',move);
+  box.addEventListener('mouseleave',hide);
 });
 """
 

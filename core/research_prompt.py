@@ -127,9 +127,61 @@ def append_revision_instructions(original: str, revision: str) -> str:
     return f"{prefix}Requested modifications to the revised report:\n{clean_revision}"
 
 
+# Horizon wording, checked longest-phrase-first so "long term" is not matched by a
+# looser "term" rule. Only an explicit statement changes the horizon; silence keeps
+# the All Horizons default rather than guessing a timeframe the user never gave.
+_HORIZON_PHRASES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "All Horizons",
+        ("all horizons", "every horizon", "all time frames", "all timeframes", "short medium and long"),
+    ),
+    (
+        "Long Term",
+        (
+            "long term", "long-term", "longterm", "buy and hold", "buy-and-hold", "hold forever",
+            "retirement", "for my kids", "next decade", "ten years", "10 years", "five years",
+            "5 years", "several years", "for years", "multi-year", "multiyear", "lifetime",
+        ),
+    ),
+    (
+        "Medium Term",
+        (
+            "medium term", "medium-term", "mediumterm", "intermediate term", "intermediate-term",
+            "next few months", "next couple of months", "next couple months", "coming months",
+            "next quarter", "this quarter", "six months", "6 months", "next year", "12 months",
+            "rest of the year", "remainder of the year",
+        ),
+    ),
+    (
+        "Short Term",
+        (
+            "short term", "short-term", "shortterm", "near term", "near-term", "swing trade",
+            "swing trading", "day trade", "day trading", "next few days", "next couple of days",
+            "next couple days", "next week", "next two weeks", "coming weeks", "next few weeks",
+            "this week", "quick trade", "quick flip", "few sessions", "intraday",
+        ),
+    ),
+)
+
+
+def parse_horizon(value: str) -> str:
+    """The analysis horizon the user actually stated, or '' when they stated none.
+
+    The horizon changes lookbacks, signal emphasis and weighting, so inferring one
+    that was never asked for would quietly change the answer.  Blank means the
+    caller should keep its own default.
+    """
+    lowered = value.lower()
+    for horizon, phrases in _HORIZON_PHRASES:
+        if any(phrase in lowered for phrase in phrases):
+            return horizon
+    return ""
+
+
 def classify_research_intent(value: str) -> str:
     """Classify the decision being asked without changing the user's wording."""
     lowered = value.lower()
+    # Checked before the broader buy/sell wording below, because these questions
     if parse_portfolio_allocation(value):
         return "portfolio_fit"
     if "portfolio" in lowered and (
@@ -139,6 +191,49 @@ def classify_research_intent(value: str) -> str:
         return "portfolio_context"
     if is_historical_trade_request(value):
         return "historical_trade_examples"
+    # These sit above the broad buy/sell wording because such questions usually
+    # arrive wrapped in it ("should I buy, and where do I put a stop?"), but below
+    # the portfolio and back-test checks, which describe a whole workflow rather
+    # than one question -- a back-test prompt may mention stops in passing.
+    if any(
+        term in lowered
+        for term in ("stop loss", "stop-loss", "where do i put my stop", "where should i set a stop", "invalidation")
+    ):
+        return "stop_loss"
+    if any(
+        term in lowered
+        for term in (
+            "option", "options", "call spread", "put spread", "covered call", "cash-secured put",
+            "hedge", "hedging", "protect my position", "collar",
+        )
+    ):
+        return "options"
+    if any(
+        term in lowered
+        for term in (
+            "overvalued", "undervalued", "over valued", "under valued", "too expensive",
+            "fairly valued", "fair value", "cheap here", "expensive here", "valuation",
+        )
+    ):
+        return "valuation"
+    if any(
+        term in lowered
+        for term in (
+            "buy now or wait", "wait for a pullback", "should i wait", "is now a good time",
+            "better entry", "wait for a dip", "chase it", "chasing",
+        )
+    ):
+        return "timing"
+    if any(
+        term in lowered
+        for term in ("dividend", "yield", "income", "payout", "distribution")
+    ):
+        return "income"
+    if any(
+        term in lowered
+        for term in ("before earnings", "after earnings", "into earnings", "earnings report", "next earnings")
+    ):
+        return "earnings"
     if any(term in lowered for term in ("should i sell", "time to sell", "exit", "reduce my position")):
         return "sell"
     if any(

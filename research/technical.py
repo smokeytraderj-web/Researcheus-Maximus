@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +20,195 @@ import pandas as pd
 
 from core.assessments import technical_setup
 from core.models import HistoricalTradeCase, Horizon, Rating, SpecialistFinding, Strategy, TechnicalActionPlan
+
+
+_HOVER_PAD_INCHES = 0.1  # matches savefig's default pad when bbox_inches="tight"
+
+
+def _hover_sidecar(
+    fig,
+    ax,
+    destination: Path,
+    x_values,
+    labels: list[str],
+    series: list[tuple[str, list[str]]],
+    primary: list[float],
+    bottom_ax=None,
+) -> None:
+    """Write the read-out data for a chart's hover overlay beside its PNG.
+
+    The report embeds this so the browser can show the exact dated values behind
+    a chart instead of only a picture of them.  ``savefig(bbox_inches="tight")``
+    crops the figure, so the plot rectangle in the saved image is *not*
+    ``ax.get_position()``; it has to be recomputed against the same tight bbox
+    savefig will use, or the overlay drifts away from the pixels underneath.
+
+    Positions are stored as 0-1 fractions of the saved image, so the overlay
+    stays aligned at any rendered width without the browser knowing anything
+    about dates or prices.
+
+    ``bottom_ax`` extends the crosshair down through a second stacked panel (RSI
+    over MACD, say) so one hover reads across both.  Pass an empty ``primary``
+    for such charts: the marker dot only makes sense against a single y-axis.
+    """
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    tight = fig.get_tightbbox(renderer)
+    origin_x = tight.x0 - _HOVER_PAD_INCHES
+    origin_y = tight.y0 - _HOVER_PAD_INCHES
+    total_width = tight.width + 2 * _HOVER_PAD_INCHES
+    total_height = tight.height + 2 * _HOVER_PAD_INCHES
+    box = ax.get_window_extent(renderer).transformed(fig.dpi_scale_trans.inverted())
+    lower = (
+        box
+        if bottom_ax is None
+        else bottom_ax.get_window_extent(renderer).transformed(fig.dpi_scale_trans.inverted())
+    )
+
+    x_min, x_max = ax.get_xlim()
+    y_min, y_max = ax.get_ylim()
+    x_span = (x_max - x_min) or 1.0
+    y_span = (y_max - y_min) or 1.0
+    x_positions = list(x_values)
+
+    points = []
+    for index, label in enumerate(labels):
+        if index >= len(x_positions):
+            break
+        value = primary[index] if index < len(primary) else None
+        points.append(
+            {
+                "x": round((float(x_positions[index]) - x_min) / x_span, 5),
+                # Image y grows downward, so invert against the axis range.
+                "y": None if value is None else round((y_max - value) / y_span, 5),
+                "label": label,
+                "values": [column[index] if index < len(column) else "" for _name, column in series],
+            }
+        )
+
+    payload = {
+        "frame": {
+            "left": round((box.x0 - origin_x) / total_width, 5),
+            "right": round((box.x1 - origin_x) / total_width, 5),
+            "top": round(1.0 - (box.y1 - origin_y) / total_height, 5),
+            "bottom": round(1.0 - (lower.y0 - origin_y) / total_height, 5),
+        },
+        "series": [name for name, _column in series],
+        "points": points,
+    }
+    destination.with_suffix(destination.suffix + ".json").write_text(
+        json.dumps(payload, separators=(",", ":")), encoding="utf-8"
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class VolumeProfile:
+    """Volume traded at each price level over the analysed window.
+
+    ``point_of_control`` is the most-traded price; ``value_area_low/high`` bound
+    the prices covering ``VALUE_AREA_SHARE`` of total volume around it.  These are
+    the levels that tend to act as support and resistance because real size
+    changed hands there, which a time-based volume bar cannot show.
+    """
+
+    prices: tuple[float, ...]
+    volumes: tuple[float, ...]
+    point_of_control: float
+    value_area_low: float
+    value_area_high: float
+    total_volume: float
+
+
+VALUE_AREA_SHARE = 0.70
+
+
+def volume_profile(history: pd.DataFrame, bins: int = 26) -> VolumeProfile | None:
+    """Distribute each session's volume across the price range it actually traded.
+
+    Returns ``None`` when the security reports no usable volume (some funds), so
+    callers omit the evidence rather than publishing an empty or invented profile.
+    """
+    frame = history.dropna(subset=["High", "Low", "Close"]).copy()
+    if "Volume" not in frame.columns or frame.empty:
+        return None
+    volume = frame["Volume"].astype(float).fillna(0.0)
+    if float(volume.abs().sum()) <= 0:
+        return None
+
+    high = frame["High"].astype(float)
+    low = frame["Low"].astype(float)
+    floor_price, ceiling_price = float(low.min()), float(high.max())
+    if not np.isfinite(floor_price) or not np.isfinite(ceiling_price) or ceiling_price <= floor_price:
+        return None
+
+    edges = np.linspace(floor_price, ceiling_price, bins + 1)
+    centers = (edges[:-1] + edges[1:]) / 2.0
+    buckets = np.zeros(bins, dtype=float)
+
+    # Spread a session's volume evenly over the bins its range covers, rather than
+    # dumping it all at the close -- a wide-range day genuinely traded throughout.
+    for bar_low, bar_high, bar_volume in zip(low.to_numpy(), high.to_numpy(), volume.to_numpy()):
+        if bar_volume <= 0:
+            continue
+        first = int(np.clip(np.searchsorted(edges, bar_low, side="right") - 1, 0, bins - 1))
+        last = int(np.clip(np.searchsorted(edges, bar_high, side="left") - 1, 0, bins - 1))
+        if last < first:
+            last = first
+        buckets[first : last + 1] += bar_volume / (last - first + 1)
+
+    total = float(buckets.sum())
+    if total <= 0:
+        return None
+
+    control_index = int(buckets.argmax())
+    # Grow outward from the point of control, always taking the heavier side, until
+    # the requested share of volume is enclosed -- the standard value-area rule.
+    low_index = high_index = control_index
+    covered = buckets[control_index]
+    while covered < total * VALUE_AREA_SHARE and (low_index > 0 or high_index < bins - 1):
+        below = buckets[low_index - 1] if low_index > 0 else -1.0
+        above = buckets[high_index + 1] if high_index < bins - 1 else -1.0
+        if above >= below:
+            high_index += 1
+            covered += buckets[high_index]
+        else:
+            low_index -= 1
+            covered += buckets[low_index]
+
+    return VolumeProfile(
+        prices=tuple(float(value) for value in centers),
+        volumes=tuple(float(value) for value in buckets),
+        point_of_control=float(centers[control_index]),
+        value_area_low=float(edges[low_index]),
+        value_area_high=float(edges[high_index + 1]),
+        total_volume=total,
+    )
+
+
+def volume_profile_insight(profile: VolumeProfile, price: float) -> str:
+    """One decision-relevant sentence about where price sits in the profile."""
+    control = profile.point_of_control
+    if price > profile.value_area_high:
+        location = (
+            f"Price ${price:,.2f} is above the value area, so there is little traded volume "
+            f"overhead; ${profile.value_area_high:,.2f} is the first shelf back inside it."
+        )
+    elif price < profile.value_area_low:
+        location = (
+            f"Price ${price:,.2f} is below the value area, leaving heavy supply overhead; "
+            f"${profile.value_area_low:,.2f} is the first hurdle back inside it."
+        )
+    else:
+        side = "above" if price >= control else "below"
+        location = (
+            f"Price ${price:,.2f} is inside the value area and {side} the point of control, "
+            f"which tends to act as a magnet while the range holds."
+        )
+    return (
+        f"Most volume changed hands at ${control:,.2f}, with "
+        f"{VALUE_AREA_SHARE:.0%} of it between ${profile.value_area_low:,.2f} and "
+        f"${profile.value_area_high:,.2f}. {location}"
+    )
 
 
 NAVY = "#1B2A4A"
@@ -428,6 +618,22 @@ def momentum_decision_insight(snapshot: TechnicalSnapshot, rating: Rating) -> st
         f"MACD ({snapshot.macd:.2f}) is {macd_state} its signal ({snapshot.macd_signal:.2f}) and RSI is {snapshot.rsi14:.1f}; "
         f"{implication}."
     )
+
+
+def windowed_return_pct(history: pd.DataFrame, *, custom_range: bool, minimum_sessions: int = 20) -> float | None:
+    """Total return over the same lookback window used for relative-performance evidence.
+
+    Shared by the relative-performance narrative below and by the Conviction
+    Checklist, so both read "relative strength" over an identical window.
+    """
+    if history is None or "Close" not in history:
+        return None
+    closes = history["Close"].dropna().astype(float)
+    required = minimum_sessions if custom_range else 64
+    if len(closes) < required:
+        return None
+    start_index = 0 if custom_range else -64
+    return float(closes.iloc[-1] / closes.iloc[start_index] - 1)
 
 
 def incorporate_relative_performance(
@@ -940,6 +1146,21 @@ def render_chart(
     ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
     ax.margins(x=0.018)
     fig.tight_layout()
+    _hover_sidecar(
+        fig,
+        ax,
+        destination,
+        x_values,
+        [stamp.strftime("%d %b %Y") for stamp in frame.index],
+        [
+            ("Close", [f"${value:,.2f}" for value in close]),
+            ("Open", [f"${value:,.2f}" for value in open_price]),
+            ("High / Low", [f"${high_v:,.2f} / ${low_v:,.2f}" for high_v, low_v in zip(high, low)]),
+            ("20-day avg", ["—" if pd.isna(value) else f"${value:,.2f}" for value in sma20]),
+            ("50-day avg", ["—" if pd.isna(value) else f"${value:,.2f}" for value in sma50]),
+        ],
+        [float(value) for value in close],
+    )
     fig.savefig(destination, dpi=190, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     return destination
@@ -1100,6 +1321,212 @@ def render_fibonacci_chart(
     return destination
 
 
+def render_track_record_chart(index, picks_curve, benchmark_curve, benchmark: str, destination: Path) -> Path:
+    """Cumulative return of the picks against the benchmark over the same dates."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(10.6, 4.9))
+    fig.patch.set_facecolor("white")
+
+    final = float(picks_curve.iloc[-1])
+    ax.plot(index, picks_curve * 100, color=NAVY, linewidth=2.0, label=f"Our buy-side picks {final:+.1%}", zorder=4)
+    if benchmark_curve is not None:
+        ax.plot(
+            index,
+            benchmark_curve * 100,
+            color=GOLD,
+            linewidth=1.6,
+            linestyle="--",
+            label=f"{benchmark} {float(benchmark_curve.iloc[-1]):+.1%}",
+            zorder=3,
+        )
+    ax.axhline(0, color=MUTED, linewidth=0.8, zorder=2)
+
+    ax.set_title("Track record — cumulative return of picks vs benchmark", loc="left",
+                 color=NAVY, fontsize=11.2, fontweight="bold")
+    ax.set_ylabel("Cumulative return (%)", color=MUTED, fontsize=8)
+    ax.grid(alpha=0.15, linewidth=0.7)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#D8DDE6")
+    ax.spines["bottom"].set_color("#D8DDE6")
+    ax.tick_params(colors=MUTED, labelsize=7.6)
+    ax.legend(fontsize=8, frameon=False, loc="upper left")
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=4, maxticks=8))
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
+    fig.tight_layout()
+    fig.savefig(destination, dpi=180, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    return destination
+
+
+def render_options_chart(snapshot, ticker: str, destination: Path) -> Path:
+    """The volatility smile for the front expiry, with the move it implies.
+
+    Reads as one picture: the curve shows what the option market charges at each
+    strike, the shaded band shows the one-standard-deviation move that pricing
+    implies, and the tilt of the curve is the skew.
+    """
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    front = snapshot.front
+    fig, ax = plt.subplots(figsize=(10.6, 4.9))
+    fig.patch.set_facecolor("white")
+
+    # The chain quotes one implied volatility per strike -- puts and calls at the
+    # same strike carry the same IV by put-call parity -- so this is a single curve.
+    # Its tilt is the skew: richer downside strikes lift the left-hand side.
+    strikes = list(snapshot.smile_strikes)
+    if strikes:
+        ax.plot(
+            strikes,
+            list(snapshot.smile_call_iv),
+            color=NAVY,
+            linewidth=1.8,
+            marker="o",
+            markersize=3.2,
+            label="Implied volatility by strike",
+            zorder=4,
+        )
+
+    if front is not None and snapshot.spot > 0:
+        low = snapshot.spot - front.expected_move
+        high = snapshot.spot + front.expected_move
+        ax.axvspan(
+            low,
+            high,
+            color=BLUE,
+            alpha=0.10,
+            zorder=1,
+            label=f"Expected move to expiry ±${front.expected_move:,.2f}",
+        )
+        ax.axvline(snapshot.spot, color=RED, linestyle="--", linewidth=1.1, zorder=3)
+
+    ax.legend(ncol=2, fontsize=7.4, frameon=False, loc="upper right")
+    # Annotate after the axes limits settle so the labels sit where they are drawn.
+    if front is not None and snapshot.spot > 0:
+        bottom, top = ax.get_ylim()
+        ax.set_ylim(bottom - (top - bottom) * 0.12, top)
+        bottom, top = ax.get_ylim()
+        ax.annotate(
+            f"Spot ${snapshot.spot:,.2f}",
+            xy=(snapshot.spot, bottom),
+            xytext=(0, 16),
+            textcoords="offset points",
+            fontsize=7.6,
+            color=RED,
+            fontweight="bold",
+            ha="center",
+        )
+        for edge, label in ((low, f"−1σ ${low:,.2f}"), (high, f"+1σ ${high:,.2f}")):
+            ax.annotate(
+                label,
+                xy=(edge, bottom),
+                xytext=(0, 5),
+                textcoords="offset points",
+                fontsize=7.0,
+                color=MUTED,
+                ha="center",
+            )
+
+    heading = f"{ticker} | Implied volatility by strike"
+    if front is not None:
+        heading += f" — {front.expiration} ({front.days_to_expiry}d)"
+    ax.set_title(heading, loc="left", color=NAVY, fontsize=11.2, fontweight="bold")
+    ax.set_xlabel("Strike (USD)", color=MUTED, fontsize=8)
+    ax.set_ylabel("Implied volatility (%)", color=MUTED, fontsize=8)
+    ax.grid(alpha=0.15, linewidth=0.7)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#D8DDE6")
+    ax.spines["bottom"].set_color("#D8DDE6")
+    ax.tick_params(colors=MUTED, labelsize=7.6)
+    fig.tight_layout()
+    fig.savefig(destination, dpi=180, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    return destination
+
+
+def render_volume_profile_chart(
+    history: pd.DataFrame,
+    ticker: str,
+    profile: VolumeProfile,
+    destination: Path,
+) -> Path:
+    """Price beside the volume traded at each level, sharing one price axis.
+
+    Reading them together is the point: the histogram shows *where* size changed
+    hands, and the price panel shows whether the market is currently defending or
+    rejecting those levels.
+    """
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    frame = history.dropna(subset=["Close"]).copy()
+    if not history.attrs.get("custom_range"):
+        frame = frame.tail(180)
+    close = frame["Close"].astype(float)
+
+    fig, (price_ax, profile_ax) = plt.subplots(
+        1, 2, figsize=(10.8, 5.4), sharey=True, gridspec_kw={"width_ratios": [3.1, 1.0], "wspace": 0.03}
+    )
+    fig.patch.set_facecolor("white")
+
+    price_ax.plot(close.index, close, color=NAVY, linewidth=1.4, zorder=3)
+    price_ax.axhspan(profile.value_area_low, profile.value_area_high, color=GOLD, alpha=0.11, zorder=1)
+    price_ax.axhline(profile.point_of_control, color=GOLD, linewidth=1.3, zorder=2)
+    price_ax.set_title(f"{ticker} | Volume by price", loc="left", color=NAVY, fontsize=11.2, fontweight="bold")
+    price_ax.set_ylabel("Price (USD)", color=MUTED, fontsize=8)
+    price_ax.grid(axis="y", alpha=0.14, linewidth=0.7)
+    price_ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=4, maxticks=7))
+    price_ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(price_ax.xaxis.get_major_locator()))
+
+    heights = (profile.prices[1] - profile.prices[0]) * 0.86 if len(profile.prices) > 1 else 1.0
+    for price_level, level_volume in zip(profile.prices, profile.volumes):
+        inside = profile.value_area_low <= price_level <= profile.value_area_high
+        is_control = abs(price_level - profile.point_of_control) < 1e-9
+        profile_ax.barh(
+            price_level,
+            level_volume,
+            height=heights,
+            color=GOLD if is_control else (BLUE if inside else "#C9D2DE"),
+            alpha=1.0 if is_control else (0.75 if inside else 0.6),
+            zorder=2,
+        )
+    profile_ax.set_xlabel("Volume", color=MUTED, fontsize=8)
+    profile_ax.grid(axis="x", alpha=0.12, linewidth=0.6)
+    profile_ax.tick_params(labelleft=False)
+    profile_ax.set_xticks([])
+
+    latest = float(close.iloc[-1])
+    price_ax.axhline(latest, color=RED, linestyle="--", linewidth=1.0, zorder=4)
+    for axis, label, value, colour in (
+        (profile_ax, f"POC ${profile.point_of_control:,.2f}", profile.point_of_control, GOLD),
+        (profile_ax, f"Now ${latest:,.2f}", latest, RED),
+    ):
+        axis.annotate(
+            label,
+            xy=(axis.get_xlim()[1], value),
+            xytext=(4, 0),
+            textcoords="offset points",
+            fontsize=7.4,
+            color=colour,
+            fontweight="bold",
+            va="center",
+            annotation_clip=False,
+        )
+
+    for axis in (price_ax, profile_ax):
+        axis.spines["top"].set_visible(False)
+        axis.spines["right"].set_visible(False)
+        axis.spines["left"].set_color("#D8DDE6")
+        axis.spines["bottom"].set_color("#D8DDE6")
+        axis.tick_params(colors=MUTED, labelsize=7.6)
+
+    # The POC/Now labels sit outside the right axis, which tight_layout cannot
+    # account for; savefig's tight bbox already captures them.
+    fig.subplots_adjust(left=0.07, right=0.88, top=0.92, bottom=0.10, wspace=0.03)
+    fig.savefig(destination, dpi=180, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    return destination
+
+
 def render_momentum_chart(history: pd.DataFrame, ticker: str, destination: Path) -> Path:
     """Render RSI and MACD panels from the same verified history used in the rating."""
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -1133,6 +1560,22 @@ def render_momentum_chart(history: pd.DataFrame, ticker: str, destination: Path)
     macd_ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=9))
     macd_ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(macd_ax.xaxis.get_major_locator()))
     fig.tight_layout()
+    _hover_sidecar(
+        fig,
+        rsi_ax,
+        destination,
+        mdates.date2num(close.index.to_pydatetime()),
+        [stamp.strftime("%d %b %Y") for stamp in close.index],
+        [
+            ("Close", [f"${value:,.2f}" for value in close]),
+            ("RSI (14)", ["—" if pd.isna(value) else f"{value:.1f}" for value in rsi]),
+            ("MACD", [f"{value:.2f}" for value in macd]),
+            ("Signal", [f"{value:.2f}" for value in signal]),
+            ("Histogram", [f"{value:+.2f}" for value in histogram]),
+        ],
+        [],  # two panels share the crosshair, so no single-axis marker dot
+        bottom_ax=macd_ax,
+    )
     fig.savefig(destination, dpi=170, bbox_inches="tight")
     plt.close(fig)
     return destination
@@ -1180,6 +1623,19 @@ def render_relative_performance_chart(
     ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=9))
     ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
     fig.tight_layout()
+    _hover_sidecar(
+        fig,
+        ax,
+        destination,
+        mdates.date2num(normalized.index.to_pydatetime()),
+        [stamp.strftime("%d %b %Y") for stamp in normalized.index],
+        # Indexed to 100 at the start, so read each series as a return from day one.
+        [
+            (str(column), [f"{value / 100 - 1:+.1%}" for value in normalized[column]])
+            for column in normalized.columns
+        ],
+        [float(value) for value in normalized[normalized.columns[0]]],
+    )
     fig.savefig(destination, dpi=170, bbox_inches="tight")
     plt.close(fig)
     return destination

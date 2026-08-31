@@ -89,10 +89,16 @@ Both formats share one visual system: a white editorial page, narrow left naviga
 ### Technical Research
 
 - Preserve the information order: security and rating; the call; position and risk plan; technical evidence; fundamentals; organized data; sources and disclosure.
+- Open with the call stated plainly: the final rating at display size, its confidence, the stance, and a single row carrying entry zone, stop, first target, and reward/risk. The reader must not have to hunt for the recommendation or the levels.
 - Preserve the interactive `Action plan` / `Scenario tester` control. The scenario tester updates selected price, change from current price, change from entry, stop distance, illustrative position impact, and plain-English action zone without changing the evidence.
-- Preserve one tabbed `Evidence` section with four selectable charts in this order: Price structure, Momentum, Relative strength, and Fibonacci. The left rail lists the same four chart names and opens the matching tab.
+- Present the technical evidence as one tabbed `Charts` section. Lead with `Price structure`, then `Momentum`, `Relative strength`, and `Fibonacci`; additional validated views follow. The left rail navigates the report's pages, and the Charts page opens on the first tab.
+- A chart tab appears only when its evidence was actually produced. Never publish an empty or placeholder panel to keep a fixed tab count — a security with no usable volume simply has no volume-by-price tab.
+- `Volume by price` distributes each session's volume across the range it traded, and marks the point of control and the value area holding 70% of volume. State where the current price sits relative to that value area.
 - The Fibonacci chart visibly renders the validated six-month close series, swing high and low, 38.2%, 50%, and 61.8% retracement levels, the current-price interaction, and one concise decision implication. Reserve enough plot margin that every annotation remains inside the chart at desktop, responsive, and print sizes.
+- Charts that expose their plotted series carry a hover read-out giving the exact dated values behind the picture. The read-out is positioned from geometry published by the renderer, so it must stay aligned with the image at any width.
 - Interactive controls are additive. Print/PDF output hides controls, exposes useful static conclusions, expands hidden report content where necessary, and remains complete without JavaScript interaction.
+- Live embeds cannot render in print. Omit them from the printed report rather than reserving space that prints blank.
+- Deep Technical may run longer than the General Research brief to keep charts legible, but no printed page may be blank or near-blank. Verify page count and per-page content on the rendered PDF, not on the HTML.
 
 Both formats use the same production data bindings and validation rules as the approved research result. Seeded demonstration values in the reference files are layout fixtures only and must never be emitted into a client report.
 
@@ -295,6 +301,14 @@ Every report shows:
 - Conditions that would change the rating.
 
 Define rating semantics in a versioned policy file before implementation. Do not allow individual prompts to invent new meanings or labels.
+
+## Conviction Checklist
+
+General Research includes a five-point Conviction Checklist: deterministic, threshold-based checkboxes shown with a headline score (for example, 3/5). It is supplementary evidence, not a rating — it never renames, replaces, or overrides the seven-label Rating System above or the Lead Analyst's synthesis. No LLM-generated text is an input to it.
+
+The five criteria (policy version 1.0, defined in `core/conviction_checklist.py`) are trend (price above both the 50-day and 200-day averages), momentum (MACD above its signal and RSI(14) between 40 and 75), relative strength (return over the lookback beats SPY), growth (revenue growth and earnings growth both positive), and street conviction (analyst mean target above the current price).
+
+A criterion that cannot be evaluated from available evidence — a security too new to have a 200-day average, missing growth figures, no analyst target — is reported as not-confirmed with the reason stated, never guessed, and never silently counted toward or against the score. Changing a threshold, or adding or removing a criterion, is a policy change: bump the version and update the policy file's documentation in the same change.
 
 ## Potential Investment Strategies
 

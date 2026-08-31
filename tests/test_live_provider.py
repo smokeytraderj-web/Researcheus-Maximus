@@ -361,5 +361,29 @@ class HistoryFallbackTests(unittest.TestCase):
         self.assertIn("not a current buy or sell conclusion", answer)
 
 
+class SectorBenchmarkSelectionTests(unittest.TestCase):
+    """Deep Technical judges relative strength against these, so the wrong pick
+    silently changes the conclusion rather than failing loudly."""
+
+    def test_industry_benchmark_wins_over_sector_when_both_match(self):
+        semis = {"sector": "Technology", "industry": "Semiconductors"}
+        self.assertEqual(_comparison_benchmark(semis, semis)[0], "SOXX")
+
+    def test_sector_etf_is_chosen_from_the_sector_label(self):
+        self.assertEqual(_comparison_benchmark({"sector": "Technology"}, {"sector": "Technology"})[0], "XLK")
+        self.assertEqual(
+            _comparison_benchmark({"sector": "Financial Services"}, {"sector": "Financial Services"})[0],
+            "XLF",
+        )
+        self.assertEqual(_comparison_benchmark({"sector": "Energy"}, {"sector": "Energy"})[0], "XLE")
+
+    def test_unknown_or_mismatched_sector_falls_back_to_broad_market(self):
+        self.assertEqual(_comparison_benchmark({}, {})[0], "SPY")
+        self.assertEqual(
+            _comparison_benchmark({"sector": "Technology"}, {"sector": "Energy"})[0],
+            "SPY",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

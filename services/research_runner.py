@@ -11,6 +11,7 @@ from pypdf import PdfReader
 
 from core.models import ResearchRequest, ResearchResult
 from core.session import ResearchSession
+from reports.call_log import append_call
 from reports.pdf_report import build_research_pdf
 from reports.html_report import build_research_html
 from research.demo_provider import DemoResearchProvider
@@ -109,6 +110,15 @@ class ResearchRunner:
         except Exception:
             final_html.unlink(missing_ok=True)
             raise
+        # Record the call so its accuracy can be reviewed later. Demo runs are
+        # excluded: logging synthetic ratings would corrupt the track record.
+        if not prepared.result.demo_mode:
+            try:
+                append_call(output_directory, prepared.result, prepared.request)
+            except OSError:
+                # The report is already exported and verified; a log write failure
+                # must not fail the export or block session cleanup.
+                pass
         prepared.session.cleanup()
         return final_html
 

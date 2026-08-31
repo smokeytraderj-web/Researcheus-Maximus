@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Compare Securities</title>
+<title>Technical Analysis</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -27,8 +27,8 @@ tailwind.config = {
 </script>
 <style>
   html, body { height: 100%; background: #FFFFFF; }
-  textarea::placeholder { color: #9AA5B4; }
-  textarea:focus { outline: none; }
+  input::placeholder { color: #9AA5B4; }
+  input:focus { outline: none; }
   ::selection { background: #EFE4C7; }
   /* Tailwind's generated .font-serif came out with an empty font-family, so every
      heading silently fell back to the sans stack. Declare it explicitly. */
@@ -48,24 +48,24 @@ tailwind.config = {
           Gottfried &amp; Somberg Wealth Management
         </div>
         <h1 class="font-serif text-4xl sm:text-[42px] font-semibold tracking-tight text-ink leading-tight">
-          Compare Securities
+          Technical Analysis
         </h1>
         <div class="h-[3px] w-14 bg-gold mx-auto mt-4"></div>
       </div>
 
       <div class="rounded-md bg-white border border-line border-t-[3px] border-t-gold p-6 sm:p-7">
         <div class="mb-3">
-          <span class="font-serif text-[19px] font-semibold text-ink">What would you like to compare?</span>
+          <span class="font-serif text-[19px] font-semibold text-ink">Which symbol?</span>
         </div>
-        <textarea
+        <input
           id="queryBox"
-          rows="5"
-          placeholder="Name two securities, then add the decision you are considering.&#10;&#10;Example: AVGO vs NVDA - Which currently offers better value and risk-adjusted opportunity from January 2024 to today?"
-          class="w-full resize-none bg-panel border border-line rounded-[7px] text-[15px] text-ink leading-relaxed placeholder:text-muted p-4 focus:border-gold focus:border-2"
-        ></textarea>
+          type="text"
+          placeholder="Ticker or company name, e.g. AAPL or Apple"
+          class="w-full bg-panel border border-line rounded-[7px] text-[15px] text-ink leading-relaxed placeholder:text-muted p-4 focus:border-gold focus:border-2"
+        >
         <p class="mt-3 text-[12.5px] text-body leading-relaxed">
-          The report compares only like-for-like available evidence, including Fibonacci-based technical setup, relative performance,
-          valuation, growth, margins, analyst-target upside, and fund costs when applicable.
+          A rating gauge across 1D / 4h / 1h, key Fibonacci levels, and an annotated price chart from TV Remix &mdash;
+          a fast supplemental technical read, separate from the full Single Stock Research workflow.
         </p>
         <div class="flex items-center justify-between mt-5">
           <button
@@ -78,7 +78,7 @@ tailwind.config = {
             onclick="submitQuery()"
             class="rounded-[7px] bg-gold text-white font-sans font-bold text-sm px-6 py-2.5 hover:bg-[#A88742] transition-colors"
           >
-            Run Comparison
+            Run Technical Analysis
           </button>
         </div>
       </div>
@@ -104,12 +104,12 @@ tailwind.config = {
   function submitQuery() {
     var text = document.getElementById('queryBox').value.trim();
     if (!text || !bridge) return;
-    bridge.submitComparisonQuery(text);
+    bridge.submitTechnicalQuery(text);
   }
   function goBack() { if (bridge) bridge.openOverview(); }
   function openSettings() { if (bridge) bridge.openSettings(); }
   document.getElementById('queryBox').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (e.key === 'Enter') {
       e.preventDefault();
       submitQuery();
     }

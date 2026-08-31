@@ -30,6 +30,10 @@ tailwind.config = {
   textarea::placeholder { color: #9AA5B4; }
   textarea:focus { outline: none; }
   ::selection { background: #EFE4C7; }
+  /* Tailwind's generated .font-serif came out with an empty font-family, so every
+     heading silently fell back to the sans stack. Declare it explicitly. */
+  .font-serif { font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif; }
+  .font-mono  { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
 </style>
 </head>
 <body class="min-h-screen font-sans text-body antialiased">
@@ -47,9 +51,6 @@ tailwind.config = {
           Deep Technical Analysis
         </h1>
         <div class="h-[3px] w-14 bg-gold mx-auto mt-4"></div>
-        <p class="mt-4 text-[14px] text-muted max-w-lg mx-auto leading-relaxed">
-          Request specific real-market charts, compare a stock with peers or benchmarks, and build a chart-led decision report.
-        </p>
       </div>
 
       <div class="rounded-md bg-white border border-line border-t-[3px] border-t-gold p-6 sm:p-7">
@@ -62,7 +63,7 @@ tailwind.config = {
           placeholder="Start with the primary ticker, then describe the analysis and comparison symbols.&#10;&#10;Example: AVGO - Compare with NVDA and SPY from 2024-01-01 to 2026-08-26. Analyze Fibonacci, stop-loss evidence, trend, RSI, MACD, relative performance, drawdown, and volatility."
           class="w-full resize-none bg-panel border border-line rounded-[7px] text-[15px] text-ink leading-relaxed placeholder:text-muted p-4 focus:border-gold focus:border-2"
         ></textarea>
-        <p class="mt-3 text-[12.5px] text-muted leading-relaxed">
+        <p class="mt-3 text-[12.5px] text-body leading-relaxed">
           Use phrases such as &ldquo;from 2024-01-01 to 2025-12-31,&rdquo; &ldquo;from January 2024 to June 2025,&rdquo; or &ldquo;since March 2024.&rdquo;
           Fibonacci automatically uses the selected range. SPY is used when no benchmark is named.
         </p>
@@ -85,7 +86,7 @@ tailwind.config = {
     </div>
   </div>
 
-  <div class="flex items-center justify-between px-8 py-4 border-t border-line2 font-mono text-[10.5px] text-muted">
+  <div class="flex items-center justify-between px-8 py-4 border-t border-line2 font-mono text-[10.5px] text-ink/40">
     <span>Researcheus Maximus</span>
     <button onclick="openSettings()" class="hover:text-gold transition-colors">Settings</button>
   </div>

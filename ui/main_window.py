@@ -8,7 +8,7 @@ from pathlib import Path
 import tempfile
 import traceback
 
-from PySide6.QtCore import QObject, QSettings, QThread, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QSettings, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QCursor, QDesktopServices
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -46,6 +46,7 @@ from core.research_prompt import (
     parse_comparison_prompt,
     parse_custom_range,
     parse_deep_analysis_prompt,
+    parse_horizon,
     parse_overview_chart_request,
     parse_portfolio_allocation,
     parse_research_prompt,
@@ -53,7 +54,10 @@ from core.research_prompt import (
 from research.demo_provider import DemoResearchProvider
 from research.live_provider import LiveResearchProvider
 from research.ycharts_excel import retrieve_ycharts_metrics
+from security import secret_store
 from services.research_runner import PreparedResearch, ResearchRunner
+from services.technical_runner import PreparedTechnical, TechnicalRunner
+from services.track_runner import TrackRecordRunner
 
 
 _METRIC_EXPLANATIONS = {
@@ -75,6 +79,15 @@ _METRIC_EXPLANATIONS = {
     "benchmark": "Benchmark-relative performance shows how much the stock gained or lost beyond the selected sector or market ETF over the same dates.",
     "general": "This is one supporting data point. Read it together with the trend, fundamentals, valuation, risks, and the report's Overall Rating.",
 }
+
+
+def _horizon_from_text(brief: str) -> Horizon:
+    """The horizon stated in the question, defaulting to All Horizons."""
+    stated = parse_horizon(brief)
+    for horizon in Horizon:
+        if horizon.value == stated:
+            return horizon
+    return Horizon.ALL
 
 
 def _metric_help_key(label: str) -> str:
@@ -177,6 +190,41 @@ class ResearchWorker(QThread):
             self.failed.emit(str(exc) or "Research preparation failed.")
 
 
+class TechnicalWorker(QThread):
+    completed = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, runner: TechnicalRunner, query: str, parent=None):
+        super().__init__(parent)
+        self.runner = runner
+        self.query = query
+
+    def run(self) -> None:
+        try:
+            self.completed.emit(self.runner.prepare(self.query))
+        except Exception as exc:
+            traceback.print_exc()
+            self.failed.emit(str(exc) or "Technical Analysis preparation failed.")
+
+
+class TrackRecordWorker(QThread):
+    completed = Signal(object, object)
+    failed = Signal(str)
+
+    def __init__(self, runner: TrackRecordRunner, log_directory: Path, parent=None):
+        super().__init__(parent)
+        self.runner = runner
+        self.log_directory = log_directory
+
+    def run(self) -> None:
+        try:
+            path, session, _record = self.runner.build(self.log_directory)
+            self.completed.emit(path, session)
+        except Exception as exc:
+            traceback.print_exc()
+            self.failed.emit(str(exc) or "The track record could not be built.")
+
+
 class YChartsTestWorker(QThread):
     completed = Signal(bool, str)
 
@@ -219,6 +267,11 @@ class _Bridge(QObject):
         self._window.comparison_query.setPlainText(text)
         self._window._start_research(comparison=True)
 
+    @Slot(str)
+    def submitTechnicalQuery(self, text: str) -> None:
+        self._window.technical_query.setPlainText(text)
+        self._window._start_technical_research()
+
     @Slot()
     def openOverview(self) -> None:
         self._window.stack.setCurrentIndex(0)
@@ -230,6 +283,14 @@ class _Bridge(QObject):
     @Slot()
     def openComparison(self) -> None:
         self._window.stack.setCurrentIndex(4)
+
+    @Slot()
+    def openTechnicalAnalysis(self) -> None:
+        self._window.stack.setCurrentIndex(5)
+
+    @Slot()
+    def openTrackRecord(self) -> None:
+        self._window._open_track_record()
 
     @Slot()
     def openSettings(self) -> None:
@@ -245,6 +306,8 @@ class MainWindow(QMainWindow):
         self.runner = ResearchRunner()
         self.prepared: PreparedResearch | None = None
         self.worker: ResearchWorker | None = None
+        self.technical_worker: TechnicalWorker | None = None
+        self.track_worker: TrackRecordWorker | None = None
         self.ycharts_test_worker: YChartsTestWorker | None = None
         self.settings = QSettings("GottfriedSomberg", "ResearcheusMaximus")
         self._bridge = _Bridge(self)
@@ -259,19 +322,21 @@ class MainWindow(QMainWindow):
         self.preview_page = self._build_preview()
         self.deep_analysis_page = self._build_deep_analysis()
         self.comparison_page = self._build_comparison()
+        self.technical_analysis_page = self._build_technical_analysis()
         self.stack.addWidget(self.intake_page)
         self.stack.addWidget(self.review_page)
         self.stack.addWidget(self.preview_page)
         self.stack.addWidget(self.deep_analysis_page)
         self.stack.addWidget(self.comparison_page)
+        self.stack.addWidget(self.technical_analysis_page)
         self.topbar = self._topbar()
         layout.addWidget(self.topbar)
         layout.addWidget(self.stack, 1)
         self.setCentralWidget(root)
-        # The web-rendered pages (home, Deep Analysis, Comparison) carry their
-        # own minimal branding and have no header by design; the remaining
-        # native pages keep the shared app chrome.
-        web_page_indices = {0, 3, 4}
+        # The web-rendered pages (home, Deep Analysis, Comparison, Technical
+        # Analysis) carry their own minimal branding and have no header by
+        # design; the remaining native pages keep the shared app chrome.
+        web_page_indices = {0, 3, 4, 5}
         self.stack.currentChanged.connect(lambda index: self.topbar.setVisible(index not in web_page_indices))
         self.topbar.setVisible(self.stack.currentIndex() not in web_page_indices)
 
@@ -311,12 +376,26 @@ class MainWindow(QMainWindow):
         self.synthesis_provider.addItems(["Automatic", "OpenAI", "Ollama", "Deterministic"])
         self.api_key = QLineEdit()
         self.api_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.api_key.setPlaceholderText("Optional; used in memory only and never saved")
+        self.api_key.setPlaceholderText("Optional; blank unless remembered below")
         self.model_name = QLineEdit()
         self.model_name.setPlaceholderText("Optional model override")
         self.tvremix_api_key = QLineEdit()
         self.tvremix_api_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.tvremix_api_key.setPlaceholderText("Optional tvr_... key; used in memory only and never saved")
+        self.tvremix_api_key.setPlaceholderText("Optional tvr_... key; blank unless remembered below")
+        # Opt-in only, and the keys go to the OS credential store -- never into this
+        # app's settings, logs, session files, or reports.
+        self.remember_keys = QCheckBox("Remember API keys in this computer's secure keychain")
+        self.remember_keys.setChecked(bool(secret_store.load_secret(secret_store.TVREMIX_KEY)))
+        if not secret_store.available():
+            self.remember_keys.setEnabled(False)
+            self.remember_keys.setText("Remember API keys (no secure keychain available on this machine)")
+        self.api_key.setText(secret_store.load_secret(secret_store.OPENAI_KEY))
+        self.tvremix_api_key.setText(secret_store.load_secret(secret_store.TVREMIX_KEY))
+        self.key_status = QLabel("", objectName="Subtitle")
+        self.key_status.setWordWrap(True)
+        self.remember_keys.toggled.connect(self._apply_remembered_keys)
+        self.api_key.editingFinished.connect(self._apply_remembered_keys)
+        self.tvremix_api_key.editingFinished.connect(self._apply_remembered_keys)
         self.use_tvremix = QCheckBox("Query TV Remix for supplemental swing-structure evidence")
         self.use_tvremix.setChecked(True)
         self.use_ycharts = QCheckBox("Query the installed YCharts Excel add-in")
@@ -353,6 +432,13 @@ class MainWindow(QMainWindow):
         self.deep_query.hide()
         return self._build_web_page("deep_analysis.html")
 
+    def _build_technical_analysis(self) -> QWidget:
+        # _start_technical_research reads the submitted query from here; the
+        # web-rendered page collects it and hands it to us through the bridge.
+        self.technical_query = QPlainTextEdit()
+        self.technical_query.hide()
+        return self._build_web_page("technical_analysis_intake.html")
+
     def _build_settings_dialog(self) -> QDialog:
         dialog = QDialog(self)
         dialog.setWindowTitle("Research Settings")
@@ -371,6 +457,8 @@ class MainWindow(QMainWindow):
         form.addRow("OpenAI API key", self.api_key)
         form.addRow("Model override", self.model_name)
         form.addRow("TV Remix API key", self.tvremix_api_key)
+        form.addRow("", self.remember_keys)
+        form.addRow("", self.key_status)
         form.addRow("TV Remix", self.use_tvremix)
         form.addRow("YCharts", self.use_ycharts)
         outer.addLayout(form)
@@ -389,7 +477,31 @@ class MainWindow(QMainWindow):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(dialog.close)
         outer.addWidget(buttons)
+        # Whatever is in the fields when Settings closes is what gets remembered.
+        # Field-level signals alone missed the common path of pasting a key and
+        # closing the dialog straight away.
+        dialog.finished.connect(lambda _result: self._apply_remembered_keys())
         return dialog
+
+    def _apply_remembered_keys(self) -> None:
+        """Mirror the key fields into the OS keychain, or clear them when opted out."""
+        if self.remember_keys.isChecked():
+            secret_store.save_secret(secret_store.TVREMIX_KEY, self.tvremix_api_key.text())
+            secret_store.save_secret(secret_store.OPENAI_KEY, self.api_key.text())
+            remembered = [
+                name
+                for name, key in (("TV Remix", secret_store.TVREMIX_KEY), ("OpenAI", secret_store.OPENAI_KEY))
+                if secret_store.load_secret(key)
+            ]
+            self.key_status.setText(
+                f"Remembered in the keychain: {', '.join(remembered)}."
+                if remembered
+                else "Nothing to remember yet — paste a key above."
+            )
+        else:
+            secret_store.forget_secret(secret_store.TVREMIX_KEY)
+            secret_store.forget_secret(secret_store.OPENAI_KEY)
+            self.key_status.setText("Keys are not remembered; they clear when the app closes.")
 
     def _test_ycharts_connection(self, button: QPushButton) -> None:
         if self.ycharts_test_worker and self.ycharts_test_worker.isRunning():
@@ -494,6 +606,9 @@ class MainWindow(QMainWindow):
         security_query, research_brief = parse_research_prompt(self.query.toPlainText())
         custom_start, custom_end = parse_custom_range(research_brief)
         historical_trades = is_historical_trade_request(research_brief)
+        # Honour a horizon the user actually stated ("for the long term", "next
+        # few weeks"); All Horizons remains the default when they state none.
+        stated_horizon = _horizon_from_text(research_brief)
         comparisons = ("SPY",) if historical_trades else ()
         requested_charts = (
             ("price_trend", "stop_loss", "momentum", "relative_performance", "historical_trades")
@@ -502,7 +617,7 @@ class MainWindow(QMainWindow):
         )
         return ResearchRequest(
             security_query,
-            Horizon.ALL,
+            stated_horizon,
             question=research_brief,
             deep_analysis=historical_trades,
             comparison_symbols=comparisons,
@@ -563,6 +678,70 @@ class MainWindow(QMainWindow):
             lambda message: self._research_failed(message, progress, keep_preview=bool(replacing))
         )
         self.worker.start()
+
+    def _start_technical_research(self) -> None:
+        if self.technical_worker and self.technical_worker.isRunning():
+            QMessageBox.information(self, "Research in progress", "Please wait for the current Technical Analysis run to finish.")
+            return
+        query_text = self.technical_query.toPlainText().strip()
+        if not query_text:
+            QMessageBox.warning(self, "Choose a stock", "Enter a company name or ticker.")
+            return
+        api_key = self.tvremix_api_key.text().strip()
+        if not self.use_tvremix.isChecked() or not api_key:
+            QMessageBox.information(
+                self,
+                "TV Remix not configured",
+                "Add a TV Remix API key in Settings and enable TV Remix to use Technical Analysis.",
+            )
+            return
+        progress = QProgressBar()
+        progress.setRange(0, 0)
+        progress.setFormat("Reading TV Remix technical structure…")
+        self.statusBar().addPermanentWidget(progress)
+        self.technical_worker = TechnicalWorker(TechnicalRunner(api_key=api_key), query_text, self)
+        self.technical_worker.completed.connect(lambda prepared: self._technical_ready(prepared, progress))
+        self.technical_worker.failed.connect(lambda message: self._research_failed(message, progress, keep_preview=False))
+        self.technical_worker.start()
+
+    def _open_track_record(self) -> None:
+        """Score the logged calls and open the track record."""
+        if self.track_worker and self.track_worker.isRunning():
+            QMessageBox.information(self, "Track record", "The track record is already being built.")
+            return
+        folder = self.settings.value("outputFolder", "")
+        if not folder or not Path(folder).is_dir():
+            folder = QFileDialog.getExistingDirectory(
+                self, "Where are your finalized reports saved?", str(Path.home() / "Documents")
+            )
+            if not folder:
+                return
+            self.settings.setValue("outputFolder", folder)
+        progress = QProgressBar()
+        progress.setRange(0, 0)
+        progress.setFormat("Scoring recorded calls…")
+        self.statusBar().addPermanentWidget(progress)
+        self.track_worker = TrackRecordWorker(TrackRecordRunner(), Path(folder), self)
+        self.track_worker.completed.connect(lambda path, session: self._track_ready(path, session, progress))
+        self.track_worker.failed.connect(lambda message: self._research_failed(message, progress, keep_preview=False))
+        self.track_worker.start()
+
+    def _track_ready(self, path: Path, session, progress: QProgressBar) -> None:
+        self.statusBar().removeWidget(progress)
+        progress.deleteLater()
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        # Give the browser time to read the file before the temp session goes.
+        QTimer.singleShot(3000, session.cleanup)
+
+    def _technical_ready(self, prepared: PreparedTechnical, progress: QProgressBar) -> None:
+        self.statusBar().removeWidget(progress)
+        progress.deleteLater()
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(prepared.interactive_path)))
+        self.stack.setCurrentIndex(0)
+        # No approval gate for this single-source view -- the report is opened
+        # directly. Delay cleanup briefly so the system browser has time to
+        # read the file before the temp session directory is removed.
+        QTimer.singleShot(3000, prepared.session.cleanup)
 
     def _back_to_request(self) -> None:
         if self.prepared and self.prepared.request.comparison_analysis:

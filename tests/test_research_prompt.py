@@ -7,6 +7,7 @@ from core.research_prompt import (
     is_historical_trade_request,
     parse_comparison_prompt,
     parse_custom_range,
+    parse_horizon,
     parse_deep_analysis_prompt,
     parse_overview_chart_request,
     parse_portfolio_allocation,
@@ -159,6 +160,44 @@ class ResearchPromptTests(unittest.TestCase):
             "AVGO vs NVDA from January 2024 to June 2025"
         )
         self.assertEqual((primary, secondary), ("AVGO", "NVDA"))
+
+
+class HorizonAndIntentTests(unittest.TestCase):
+    """The horizon and intent change what the report answers, so a wrong read here
+    silently produces a confident answer to a different question."""
+
+    def test_stated_horizon_is_honoured(self):
+        self.assertEqual(parse_horizon("Should I buy AAPL for the long term?"), "Long Term")
+        self.assertEqual(parse_horizon("worth buying for the next few weeks?"), "Short Term")
+        self.assertEqual(parse_horizon("outlook over the next few months"), "Medium Term")
+        self.assertEqual(parse_horizon("give me all horizons"), "All Horizons")
+
+    def test_unstated_horizon_is_left_to_the_caller(self):
+        self.assertEqual(parse_horizon("Is AAPL a buy?"), "")
+        self.assertEqual(parse_horizon(""), "")
+
+    def test_long_term_is_not_swallowed_by_short_term_wording(self):
+        self.assertEqual(parse_horizon("this is a long-term holding"), "Long Term")
+        self.assertEqual(parse_horizon("short-term trade only"), "Short Term")
+
+    def test_specific_question_types_are_recognised(self):
+        cases = {
+            "where should I place a stop loss?": "stop_loss",
+            "should I hedge with puts?": "options",
+            "is MSFT overvalued here?": "valuation",
+            "should I wait for a pullback or buy now?": "timing",
+            "is the dividend safe?": "income",
+            "what should I do before earnings?": "earnings",
+        }
+        for prompt, expected in cases.items():
+            self.assertEqual(classify_research_intent(prompt), expected, prompt)
+
+    def test_workflow_prompts_still_win_over_a_passing_mention(self):
+        # A back-test prompt that mentions stops is still a back-test.
+        self.assertEqual(
+            classify_research_intent("Show QQQ trades with stop loss indicators from the past year"),
+            "historical_trade_examples",
+        )
 
 
 if __name__ == "__main__":
