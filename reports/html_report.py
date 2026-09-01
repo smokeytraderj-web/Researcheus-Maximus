@@ -81,6 +81,11 @@ _DYNAMIC_CSS = r"""
 .verdict-hero .vh-word{font-family:'Source Serif 4',Georgia,serif;font-size:34px;line-height:1;font-weight:600;margin-bottom:0;background:none!important;padding:0}
 .verdict-hero .vh-sub{font-size:12px;color:var(--muted)}
 .verdict-hero .vh-sub b{color:var(--ink)}
+/* Confidence sits with the sources rather than under the rating: it qualifies
+   the evidence, and under the rating it read as a second verdict competing with
+   the one above it. */
+.conf-line{font-size:12px;color:var(--muted);margin:0 0 10px}
+.conf-line b{color:var(--ink);font-weight:600}
 .pos-bar{display:flex;flex-wrap:wrap;gap:0;background:var(--panel);border-radius:7px;margin-bottom:22px;overflow:hidden}
 .pos-cell{flex:1 1 180px;padding:13px 18px;border-right:1px solid var(--line)}
 .pos-cell:last-child{border-right:none}
@@ -264,6 +269,7 @@ _DYNAMIC_CSS = r"""
 .general-brief #sources{margin-top:11px}
 .general-brief #sources .sec-head{break-after:avoid}
 .general-brief .sources{font-size:10px}
+.general-brief .conf-line{font-size:10px;margin-bottom:6px}
 /* Same orphan risk as the chart caption above: nothing stopped the disclosure
    paragraph or the firm footer from splitting onto a page of their own beneath
    an otherwise-full sources list. */
@@ -751,13 +757,14 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
 </section>
 <section id="sources">
   <div class="sec-head"><h2>Sources</h2></div>
+  <p class="conf-line">Confidence in this view: <b>{escape(result.confidence.value)}</b></p>
   <div class="sources">{_source_html(result)}</div>
   <p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing involves risk, including possible loss of principal. Firm compliance review is required before client distribution.</p>
   <footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer>
 </section>
 </main></div>"""
     return _document(
-        f"{result.identity.ticker} General Research — Researcheus Maximus",
+        f"{result.identity.ticker} General Research — Technical Analyst Agent",
         "general_research_base.html",
         body,
         _navigation_script(),
@@ -911,7 +918,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </main></div>"""
     script = f"const PLAN={plan_json};\nconst TV_SYMBOL={json.dumps(tv_symbol)};\n" + _technical_script()
     return _document(
-        f"{result.identity.ticker} Technical Research — Researcheus Maximus",
+        f"{result.identity.ticker} Technical Research — Technical Analyst Agent",
         "technical_research_base.html",
         body,
         script,

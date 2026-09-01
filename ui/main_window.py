@@ -288,7 +288,7 @@ class _Bridge(QObject):
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Researcheus Maximus")
+        self.setWindowTitle("Technical Analyst Agent")
         self.resize(1320, 820)
         self.setMinimumSize(900, 640)
         self.runner = ResearchRunner()
@@ -297,6 +297,8 @@ class MainWindow(QMainWindow):
         self.technical_worker: TechnicalWorker | None = None
         self.track_worker: TrackRecordWorker | None = None
         self.ycharts_test_worker: YChartsTestWorker | None = None
+        # Storage key, not a display name -- kept at the old product name so
+        # preferences the user has already saved are still found.
         self.settings = QSettings("GottfriedSomberg", "ResearcheusMaximus")
         self._bridge = _Bridge(self)
 

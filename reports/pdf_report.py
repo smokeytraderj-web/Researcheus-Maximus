@@ -145,7 +145,7 @@ def _gold_rule() -> Table:
 
 def _report_banner(title: str, subtitle: str, styles) -> list:
     return [
-        Paragraph("Researcheus Maximus", styles["wordmark"]),
+        Paragraph("Technical Analyst Agent", styles["wordmark"]),
         Paragraph(_safe(title), styles["banner_title"]),
         Paragraph(subtitle, styles["banner_subtitle"]),
         Spacer(1, 0.03 * inch),

@@ -1,4 +1,4 @@
-"""Researcheus Maximus desktop entry point."""
+"""Technical Analyst Agent desktop entry point."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ def main() -> int:
     from ui.theme import STYLESHEET
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Researcheus Maximus")
+    app.setApplicationName("Technical Analyst Agent")
     app.setOrganizationName("Gottfried & Somberg Wealth Management")
     app.setStyleSheet(STYLESHEET)
     window = MainWindow()

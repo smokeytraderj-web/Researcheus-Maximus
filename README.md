@@ -1,4 +1,4 @@
-# Researcheus Maximus
+# Technical Analyst Agent
 
 A Windows desktop application for client-ready, evidence-grounded investment research.
 
@@ -28,7 +28,7 @@ The runnable application includes:
 - a client-facing first page built around the exact question, a direct answer, one Overall View, and labeled reasons before the first chart—without the legacy four-column rating strip;
 - a spacious second-page action plan that separates position, order style, market condition, entry, structural stop, targets/payoff, confirmation, and invalidation; an options or hedge example appears only when requested;
 - an editorial third page with two-column supporting evidence, one formal facts table, and sources/disclosure confined to the final page;
-- navy-and-gold GSWM presentation with clean white pages, a minimal first-page Researcheus Maximus wordmark, thin gold rules, serif display headings, and readable sans-serif body copy;
+- navy-and-gold GSWM presentation with clean white pages, a minimal first-page Technical Analyst Agent wordmark, thin gold rules, serif display headings, and readable sans-serif body copy;
 - a full-width editorial landing page in the same visual system: a navy research hero, white canvas, serif headings, restrained gold rules, three numbered research paths, and a Tailwind-inspired spacing/card system implemented natively in Qt;
 - an optional multi-page technical chartbook with dedicated structural stop-loss evidence, RSI/MACD, normalized relative performance, and requested drawdown/volatility analysis;
 - plain-English decision insights beneath every deep-analysis chart, connecting the observed signal to the next confirmation level, downside level, and rating effect;

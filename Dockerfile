@@ -1,4 +1,4 @@
-# Researcheus Maximus web server.
+# Technical Analyst Agent web server.
 #
 # The desktop app is not part of this image: PySide6 is a GUI toolkit with no
 # role on a server, so only the research core, the backend and the frontend are

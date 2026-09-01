@@ -1,6 +1,6 @@
-# Researcheus Maximus — web
+# Technical Analyst Agent — web
 
-**This is the primary way to run Researcheus Maximus.** The PySide6 desktop app
+**This is the primary way to run Technical Analyst Agent.** The PySide6 desktop app
 still works unchanged (`python3 app.py`) and remains the only route to
 YCharts-backed runs and the Track Record log, but the web app is the everyday
 vehicle.

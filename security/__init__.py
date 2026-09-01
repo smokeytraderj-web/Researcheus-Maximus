@@ -1,2 +1,2 @@
-"""Security and transport helpers for Researcheus Maximus."""
+"""Security and transport helpers for Technical Analyst Agent."""
 

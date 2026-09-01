@@ -1,4 +1,4 @@
-"""Researcheus Maximus web backend.
+"""Technical Analyst Agent web backend.
 
 Serves the same research workflows as the PySide6 desktop app over HTTP. The
 desktop app is unchanged and still runs standalone; both surfaces call the same
@@ -69,7 +69,7 @@ async def lifespan(_: FastAPI):
     discard_all_reports(REPORTS_ROOT)
 
 
-app = FastAPI(title="Researcheus Maximus", lifespan=lifespan)
+app = FastAPI(title="Technical Analyst Agent", lifespan=lifespan)
 
 
 class ResearchStart(BaseModel):

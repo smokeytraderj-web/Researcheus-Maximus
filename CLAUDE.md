@@ -1,8 +1,8 @@
-# Researcheus Maximus Project Instructions
+# Technical Analyst Agent Project Instructions
 
 ## Product
 
-**Researcheus Maximus** is a single-user Windows desktop application for producing client-ready, evidence-grounded research on one publicly traded stock at a time.
+**Technical Analyst Agent** is a single-user Windows desktop application for producing client-ready, evidence-grounded research on one publicly traded stock at a time.
 
 The user may enter either a ticker or a company name, such as `AAPL` or `Apple`. The application resolves the security, asks for an investment horizon, conducts automated technical, fundamental, news, analyst-commentary, and public social-sentiment research, and produces a concise branded interactive report.
 
@@ -10,7 +10,7 @@ The application is a new public GitHub project modeled on the architecture, inte
 
 The primary client artifact is the interactive HTML Equity Note defined by the approved resource templates. Its built-in **Print / save PDF** control is the supported PDF path so a saved PDF preserves the same approved layout. The obsolete standalone ReportLab layout must never be presented as the client report.
 
-The displayed product name is **Researcheus Maximus**. The displayed firm name is **Gottfried & Somberg Wealth Management**. Do not append “LLC” or abbreviate the firm name unless an approved firm template requires it.
+The displayed product name is **Technical Analyst Agent**. It was previously “Researcheus Maximus”; that string survives only as the keychain service name in `security/secret_store.py` and the QSettings store in `ui/main_window.py`, which are lookup keys for values the user has already saved — renaming those would orphan saved API keys and preferences. The displayed firm name is **Gottfried & Somberg Wealth Management**. Do not append “LLC” or abbreviate the firm name unless an approved firm template requires it.
 
 ## Primary General Research Objective
 
@@ -80,9 +80,9 @@ Both formats share one visual system: a white editorial page, narrow left naviga
 ### General Research
 
 - The main goal is to answer the user's exact question. Preserve the question verbatim and resolve it before the first chart.
-- Use this order: security and rating; the Conviction Checklist; the exact question; concise reasoning; what the advisor would do; one decision-relevant chart; essential data; risks and decision triggers; sources and disclosure.
+- Use this order: security and rating; the Conviction Checklist; the exact question; concise reasoning; what the advisor would do; one decision-relevant chart; essential data; risks and decision triggers; sources, confidence and disclosure.
 - The rating, the checklist and the reasoning together are the answer. Do not reintroduce a separate restated-answer block above them.
-- Do not print a confidence line under the rating. The Lead Analyst still assigns confidence and it still governs the synthesis; the General brief simply does not show it as a label, because the checklist score and the reasoning already tell the reader how firm the view is. Deep Technical still states it alongside the stance.
+- Do not print a confidence line under the rating. Confidence belongs in the Sources section, where it qualifies the evidence; under the rating it reads as a second verdict competing with the one above it. The Lead Analyst still assigns it and it still governs the synthesis. Deep Technical states it alongside the stance instead, where the spec wants the whole call legible at a glance.
 - Keep the rating block tight. It is a heading, not a hero: the Conviction Checklist directly beneath it is the piece that should command the space.
 - Default to one chart. Select the chart that best supports the requested decision; use security-versus-SPY indexed total return when the user does not specify a chart.
 - Keep the data set compact and relevant to the question. General Research must not become a technical-analysis dump or a shortened copy of the technical report.
@@ -298,7 +298,7 @@ Every report shows:
 - Fundamental Analyst rating.
 - Sentiment assessment.
 - Lead Analyst final rating.
-- High, Medium, or Low confidence — except the General Research brief, which deliberately does not print it under the rating (see the General Research section).
+- High, Medium, or Low confidence. The General Research brief shows it in the Sources section rather than under the rating (see the General Research section).
 - A concise rationale.
 - Material disagreement.
 - Conditions that would change the rating.
@@ -428,7 +428,7 @@ For General Research, use this fixed sequence:
 2. A restrained action/risk plan and one large annotated candlestick chart.
 3. Supporting evidence, essential metrics, risks/triggers, sources, and disclosure.
 
-Use a minimal **Researcheus Maximus** wordmark and white page surface. Do not use a large colored title banner. Do not add generic or obvious chart commentary beneath a chart; the chart itself should use short arrows and labels tied to actual dated price or indicator events.
+Use a minimal **Technical Analyst Agent** wordmark and white page surface. Do not use a large colored title banner. Do not add generic or obvious chart commentary beneath a chart; the chart itself should use short arrows and labels tied to actual dated price or indicator events.
 
 For specialized reports, preserve the relevant parts of this logical structure:
 

@@ -69,7 +69,7 @@ and scored from then on against SPY over the same dates.
 Past picks are never back-filled or simulated, so this page stays empty until the calls are real.
 </div></section>
 </main></div>"""
-        html = _document("Track Record — Researcheus Maximus", "general_research_base.html", body, "", extra_css=_EXTRA_CSS)
+        html = _document("Track Record — Technical Analyst Agent", "general_research_base.html", body, "", extra_css=_EXTRA_CSS)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(html, encoding="utf-8")
         return output_path
@@ -158,7 +158,7 @@ Past picks are never back-filled or simulated, so this page stays empty until th
   <footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {escape(as_of[:10])}</span></footer>
 </section>
 </main></div>"""
-    html = _document("Track Record — Researcheus Maximus", "general_research_base.html", body, "", extra_css=_EXTRA_CSS)
+    html = _document("Track Record — Technical Analyst Agent", "general_research_base.html", body, "", extra_css=_EXTRA_CSS)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(html, encoding="utf-8")
     return output_path

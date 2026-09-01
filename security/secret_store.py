@@ -12,6 +12,10 @@ remembered and the user re-enters it, which is the previous behaviour.
 
 from __future__ import annotations
 
+# The keychain service name, NOT a display name. The product is now shown as
+# "Technical Analyst Agent", but this string is the lookup key for keys the user
+# has already saved -- renaming it would orphan them, and the app would fall
+# back to demo output as though no key were ever configured.
 SERVICE_NAME = "Researcheus Maximus"
 
 TVREMIX_KEY = "tvremix_api_key"

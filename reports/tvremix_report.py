@@ -240,7 +240,7 @@ def build_tvremix_html(report: TVTechnicalReport, output_path: Path) -> Path:
 </section>
 </main></div>"""
     html = _document(
-        f"{report.resolved_symbol} Technical Analysis — Researcheus Maximus",
+        f"{report.resolved_symbol} Technical Analysis — Technical Analyst Agent",
         "general_research_base.html",
         body,
         _TAB_SCRIPT,

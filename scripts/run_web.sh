@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the Researcheus Maximus web server.
+# Start the Technical Analyst Agent web server.
 #
 # The desktop app is unaffected and still runs with `python3 app.py`.
 #
@@ -17,5 +17,5 @@ if [ -d .venv ]; then
   source .venv/bin/activate
 fi
 
-echo "Researcheus Maximus -> http://localhost:${PORT}"
+echo "Technical Analyst Agent -> http://localhost:${PORT}"
 exec uvicorn backend.app:app --host "${HOST:-127.0.0.1}" --port "${PORT}"

@@ -59,7 +59,7 @@ def _verify_html(path: Path) -> None:
     if not path.is_file() or path.stat().st_size < 2_000:
         raise RuntimeError("The interactive report is missing or incomplete.")
     text = path.read_text(encoding="utf-8")
-    required = ("Researcheus Maximus", "Gottfried &amp; Somberg Wealth Management", "<main", "</html>")
+    required = ("Technical Analyst Agent", "Gottfried &amp; Somberg Wealth Management", "<main", "</html>")
     if not all(item in text for item in required):
         raise RuntimeError("The interactive report failed structural validation.")
 

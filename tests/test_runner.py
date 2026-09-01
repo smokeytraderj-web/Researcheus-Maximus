@@ -71,7 +71,7 @@ class ResearchRunnerTests(unittest.TestCase):
             first_page = reader.pages[0].extract_text() or ""
             second_page = reader.pages[1].extract_text() or ""
             final_page = reader.pages[-1].extract_text() or ""
-            self.assertIn("Researcheus Maximus", first_page)
+            self.assertIn("Technical Analyst Agent", first_page)
             self.assertIn("CLIENT Q&A BRIEF", first_page)
             self.assertIn("THE QUESTION", first_page)
             self.assertIn("Give me a report on AXON.", first_page)
