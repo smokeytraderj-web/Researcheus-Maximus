@@ -5,8 +5,10 @@ from __future__ import annotations
 import unittest
 from datetime import timedelta
 
+import os
 import tempfile
 from pathlib import Path
+from unittest import mock
 
 from backend.jobs import (
     JOB_TTL,
@@ -15,8 +17,11 @@ from backend.jobs import (
     is_valid_job_id,
     purge_incomplete,
 )
+from backend.credentials import SYNTHESIS_ENV, TVREMIX_ENV
+from backend.credentials import load as load_credentials
 from core.models import Horizon
 from core.request_builder import build_general_request, build_request
+from security import secret_store
 
 
 class SharedRequestBuildingTests(unittest.TestCase):
@@ -125,6 +130,58 @@ class SharedReportLinkTests(unittest.TestCase):
         outside = self.root / "secret.html"
         outside.write_text("<html></html>", encoding="utf-8")
         self.assertIsNone(find_report(self.root / "jobs", "../secret"))
+
+
+class CredentialResolutionTests(unittest.TestCase):
+    """The web server must find the same keys the desktop app remembers."""
+
+    def setUp(self) -> None:
+        self._env = {k: os.environ.get(k) for k in (SYNTHESIS_ENV, TVREMIX_ENV)}
+        for key in self._env:
+            os.environ.pop(key, None)
+
+    def tearDown(self) -> None:
+        for key, value in self._env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    def test_environment_key_is_used_and_reported(self) -> None:
+        os.environ[SYNTHESIS_ENV] = "env-value"
+        credentials = load_credentials()
+        self.assertEqual(credentials.synthesis_key, "env-value")
+        self.assertEqual(credentials.synthesis_source, "environment")
+        self.assertTrue(credentials.live_research)
+
+    def test_keychain_is_consulted_when_the_environment_is_empty(self) -> None:
+        with mock.patch.object(secret_store, "load_secret", return_value="stored-value"):
+            credentials = load_credentials()
+        self.assertEqual(credentials.synthesis_key, "stored-value")
+        self.assertEqual(credentials.synthesis_source, "keychain")
+
+    def test_environment_wins_over_the_keychain(self) -> None:
+        os.environ[TVREMIX_ENV] = "env-value"
+        with mock.patch.object(secret_store, "load_secret", return_value="stored-value"):
+            credentials = load_credentials()
+        self.assertEqual(credentials.tvremix_key, "env-value")
+        self.assertEqual(credentials.tvremix_source, "environment")
+
+    def test_missing_key_disables_the_workflow(self) -> None:
+        with mock.patch.object(secret_store, "load_secret", return_value=""):
+            credentials = load_credentials()
+        self.assertFalse(credentials.live_research)
+        self.assertFalse(credentials.technical_research)
+        self.assertEqual(credentials.synthesis_source, "none")
+
+    def test_status_never_exposes_a_key(self) -> None:
+        os.environ[SYNTHESIS_ENV] = "super-secret-value"
+        os.environ[TVREMIX_ENV] = "another-secret"
+        status = load_credentials().status()
+        rendered = repr(status)
+        self.assertNotIn("super-secret-value", rendered)
+        self.assertNotIn("another-secret", rendered)
+        self.assertTrue(status["live_research"])
 
 
 if __name__ == "__main__":

@@ -266,12 +266,19 @@ tailwind.config = {
   // synthetic report is never mistaken for a real one -- and disable a workflow
   // this server cannot run rather than letting it fail after a long wait.
   fetch('/api/health').then(function (r) { return r.json(); }).then(function (h) {
-    el('modeNote').textContent = h.live_research
-      ? 'Live research is configured on this server.'
-      : 'Demonstration mode — reports use synthetic evidence and are not client recommendations.';
+    if (h.live_research) {
+      el('modeNote').textContent = 'Live research is configured (key from the ' + h.synthesis_key_source + ').';
+    } else {
+      // Say exactly what is missing. Silently producing synthetic output when
+      // the user expected real research is the worst possible failure here.
+      el('modeNote').innerHTML =
+        '<b>Demonstration mode — values are synthetic, not client recommendations.</b><br>' +
+        'General Research needs an API key: save one in the desktop app’s Settings, ' +
+        'or start the server with <span class="font-mono">RESEARCHEUS_API_KEY</span> set.';
+    }
     if (!h.technical_research) {
       el('quickBox').disabled = true;
-      el('quickBox').placeholder = 'Quick report — needs a TV Remix key on the server';
+      el('quickBox').placeholder = 'Quick report — needs a TV Remix key';
       var btn = el('quickBtn');
       btn.disabled = true;
       btn.className = btn.className.replace('hover:bg-panel hover:border-muted', '') + ' opacity-40 cursor-not-allowed';

@@ -23,8 +23,18 @@ pip install -r backend/requirements.txt
 scripts/run_web.sh                 # http://localhost:8000
 ```
 
-Demo mode is the default (synthetic evidence, no credentials, no network).
-For live research, set these in the **server** environment before starting:
+## Credentials
+
+Keys are resolved server-side, in this order:
+
+1. An **environment variable**, if set.
+2. Otherwise the **OS keychain** — the same store the desktop app writes to
+   when you tick "remember" in Settings. Running the server on your own machine
+   therefore picks up keys you have already saved, instead of silently falling
+   back to demo output.
+
+An environment variable always wins, so a real deployment (no user keychain) is
+configured purely through the environment.
 
 | Variable | Purpose |
 | --- | --- |
@@ -33,8 +43,11 @@ For live research, set these in the **server** environment before starting:
 | `RESEARCHEUS_MODEL` | Optional model override. |
 | `RESEARCHEUS_TVREMIX_KEY` | TV Remix key; required for Technical Quick Report. |
 
-Keys are read from the server environment only. The browser never sends a key
-and the API never accepts one — credentials must not cross this boundary.
+The browser never sends a key and the API never accepts one — credentials must
+not cross this boundary. `/api/health` reports only *whether* each key was
+found and from where, never a value.
+
+The home page states plainly when it is in demo mode and which key is missing.
 
 YCharts is unavailable on the web (it needs desktop Excel); use the desktop app
 for YCharts-backed runs.

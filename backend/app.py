@@ -13,7 +13,6 @@ Run locally:
 from __future__ import annotations
 
 import logging
-import os
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -23,6 +22,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from backend.credentials import load as load_credentials
 from backend.jobs import find_report, purge_incomplete, registry
 from core.request_builder import build_request
 from services.research_runner import ResearchRunner
@@ -57,28 +57,28 @@ class ResearchStart(BaseModel):
 
 
 def _live_provider():
-    """A live provider when the server is configured for it, else None.
+    """A live provider when credentials are available, else None.
 
-    Keys come from the server environment only. The browser never sends a key
-    and the API never accepts one -- credentials must not travel over this
-    boundary (CLAUDE.md: never request credentials through custom UI).
+    Keys are resolved server-side (environment, else the same OS keychain the
+    desktop app uses). The browser never sends a key and the API never accepts
+    one -- credentials must not travel over this boundary.
     """
-    api_key = os.environ.get("RESEARCHEUS_API_KEY", "").strip()
-    if not api_key:
+    credentials = load_credentials()
+    if not credentials.live_research:
         return None
     from research.live_provider import LiveResearchProvider
 
     return LiveResearchProvider(
-        os.environ.get("RESEARCHEUS_SYNTHESIS_PROVIDER", "OpenAI"),
-        api_key,
-        os.environ.get("RESEARCHEUS_MODEL", "").strip(),
+        credentials.provider,
+        credentials.synthesis_key,
+        credentials.model,
         False,  # YCharts needs desktop Excel; unavailable to a web server.
-        os.environ.get("RESEARCHEUS_TVREMIX_KEY", "").strip(),
+        credentials.tvremix_key,
     )
 
 
 def _tvremix_key() -> str:
-    return os.environ.get("RESEARCHEUS_TVREMIX_KEY", "").strip()
+    return load_credentials().tvremix_key
 
 
 def _discard_failed(job_id: str, job_dir: Path) -> None:
@@ -197,11 +197,7 @@ def health() -> dict:
     The frontend uses this to say up front when a workflow is unavailable,
     rather than letting the user start a run that is certain to fail.
     """
-    return {
-        "status": "ok",
-        "live_research": _live_provider() is not None,
-        "technical_research": bool(_tvremix_key()),
-    }
+    return {"status": "ok", **load_credentials().status()}
 
 
 # The frontend is served last so /api and /r win over the static mount.
