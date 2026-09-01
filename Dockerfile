@@ -34,10 +34,16 @@ COPY web/ ./web/
 # Reports are temporary by default and deleted when the server stops. A hosted
 # deployment usually wants the opposite -- links that survive a redeploy -- so
 # it points them at a mounted volume and opts into retention.
+#
+# There is deliberately no VOLUME instruction: Railway rejects the whole
+# Dockerfile if it finds one ("docker VOLUME ... is not supported, use Railway
+# Volumes"). Persistence is attached by the host instead, mounted over this
+# path. Without such a mount the directory is ordinary container storage and
+# reports last only as long as the container, which is the same disposable
+# behaviour the app has by default.
 ENV RESEARCHEUS_REPORTS_DIR=/app/reports \
     RESEARCHEUS_KEEP_REPORTS=1
 RUN mkdir -p /app/reports
-VOLUME ["/app/reports"]
 
 # Hosts that inject $PORT (Railway, Render, Fly) override this.
 ENV PORT=8000
