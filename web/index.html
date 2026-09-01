@@ -44,6 +44,16 @@ tailwind.config = {
 
 <div class="min-h-screen flex flex-col">
 
+  <!-- The desktop app's masthead, matched to ui/theme.py QFrame#TopBar: navy
+       ground, 2px gold rule, white serif wordmark, gold firm name. -->
+  <header class="h-14 shrink-0 bg-ink border-b-2 border-gold flex items-center justify-between px-8">
+    <div class="flex items-center gap-[10px] min-w-0">
+      <span class="font-serif text-[18px] font-bold text-white tracking-tight whitespace-nowrap">RESEARCHEUS MAXIMUS</span>
+      <span class="w-px h-[14px] bg-[#46567A] shrink-0"></span>
+      <span class="text-[9px] font-bold tracking-[0.3px] text-[#D8BF7D] uppercase truncate">Gottfried &amp; Somberg Wealth Management</span>
+    </div>
+  </header>
+
   <div class="flex-1 flex items-center justify-center px-6 py-16">
     <div class="w-full max-w-3xl">
 
@@ -153,7 +163,7 @@ tailwind.config = {
 
   <div class="flex items-center justify-between px-8 py-4 border-t border-line2 font-mono text-[10.5px] text-ink/40">
     <span>Researcheus Maximus</span>
-    <span>Gottfried &amp; Somberg Wealth Management</span>
+    <span id="footerMode"></span>
   </div>
 
 </div>
@@ -350,8 +360,14 @@ tailwind.config = {
   // synthetic report is never mistaken for a real one -- and disable a workflow
   // this server cannot run rather than letting it fail after a long wait.
   fetch('/api/health').then(function (r) { return r.json(); }).then(function (h) {
+    el('footerMode').textContent = h.live_research
+      ? (h.ai_synthesis ? 'Live research' : 'Live research · deterministic synthesis')
+      : 'Demonstration mode';
     if (h.live_research) {
-      el('modeNote').textContent = 'Live research is configured (key from the ' + h.synthesis_key_source + ').';
+      // Live is the normal state; do not spend a whole line on it.
+      el('modeNote').textContent = h.ai_synthesis
+        ? ''
+        : 'Reports use live market data with deterministic analysis. Save an API key in the desktop app’s Settings for AI-written narrative.';
     } else {
       // Say exactly what is missing. Silently producing synthetic output when
       // the user expected real research is the worst possible failure here.

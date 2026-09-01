@@ -26,7 +26,11 @@ from backend.credentials import SYNTHESIS_ENV, TVREMIX_ENV
 from backend.credentials import load as load_credentials
 from core.models import Horizon
 from core.request_builder import build_general_request, build_request
+from core.conviction_checklist import _growth
+from research.live_provider import _recent_growth
 from security import secret_store
+
+import pandas as pd
 
 
 class SharedRequestBuildingTests(unittest.TestCase):
@@ -244,6 +248,59 @@ class CredentialResolutionTests(unittest.TestCase):
         self.assertNotIn("super-secret-value", rendered)
         self.assertNotIn("another-secret", rendered)
         self.assertTrue(status["live_research"])
+
+
+class GrowthFreshnessTests(unittest.TestCase):
+    """Growth must be the most recent year-over-year figure, and say so."""
+
+    def test_period_is_stated_alongside_the_figures(self) -> None:
+        criterion = _growth(0.852, 2.106, "most recent quarter ended 2026-04-30, year over year")
+        self.assertIn("most recent quarter ended 2026-04-30", criterion.detail)
+        self.assertTrue(criterion.passed)
+
+    def test_quarterly_year_over_year_is_preferred_over_the_annual_figure(self) -> None:
+        # Four quarters back is the same quarter a year earlier.
+        frame = pd.DataFrame(
+            [[200.0, 180.0, 160.0, 140.0, 100.0], [40.0, 36.0, 32.0, 28.0, 20.0]],
+            index=["Total Revenue", "Net Income"],
+            columns=pd.to_datetime(
+                ["2026-04-30", "2026-01-31", "2025-10-31", "2025-07-31", "2025-04-30"]
+            ),
+        )
+        ticker = mock.Mock(quarterly_income_stmt=frame)
+        # The annual figure is deliberately different, so preferring it would show.
+        info = {"revenueGrowth": 9.99, "earningsGrowth": 9.99}
+        revenue, earnings, period = _recent_growth(ticker, info)
+        self.assertAlmostEqual(revenue, 1.0)   # 200 vs 100
+        self.assertAlmostEqual(earnings, 1.0)  # 40 vs 20
+        self.assertIn("most recent quarter", period)
+        self.assertIn("2026-04-30", period)
+
+    def test_annual_figure_is_the_labelled_fallback(self) -> None:
+        ticker = mock.Mock(quarterly_income_stmt=pd.DataFrame())
+        info = {"revenueGrowth": 0.12, "earningsGrowth": 0.20, "lastFiscalYearEnd": 1769299200}
+        revenue, earnings, period = _recent_growth(ticker, info)
+        self.assertEqual(revenue, 0.12)
+        self.assertEqual(earnings, 0.20)
+        self.assertIn("fiscal year ended", period)
+
+    def test_negative_base_is_reported_as_unavailable_not_as_growth(self) -> None:
+        frame = pd.DataFrame(
+            [[200.0, 180.0, 160.0, 140.0, 100.0], [40.0, 36.0, 32.0, 28.0, -20.0]],
+            index=["Total Revenue", "Net Income"],
+            columns=pd.to_datetime(
+                ["2026-04-30", "2026-01-31", "2025-10-31", "2025-07-31", "2025-04-30"]
+            ),
+        )
+        ticker = mock.Mock(quarterly_income_stmt=frame)
+        _revenue, earnings, _period = _recent_growth(ticker, {})
+        # Growth off a negative base is meaningless, not merely large.
+        self.assertIsNone(earnings)
+
+    def test_missing_growth_is_unconfirmed_never_guessed(self) -> None:
+        criterion = _growth(None, 0.2, "whatever")
+        self.assertIsNone(criterion.passed)
+        self.assertIn("not both available", criterion.detail)
 
 
 if __name__ == "__main__":

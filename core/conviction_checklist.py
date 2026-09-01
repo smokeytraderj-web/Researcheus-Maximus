@@ -21,8 +21,11 @@ checklist cannot be swept by one strong theme (e.g. a hot momentum name):
                  with participation, but short of a blow-off top.
 3. Relative strength -- total return over the same lookback beats the broad
                  benchmark (SPY) by at least 0 percentage points.
-4. Growth     -- both revenue growth and earnings growth (most recent
-                 year-over-year, as reported by the data source) are positive.
+4. Growth     -- both revenue growth and earnings growth are positive, taken
+                 from the most recent quarter year-over-year where the data
+                 source supports that comparison, else the last completed
+                 fiscal year. The period is always stated alongside the
+                 figures, so a stale annual number is never shown as current.
 5. Street conviction -- the analyst mean price target sits above the current
                  price (positive implied upside).
 
@@ -138,14 +141,21 @@ def _relative_strength(
     return ConvictionCriterion("relative_strength", "Relative strength", passed, detail)
 
 
-def _growth(revenue_growth_pct: float | None, earnings_growth_pct: float | None) -> ConvictionCriterion:
+def _growth(
+    revenue_growth_pct: float | None,
+    earnings_growth_pct: float | None,
+    growth_period: str = "",
+) -> ConvictionCriterion:
     if revenue_growth_pct is None or earnings_growth_pct is None:
         return ConvictionCriterion(
             "growth", "Growth", None, "Revenue and/or earnings growth were not both available from the data source."
         )
     passed = revenue_growth_pct > 0 and earnings_growth_pct > 0
+    # State the period. An unlabelled growth figure reads as current, and the
+    # underlying source may be reporting a fiscal year that closed months ago.
+    period = f" ({growth_period})" if growth_period else ""
     detail = (
-        f"Revenue growth {revenue_growth_pct:+.1%} and earnings growth {earnings_growth_pct:+.1%}, "
+        f"Revenue growth {revenue_growth_pct:+.1%} and earnings growth {earnings_growth_pct:+.1%}{period}, "
         f"both {'positive' if passed else 'not both positive'}."
     )
     return ConvictionCriterion("growth", "Growth", passed, detail)
@@ -175,6 +185,7 @@ def evaluate_conviction_checklist(
     revenue_growth_pct: float | None,
     earnings_growth_pct: float | None,
     analyst_target: float | None,
+    growth_period: str = "",
     benchmark: str = "SPY",
 ) -> ConvictionChecklist:
     """Evaluate all five criteria from already-computed evidence; never fetches anything itself."""
@@ -183,7 +194,7 @@ def evaluate_conviction_checklist(
             _trend(price, sma50, sma200),
             _momentum(rsi14, macd, macd_signal),
             _relative_strength(security_return_pct, benchmark_return_pct, benchmark),
-            _growth(revenue_growth_pct, earnings_growth_pct),
+            _growth(revenue_growth_pct, earnings_growth_pct, growth_period),
             _street_conviction(price, analyst_target),
         )
     )

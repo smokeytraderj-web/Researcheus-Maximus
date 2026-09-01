@@ -812,6 +812,77 @@ def _nasdaq_quote_metadata(session, symbol: str) -> dict:
     }
 
 
+def _recent_growth(ticker, info) -> tuple[float | None, float | None, str]:
+    """Most-recent-quarter year-over-year revenue and earnings growth.
+
+    yfinance's ``revenueGrowth``/``earningsGrowth`` describe the last *completed
+    fiscal year*, which can be nearly a year stale -- for a fast-moving issuer
+    that is a materially different number from the one a reader assumes they are
+    seeing. The Conviction Checklist policy asks for the most recent
+    year-over-year figure, so prefer the newest quarter against the same quarter
+    a year earlier, and fall back to the annual figure only when the quarterly
+    statement cannot support the comparison.
+
+    Returns (revenue_growth, earnings_growth, period_label). The label states
+    which period the figures actually cover so a stale annual number is never
+    presented as if it were current.
+    """
+    def _yoy(frame, rows: tuple[str, ...]) -> float | None:
+        if frame is None or getattr(frame, "empty", True):
+            return None
+        for row in rows:
+            if row not in frame.index:
+                continue
+            series = frame.loc[row].dropna()
+            # Columns are period-end dates, newest first; the same quarter a
+            # year earlier is four columns along.
+            if len(series) < 5:
+                continue
+            latest, prior = series.iloc[0], series.iloc[4]
+            if prior in (None, 0) or latest is None:
+                continue
+            try:
+                if prior < 0:
+                    # A negative base makes percentage growth meaningless
+                    # rather than merely large; report nothing.
+                    return None
+                return float(latest) / float(prior) - 1.0
+            except (TypeError, ValueError, ZeroDivisionError):
+                continue
+        return None
+
+    quarterly = None
+    try:
+        quarterly = ticker.quarterly_income_stmt
+    except Exception:  # noqa: BLE001 - a missing statement is not an error
+        quarterly = None
+
+    revenue = _yoy(quarterly, ("Total Revenue", "Operating Revenue"))
+    earnings = _yoy(quarterly, ("Net Income", "Net Income Common Stockholders"))
+    if revenue is not None and earnings is not None:
+        period = ""
+        try:
+            period = str(quarterly.columns[0])[:10]
+        except Exception:  # noqa: BLE001
+            period = ""
+        return revenue, earnings, f"most recent quarter{f' ended {period}' if period else ''}, year over year"
+
+    annual_revenue = info.get("revenueGrowth")
+    annual_earnings = info.get("earningsGrowth")
+    fiscal_end = info.get("lastFiscalYearEnd")
+    label = "last completed fiscal year"
+    if isinstance(fiscal_end, (int, float)):
+        try:
+            label = f"fiscal year ended {dt.datetime.utcfromtimestamp(fiscal_end).date().isoformat()}"
+        except (OverflowError, OSError, ValueError):
+            pass
+    return (
+        annual_revenue if isinstance(annual_revenue, (int, float)) else None,
+        annual_earnings if isinstance(annual_earnings, (int, float)) else None,
+        label,
+    )
+
+
 class LiveResearchProvider:
     def __init__(
         self,
@@ -1725,8 +1796,7 @@ class LiveResearchProvider:
                 )
             except Exception:
                 checklist_spy_history = None
-        raw_revenue_growth = info.get("revenueGrowth")
-        raw_earnings_growth = info.get("earningsGrowth")
+        raw_revenue_growth, raw_earnings_growth, growth_period = _recent_growth(ticker, info)
         conviction_checklist = evaluate_conviction_checklist(
             price=snapshot.price,
             sma50=snapshot.sma50,
@@ -1740,8 +1810,9 @@ class LiveResearchProvider:
                 if checklist_spy_history is not None
                 else None
             ),
-            revenue_growth_pct=raw_revenue_growth if isinstance(raw_revenue_growth, (int, float)) else None,
-            earnings_growth_pct=raw_earnings_growth if isinstance(raw_earnings_growth, (int, float)) else None,
+            revenue_growth_pct=raw_revenue_growth,
+            earnings_growth_pct=raw_earnings_growth,
+            growth_period=growth_period,
             analyst_target=analyst_target,
         )
         fund_metrics = []
