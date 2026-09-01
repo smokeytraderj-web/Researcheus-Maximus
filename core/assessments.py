@@ -43,3 +43,25 @@ def assessment_interpretation(technical_rating: Rating, fundamental_rating: Rati
         ("Bearish", "Negative"): "Both the fundamental outlook and current entry setup are weak.",
     }
     return interpretations[(technical, fundamental)]
+
+# Providers prefix their conclusion prose with a machine-style label
+# ("Direct answer:", "Overall conclusion:"). Those labels existed to head a
+# dedicated block; where the prose is rendered as ordinary copy the prefix is
+# noise, so both renderers strip it through here.
+_CONCLUSION_PREFIXES = (
+    "Overall conclusion:",
+    "Direct answer:",
+    "Position answer:",
+    "Portfolio-fit answer:",
+    "Historical conclusion:",
+    "Historical case-study answer:",
+)
+
+
+def strip_conclusion_prefix(value: str) -> str:
+    """The conclusion prose without its machine-style leading label."""
+    cleaned = value.strip()
+    for prefix in _CONCLUSION_PREFIXES:
+        if cleaned.lower().startswith(prefix.lower()):
+            return cleaned[len(prefix):].lstrip()
+    return cleaned

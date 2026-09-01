@@ -15,7 +15,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import BaseDocTemplate, Frame, Image, KeepTogether, PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle, TopPadder
 
-from core.assessments import fundamental_outlook, technical_setup
+from core.assessments import fundamental_outlook, strip_conclusion_prefix, technical_setup
 from core.models import ResearchRequest, ResearchResult
 
 NAVY = colors.HexColor("#1B2A4A")
@@ -124,19 +124,7 @@ def _as_of_label(result: ResearchResult) -> str:
 
 def _overall_conclusion_text(value: str) -> str:
     """Remove redundant machine-style prefixes beneath the report heading."""
-    prefixes = (
-        "Overall conclusion:",
-        "Direct answer:",
-        "Position answer:",
-        "Portfolio-fit answer:",
-        "Historical conclusion:",
-        "Historical case-study answer:",
-    )
-    cleaned = value.strip()
-    for prefix in prefixes:
-        if cleaned.lower().startswith(prefix.lower()):
-            return cleaned[len(prefix):].lstrip()
-    return cleaned
+    return strip_conclusion_prefix(value)
 
 
 def _first_sentence(value: str) -> str:

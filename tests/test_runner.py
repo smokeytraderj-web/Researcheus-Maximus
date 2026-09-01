@@ -55,7 +55,14 @@ class ResearchRunnerTests(unittest.TestCase):
             self.assertIn("General Research", interactive)
             self.assertIn("The answer", interactive)
             self.assertIn("Give me a report on AXON.", interactive)
-            self.assertIn("Direct answer", interactive)
+            # The separate "Direct answer" block was removed: the rating, the
+            # Conviction Checklist and the reasoning carry the answer, and the
+            # machine-style prefix is stripped from the prose that remains.
+            body = interactive.split("<body>", 1)[1]
+            self.assertNotIn('<div class="answer-card">', body)
+            self.assertNotIn("Direct answer", body)
+            self.assertIn("Your question", body)
+            self.assertIn("Why", body)
             self.assertIn("data:image/png;base64,", interactive)
             self.assertNotIn("Scenario tester", interactive)
             reader = PdfReader(prepared.preview_path)

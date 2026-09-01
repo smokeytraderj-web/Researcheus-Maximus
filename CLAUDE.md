@@ -16,10 +16,10 @@ The displayed product name is **Researcheus Maximus**. The displayed firm name i
 
 The main General Research workflow exists first to answer the user's stated investment question. Security research, ratings, technical levels, charts, and strategy ideas are supporting evidence for that answer; they must never displace it with a generic stock report.
 
-- Preserve the complete user question and make the direct answer the first substantive content in the client PDF.
+- Preserve the complete user question verbatim. The rating and the reasoning that follows it carry the answer; there is no separate "Direct answer" block.
 - Incorporate stated portfolio allocation, concentration, existing-position, timing, and decision context when it materially changes the answer.
 - If the question cannot be answered from the available evidence, say exactly what is missing instead of substituting a generic fundamental or technical summary.
-- Default General Research output is a three-page client brief: direct answer and reasoning; action/risk plan with one large annotated chart; concise evidence, sources, and disclosure.
+- Default General Research output is a three-page client brief: rating, checklist and reasoning; action/risk plan with one large annotated chart; concise evidence, sources, and disclosure.
 - General Research should use only the technical detail necessary to support the decision. Deep Technical Analysis remains the detailed technical workflow.
 - Options strategies appear in General Research only when the user asks about options, calls, puts, or hedging, or when existing-position context makes a hedge directly relevant.
 
@@ -79,8 +79,9 @@ Both formats share one visual system: a white editorial page, narrow left naviga
 
 ### General Research
 
-- The main goal is to answer the user's exact question. Preserve the question verbatim and put a direct, decision-specific answer before the first chart.
-- Use this order: security and answer; exact question and direct answer; concise reasoning; what the advisor would do; one decision-relevant chart; essential data; risks and decision triggers; sources and disclosure.
+- The main goal is to answer the user's exact question. Preserve the question verbatim and resolve it before the first chart.
+- Use this order: security and rating; the Conviction Checklist; the exact question; concise reasoning; what the advisor would do; one decision-relevant chart; essential data; risks and decision triggers; sources and disclosure.
+- The rating, the checklist and the reasoning together are the answer. Do not reintroduce a separate restated-answer block above them.
 - Default to one chart. Select the chart that best supports the requested decision; use security-versus-SPY indexed total return when the user does not specify a chart.
 - Keep the data set compact and relevant to the question. General Research must not become a technical-analysis dump or a shortened copy of the technical report.
 - Add entry, stop, target, options, or other technical modules only when the user's request materially calls for them and the available evidence supports them.
@@ -419,7 +420,7 @@ The normal General Research PDF is a concise, highly readable three-page client 
 
 For General Research, use this fixed sequence:
 
-1. The user's question, a direct answer, the final rating, and concise decision reasoning.
+1. The final rating, the Conviction Checklist, the user's question, and concise decision reasoning.
 2. A restrained action/risk plan and one large annotated candlestick chart.
 3. Supporting evidence, essential metrics, risks/triggers, sources, and disclosure.
 

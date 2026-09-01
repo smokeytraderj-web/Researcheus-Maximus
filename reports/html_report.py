@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from html import escape
 from pathlib import Path
 
-from core.assessments import fundamental_outlook, technical_setup
+from core.assessments import fundamental_outlook, strip_conclusion_prefix, technical_setup
 from core.models import ChartRecord, Rating, ResearchRequest, ResearchResult
 
 
@@ -609,7 +609,7 @@ def _general_chart(result: ResearchResult) -> ChartRecord | None:
 def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
     tone_class, tone_name = _tone(result.lead_rating)
     question = request.question.strip() or f"What does the current evidence say about {result.identity.ticker}?"
-    answer = result.request_response.strip() or result.executive_summary.strip()
+    answer = strip_conclusion_prefix(result.request_response or result.executive_summary)
     technical_reason = result.technical.signals[0] if result.technical.signals else result.technical.summary
     fundamental_reason = result.fundamental.signals[0] if result.fundamental.signals else result.fundamental.summary
     risk_reason = result.risks[0] if result.risks else "The conclusion remains conditional on the cited evidence and decision triggers."
@@ -677,7 +677,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
     )
     triggers = "".join(f"<li>{escape(item)}</li>" for item in trigger_items)
     demo = '<div class="demo-note">Demonstration mode uses synthetic evidence and is not a client investment recommendation.</div>' if result.demo_mode else ""
-    qualitative_summary = result.executive_summary.strip() if result.executive_summary.strip() else answer
+    qualitative_summary = strip_conclusion_prefix(result.executive_summary) or answer
 
     # Numbers behind the rating, alongside the chart -- the chart carries the
     # visual case, so this strip carries the figures it cannot show.  Draw from
@@ -708,7 +708,6 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
 {_topline(result)}
 <section id="answer">
   <p class="question-line" style="margin-top:24px"><span>Your question</span>{escape(question)}</p>
-  <div class="answer-card"><div class="answer-label">Direct answer</div><p class="answer">{escape(answer)}</p></div>
   <div class="why-block">
     <div class="why-k">Why</div>
     <p>{escape(qualitative_summary)}</p>
