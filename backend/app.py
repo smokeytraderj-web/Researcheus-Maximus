@@ -23,13 +23,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from backend import feedback as feedback_store
 from backend.credentials import load as load_credentials
 from backend.jobs import (
     KEEP_REPORTS,
     default_reports_root,
     discard_all_reports,
     find_report,
-    list_reports,
     purge_expired_reports,
     purge_incomplete,
     registry,
@@ -75,6 +75,12 @@ app = FastAPI(title="Researcheus Maximus", lifespan=lifespan)
 class ResearchStart(BaseModel):
     prompt: str = Field(min_length=1, max_length=4000)
     mode: str = "general"
+
+
+class FeedbackIn(BaseModel):
+    message: str = Field(default="", max_length=4000)
+    helpful: bool | None = None
+    job_id: str = Field(default="", max_length=64)
 
 
 def _provider():
@@ -188,6 +194,7 @@ def start_research(body: ResearchStart) -> dict:
     prompt = body.prompt.strip()
     if not prompt:
         raise HTTPException(400, "Enter a company name or ticker.")
+    purge_expired_reports(REPORTS_ROOT)
     if not _run_slots.acquire(blocking=False):
         raise HTTPException(
             503,
@@ -228,11 +235,30 @@ def view_report(job_id: str) -> FileResponse:
     return FileResponse(report, media_type="text/html")
 
 
-@app.get("/api/reports")
-def recent_reports() -> dict:
-    """Finished reports, newest first, so past work stays findable."""
-    purge_expired_reports(REPORTS_ROOT)
-    return {"reports": list_reports(REPORTS_ROOT), "retained": KEEP_REPORTS}
+@app.post("/api/feedback")
+def submit_feedback(body: FeedbackIn) -> dict:
+    """Record a reader's feedback on a report for later human review.
+
+    This never alters a rating or an analysis. See backend/feedback.py.
+    """
+    if not body.message.strip() and body.helpful is None:
+        raise HTTPException(400, "Add a comment or say whether the report helped.")
+    job = registry.get(body.job_id) if body.job_id else None
+    feedback_store.record(
+        REPORTS_ROOT,
+        message=body.message,
+        helpful=body.helpful,
+        job_id=body.job_id,
+        ticker=job.ticker if job else "",
+        mode=job.mode if job else "",
+    )
+    return {"recorded": True}
+
+
+@app.get("/api/feedback")
+def list_feedback() -> dict:
+    """Everything recorded, for review. Counts plus the entries themselves."""
+    return {"summary": feedback_store.summarise(REPORTS_ROOT), "entries": feedback_store.read_all(REPORTS_ROOT)}
 
 
 @app.get("/api/health")

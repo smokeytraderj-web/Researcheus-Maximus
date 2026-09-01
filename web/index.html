@@ -148,12 +148,22 @@ tailwind.config = {
         </button>
       </div>
 
-      <div id="recent" class="hidden mt-8 pt-6 border-t border-line2">
-        <div class="flex items-baseline justify-between gap-4 mb-3">
-          <span class="font-mono text-[10px] tracking-[0.16em] text-muted uppercase">Recent reports</span>
-          <span id="retentionNote" class="text-[11px] text-muted"></span>
+      <div id="feedback" class="hidden mt-8 pt-6 border-t border-line2">
+        <div class="font-mono text-[10px] tracking-[0.16em] text-muted uppercase mb-3">Feedback on that report</div>
+        <div class="flex items-center gap-2 mb-3">
+          <button onclick="rate(true)" id="rateUp"
+            class="text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-4 py-2 hover:bg-panel hover:border-muted transition-colors">Useful</button>
+          <button onclick="rate(false)" id="rateDown"
+            class="text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-4 py-2 hover:bg-panel hover:border-muted transition-colors">Not useful</button>
         </div>
-        <ul id="recentList" class="space-y-1"></ul>
+        <textarea id="feedbackBox" rows="2"
+          placeholder="What was wrong, missing, or worth keeping? Specifics help most."
+          class="w-full resize-none bg-panel border border-line rounded-[7px] text-[14px] text-ink leading-relaxed placeholder:text-muted p-3 focus:border-gold focus:border-2"></textarea>
+        <div class="flex items-center justify-between gap-4 mt-3">
+          <span id="feedbackNote" class="text-[11.5px] text-muted">Reviewed by a person before anything changes — feedback never edits a rating on its own.</span>
+          <button onclick="sendFeedback()" id="feedbackBtn"
+            class="shrink-0 text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2 hover:bg-panel hover:border-muted transition-colors">Send</button>
+        </div>
       </div>
 
       <p id="modeNote" class="mt-5 text-center text-[12px] text-muted"></p>
@@ -169,7 +179,7 @@ tailwind.config = {
 </div>
 
 <script>
-  var pollTimer = null, startedAt = 0, reportUrl = '', busy = false;
+  var pollTimer = null, startedAt = 0, reportUrl = '', busy = false, lastJobId = '', rating = null;
 
   function el(id) { return document.getElementById(id); }
 
@@ -240,6 +250,7 @@ tailwind.config = {
     }
     busy = true;
     setBusy(true);
+    el('feedback').classList.add('hidden');
     resetStatus();
     showRunning('Preparing evidence');
     startedAt = Date.now();
@@ -258,23 +269,43 @@ tailwind.config = {
       }
       poll(res.body.id);
     })
-    .catch(function () { showFailed('Could not reach the research service.'); });
+    .catch(function () { showFailed('Could not reach the research service. Make sure it is still running (scripts/run_web.sh).'); });
   }
 
   function poll(jobId) {
+    // A run takes minutes and the server may be busy with other runs, so a
+    // single failed poll means nothing. Only give up after several in a row --
+    // previously one hiccup declared "lost contact" while the research was
+    // still running perfectly well.
+    var misses = 0;
+    var MAX_MISSES = 6;
     pollTimer = setInterval(function () {
       tickElapsed();
       fetch('/api/research/' + jobId)
-        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+        .then(function (r) {
+          if (r.status === 404) { return { gone: true }; }
+          if (!r.ok) { throw new Error('http ' + r.status); }
+          return r.json();
+        })
         .then(function (job) {
+          misses = 0;
+          if (job.gone) {
+            clearInterval(pollTimer); pollTimer = null;
+            return showFailed('That run is no longer on the server — it was probably restarted. Run the research again.');
+          }
           if (job.status === 'running') { el('statusStage').textContent = job.stage; return; }
           clearInterval(pollTimer); pollTimer = null;
           if (job.status === 'failed') { return showFailed(job.error); }
           showReady(job);
         })
         .catch(function () {
+          misses += 1;
+          if (misses < MAX_MISSES) {
+            el('statusStage').textContent = 'Reconnecting…';
+            return;
+          }
           clearInterval(pollTimer); pollTimer = null;
-          showFailed('Lost contact with the research service.');
+          showFailed('Lost contact with the research service. It may have stopped — check the terminal running it.');
         });
     }, 1500);
   }
@@ -298,7 +329,17 @@ tailwind.config = {
     reportUrl = new URL(job.report_url, window.location.origin).href;
     el('openReport').href = reportUrl;
     el('copyLink').textContent = 'Copy shareable link';
-    loadRecent();
+    lastJobId = job.id;
+    el('feedback').classList.remove('hidden');
+    // The report is what was asked for, so open it rather than making the
+    // reader hunt for a button. This runs in an async callback, so a popup
+    // blocker may refuse it -- that is fine, Open Report is still there, and
+    // the current page must never be navigated away from either way.
+    var opened = null;
+    try { opened = window.open(reportUrl, '_blank', 'noopener'); } catch (e) { opened = null; }
+    if (!opened) {
+      el('statusSummary').textContent += ' Your browser blocked the new tab — use Open Report.';
+    }
   }
 
   function showFailed(message) {
@@ -313,6 +354,40 @@ tailwind.config = {
     box.classList.remove('hidden');
   }
 
+  function rate(helpful) {
+    rating = helpful;
+    el('rateUp').classList.toggle('bg-panel', helpful === true);
+    el('rateUp').classList.toggle('border-muted', helpful === true);
+    el('rateDown').classList.toggle('bg-panel', helpful === false);
+    el('rateDown').classList.toggle('border-muted', helpful === false);
+  }
+
+  function sendFeedback() {
+    var message = el('feedbackBox').value.trim();
+    if (!message && rating === null) {
+      el('feedbackNote').textContent = 'Add a comment, or mark it useful or not useful.';
+      return;
+    }
+    el('feedbackBtn').disabled = true;
+    fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: message, helpful: rating, job_id: lastJobId })
+    })
+    .then(function (r) {
+      el('feedbackBtn').disabled = false;
+      if (!r.ok) { el('feedbackNote').textContent = 'Could not send that — the service may have stopped.'; return; }
+      el('feedbackBox').value = '';
+      rating = null;
+      rate(null);
+      el('feedbackNote').textContent = 'Recorded. Thank you — a person reads these.';
+    })
+    .catch(function () {
+      el('feedbackBtn').disabled = false;
+      el('feedbackNote').textContent = 'Could not send that — the service may have stopped.';
+    });
+  }
+
   function copyLink() {
     if (!reportUrl) return;
     navigator.clipboard.writeText(reportUrl).then(function () {
@@ -320,32 +395,6 @@ tailwind.config = {
     });
   }
 
-  function loadRecent() {
-    fetch('/api/reports').then(function (r) { return r.json(); }).then(function (data) {
-      var items = data.reports || [];
-      if (!items.length) { el('recent').classList.add('hidden'); return; }
-      // Be explicit that links are not permanent, so nobody shares one
-      // expecting it to still resolve next week.
-      el('retentionNote').textContent = data.retained
-        ? 'Kept on this server'
-        : 'Temporary — cleared when the server stops';
-      el('recentList').innerHTML = items.map(function (item) {
-        var when = new Date(item.created_at).toLocaleString(undefined,
-          { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-        return '<li class="flex items-baseline justify-between gap-4 py-1.5 border-b border-line2 last:border-0">' +
-               '<a href="' + item.report_url + '" target="_blank" rel="noopener" ' +
-               'class="text-[13.5px] text-ink hover:text-gold transition-colors">' + escapeHtml(item.title) + '</a>' +
-               '<span class="font-mono text-[11px] text-muted shrink-0">' + when + '</span></li>';
-      }).join('');
-      el('recent').classList.remove('hidden');
-    }).catch(function () {});
-  }
-
-  function escapeHtml(value) {
-    var div = document.createElement('div');
-    div.textContent = value;
-    return div.innerHTML;
-  }
 
   // Enter submits; Shift+Enter inserts a newline, matching the desktop app.
   [['queryBox', 'general'], ['deepBox', 'deep'], ['quickBox', 'technical']].forEach(function (pair) {
@@ -353,8 +402,6 @@ tailwind.config = {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); start(pair[1], pair[0]); }
     });
   });
-
-  loadRecent();
 
   // Say plainly whether this server is running live research or demo data, so a
   // synthetic report is never mistaken for a real one -- and disable a workflow

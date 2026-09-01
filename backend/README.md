@@ -1,8 +1,9 @@
-# Researcheus Maximus — web backend
+# Researcheus Maximus — web
 
-Serves the same research workflows as the PySide6 desktop app over HTTP, so a
-report can be opened and shared as a URL. **The desktop app is unchanged** and
-still runs standalone with `python3 app.py`.
+**This is the primary way to run Researcheus Maximus.** The PySide6 desktop app
+still works unchanged (`python3 app.py`) and remains the only route to
+YCharts-backed runs and the Track Record log, but the web app is the everyday
+vehicle.
 
 Both surfaces share one code path:
 
@@ -64,6 +65,8 @@ for YCharts-backed runs.
 | `GET` | `/api/research/{id}` | Poll status: `running` / `ready` / `failed`. |
 | `GET` | `/r/{id}` | The finished report — this is the shareable link. |
 | `GET` | `/api/reports` | Finished reports, newest first. |
+| `POST` | `/api/feedback` | Record a reader's feedback on a report. |
+| `GET` | `/api/feedback` | Read recorded feedback, newest first, with counts. |
 | `GET` | `/api/health` | Liveness, and which workflows are configured. |
 
 Research takes minutes, so runs happen in a worker thread and the client polls.
@@ -112,6 +115,22 @@ them.
 
 Hosts that inject `$PORT` (Railway, Render, Fly) are handled. Set credentials
 as environment variables — a deployed server has no user keychain.
+
+## Feedback
+
+Readers can mark a report useful or not and leave a comment; entries are stored
+with the report's ticker and mode as JSON lines beside the reports, and are
+readable at `GET /api/feedback`.
+
+Feedback **never alters a rating or an analysis on its own.** A research tool
+that silently rewired its conclusions from unvetted public input would be easy
+to poison and impossible to audit, and it would break the evidence rules the
+rest of the app rests on. Improvement happens by a person reading the feedback
+and changing the code or the rating policy — a reviewable change with a version
+behind it.
+
+Feedback follows the same retention rule as reports: temporary unless
+`RESEARCHEUS_KEEP_REPORTS=1`.
 
 ## Not yet built
 

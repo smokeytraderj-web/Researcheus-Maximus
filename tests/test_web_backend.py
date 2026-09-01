@@ -22,6 +22,7 @@ from backend.jobs import (
     purge_expired_reports,
     purge_incomplete,
 )
+from backend import feedback as feedback_store
 from backend.credentials import SYNTHESIS_ENV, TVREMIX_ENV
 from backend.credentials import load as load_credentials
 from core.models import Horizon
@@ -301,6 +302,50 @@ class GrowthFreshnessTests(unittest.TestCase):
         criterion = _growth(None, 0.2, "whatever")
         self.assertIsNone(criterion.passed)
         self.assertIn("not both available", criterion.detail)
+
+
+class FeedbackTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_feedback_is_recorded_with_report_context(self) -> None:
+        feedback_store.record(
+            self.root, message="Growth looked stale", helpful=False,
+            job_id="a" * 12, ticker="NVDA", mode="general",
+        )
+        entries = feedback_store.read_all(self.root)
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["ticker"], "NVDA")
+        self.assertFalse(entries[0]["helpful"])
+
+    def test_newest_feedback_comes_first(self) -> None:
+        feedback_store.record(self.root, message="first", helpful=True)
+        feedback_store.record(self.root, message="second", helpful=True)
+        self.assertEqual(feedback_store.read_all(self.root)[0]["message"], "second")
+
+    def test_summary_counts_both_directions(self) -> None:
+        feedback_store.record(self.root, message="", helpful=True)
+        feedback_store.record(self.root, message="bad", helpful=False)
+        summary = feedback_store.summarise(self.root)
+        self.assertEqual(summary, {"total": 2, "helpful": 1, "unhelpful": 1, "with_comment": 1})
+
+    def test_overlong_message_is_truncated_not_rejected(self) -> None:
+        feedback_store.record(self.root, message="x" * 10_000, helpful=None)
+        self.assertLessEqual(len(feedback_store.read_all(self.root)[0]["message"]), feedback_store.MAX_MESSAGE)
+
+    def test_reading_before_anything_is_written_is_empty(self) -> None:
+        self.assertEqual(feedback_store.read_all(self.root), [])
+        self.assertEqual(feedback_store.summarise(self.root)["total"], 0)
+
+    def test_a_corrupt_line_does_not_lose_the_rest(self) -> None:
+        feedback_store.record(self.root, message="good", helpful=True)
+        with (self.root / feedback_store.FEEDBACK_FILE).open("a", encoding="utf-8") as handle:
+            handle.write("{not json\n")
+        self.assertEqual(len(feedback_store.read_all(self.root)), 1)
 
 
 if __name__ == "__main__":
