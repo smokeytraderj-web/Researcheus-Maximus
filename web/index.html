@@ -11,8 +11,13 @@ tailwind.config = {
   theme: {
     extend: {
       colors: {
-        ink: '#1B2A4A', ink2: '#2C3A57', body: '#3E4759', muted: '#657386',
-        gold: '#BFA054', goldSoft: '#EFE4C7', line: '#DDE1E7', line2: '#EDF0F3', panel: '#F6F7F9',
+        ink: '#14213D', ink2: '#25324F', body: '#3E4759', muted: '#65758B',
+        // Blue carries every interactive state -- buttons, focus, card accents.
+        // Gold stays for the firm's own marks (the masthead rule, the section
+        // numerals), which is what "restrained gold accents" is meant to mean.
+        brand: '#1A4F8B', brandDeep: '#123A69', brandSoft: '#EAF1FA', brandLine: '#C4D8EE',
+        gold: '#BFA054', goldSoft: '#EFE4C7',
+        line: '#DCE3EC', line2: '#EDF1F6', panel: '#F7F9FC',
       },
       fontFamily: {
         serif: ['Source Serif 4', 'Georgia', 'Times New Roman', 'serif'],
@@ -24,18 +29,36 @@ tailwind.config = {
 }
 </script>
 <style>
-  html, body { height: 100%; background: #FFFFFF; }
-  textarea::placeholder, input::placeholder { color: #9AA5B4; }
+  html, body { height: 100%; }
+  /* A cool wash behind the page rather than flat white -- enough to read as
+     blue, faint enough that the white cards still carry the content. */
+  body {
+    background:
+      radial-gradient(1100px 620px at 50% -12%, #E4EDF9 0%, rgba(228,237,249,0) 68%),
+      linear-gradient(#FBFCFE, #F4F7FB);
+    background-attachment: fixed;
+  }
+  textarea::placeholder, input::placeholder { color: #94A3B8; }
   textarea:focus, input:focus { outline: none; }
-  ::selection { background: #EFE4C7; }
+  ::selection { background: #D6E4F5; }
+  /* One shared focus treatment: the blue ring is the only "you are here" cue,
+     so it must be unmistakable without shifting layout. */
+  .field { transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease; }
+  .field:focus { border-color: #1A4F8B; box-shadow: 0 0 0 3px rgba(26,79,139,.14); background: #FFFFFF; }
+  .btn { transition: background-color .15s ease, box-shadow .15s ease, transform .06s ease, color .15s ease, border-color .15s ease; }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: #1A4F8B; box-shadow: 0 1px 2px rgba(18,58,105,.24), 0 4px 12px rgba(18,58,105,.16); }
+  .btn-primary:hover { background: #123A69; box-shadow: 0 1px 2px rgba(18,58,105,.28), 0 6px 18px rgba(18,58,105,.22); }
+  .card { box-shadow: 0 1px 2px rgba(20,33,61,.05), 0 10px 28px -18px rgba(20,33,61,.32); }
   /* Tailwind's generated .font-serif came out with an empty font-family, so every
      heading silently fell back to the sans stack. Declare it explicitly. */
   .font-serif { font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif; }
   .font-mono  { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
   /* Indeterminate progress bar, matching the desktop app's slim navy one. */
   @keyframes slide { 0% { left: -35%; } 100% { left: 100%; } }
-  .bar-track { position: relative; overflow: hidden; height: 6px; border-radius: 3px; background: #EDF0F3; }
-  .bar-fill { position: absolute; top: 0; height: 100%; width: 35%; border-radius: 3px; background: #16233F; animation: slide 1.15s ease-in-out infinite; }
+  .bar-track { position: relative; overflow: hidden; height: 6px; border-radius: 999px; background: #E4EBF3; }
+  .bar-fill { position: absolute; top: 0; height: 100%; width: 35%; border-radius: 999px;
+              background: linear-gradient(90deg, #2C6DB5, #14213D); animation: slide 1.15s ease-in-out infinite; }
 </style>
 </head>
 <body class="min-h-screen font-sans text-body antialiased">
@@ -46,6 +69,12 @@ tailwind.config = {
     <div class="w-full max-w-3xl">
 
       <div class="text-center mb-9">
+        <!-- The product wordmark: previously it appeared only as faint footer
+             text, so the page never said what it was until you scrolled. -->
+        <div class="inline-flex items-center gap-2 rounded-full bg-brandSoft border border-brandLine px-3.5 py-1.5 mb-5">
+          <span class="h-1.5 w-1.5 rounded-full bg-brand"></span>
+          <span class="font-mono text-[10.5px] tracking-[0.18em] uppercase text-brandDeep">Researcheus Maximus</span>
+        </div>
         <h1 class="font-serif text-[34px] sm:text-[46px] font-semibold tracking-tight text-ink leading-[1.12]">
           Gottfried &amp; Somberg<br class="sm:hidden"> Wealth Management
         </h1>
@@ -53,7 +82,7 @@ tailwind.config = {
       </div>
 
       <!-- Progress / result panel. Hidden until a run starts. -->
-      <div id="statusCard" class="hidden mb-4 rounded-md bg-white border border-line border-t-[3px] border-t-gold p-6 sm:p-7 shadow-[0_1px_3px_rgba(22,35,63,0.06)]">
+      <div id="statusCard" class="hidden mb-4 card rounded-xl bg-white border border-line border-t-[3px] border-t-brand p-6 sm:p-7">
         <div class="flex items-baseline justify-between gap-4 mb-4">
           <span id="statusStage" class="font-serif text-[19px] font-semibold text-ink">Preparing evidence</span>
           <span id="statusElapsed" class="font-mono text-[11px] text-muted"></span>
@@ -63,11 +92,11 @@ tailwind.config = {
           <p id="statusSummary" class="text-[14px] text-body leading-relaxed"></p>
           <div class="flex flex-wrap items-center gap-3 mt-5">
             <a id="openReport" href="#" target="_blank" rel="noopener"
-               class="rounded-[7px] bg-gold text-white font-sans font-bold text-sm px-6 py-2.5 hover:bg-[#A88742] transition-colors">
+               class="btn btn-primary rounded-lg text-white font-sans font-bold text-sm px-6 py-2.5">
               Open Report
             </a>
             <button id="copyLink" onclick="copyLink()"
-               class="rounded-[7px] border border-line text-ink font-sans font-bold text-sm px-5 py-2.5 hover:bg-panel transition-colors">
+               class="btn rounded-lg border border-line text-ink font-sans font-bold text-sm px-5 py-2.5 hover:bg-brandSoft hover:border-brandLine">
               Copy shareable link
             </button>
             <button onclick="resetStatus()"
@@ -79,7 +108,7 @@ tailwind.config = {
         <p id="statusError" class="hidden text-[14px] text-[#A0362F] leading-relaxed"></p>
       </div>
 
-      <div class="rounded-md bg-white border border-line border-t-[3px] border-t-gold p-6 sm:p-7 shadow-[0_1px_3px_rgba(22,35,63,0.06)]">
+      <div class="card rounded-xl bg-white border border-line border-t-[3px] border-t-brand p-6 sm:p-7">
         <div class="flex items-center gap-2 mb-4">
           <span class="font-serif text-[15px] font-semibold text-gold">01</span>
           <span class="font-serif text-[19px] font-semibold text-ink">Research Overview</span>
@@ -88,20 +117,20 @@ tailwind.config = {
           id="queryBox"
           rows="3"
           placeholder="Example: Is TSLA a good opportunity to buy now, and where should I place a stop loss?"
-          class="w-full resize-none bg-panel border border-line rounded-[7px] text-[15px] text-ink leading-relaxed placeholder:text-muted p-4 focus:border-gold focus:border-2"
+          class="field w-full resize-none bg-panel border border-line rounded-lg text-[15px] text-ink leading-relaxed placeholder:text-muted p-4"
         ></textarea>
         <div class="flex items-center justify-end mt-4">
           <button
             id="generateBtn"
             onclick="start('general', 'queryBox')"
-            class="shrink-0 rounded-[7px] bg-gold text-white font-sans font-bold text-sm px-6 py-2.5 hover:bg-[#A88742] transition-colors"
+            class="shrink-0 btn btn-primary rounded-lg text-white font-sans font-bold text-sm px-6 py-2.5"
           >
             Generate Research
           </button>
         </div>
       </div>
 
-      <div class="mt-4 rounded-md bg-white border border-line border-t-[3px] border-t-gold p-6 sm:p-7 shadow-[0_1px_3px_rgba(22,35,63,0.06)]">
+      <div class="mt-4 card rounded-xl bg-white border border-line border-t-[3px] border-t-brand p-6 sm:p-7">
         <div class="flex items-center gap-2 mb-4">
           <span class="font-serif text-[15px] font-semibold text-gold">02</span>
           <span class="font-serif text-[19px] font-semibold text-ink">Technical</span>
@@ -110,28 +139,30 @@ tailwind.config = {
           id="deepBox"
           rows="2"
           placeholder="Ticker or company name, plus anything specific you want the technical read to answer."
-          class="w-full resize-none bg-panel border border-line rounded-[7px] text-[15px] text-ink leading-relaxed placeholder:text-muted p-4 focus:border-gold focus:border-2"
+          class="field w-full resize-none bg-panel border border-line rounded-lg text-[15px] text-ink leading-relaxed placeholder:text-muted p-4"
         ></textarea>
-        <div class="flex items-center justify-between gap-4 mt-4">
+        <!-- Stacks on narrow screens: side by side, the description was crushed
+             into a four-word-wide column beside the button. -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mt-4">
           <span class="text-[12.5px] text-body">Price structure, momentum, relative strength, Fibonacci, and a risk plan.</span>
           <button
             id="deepBtn"
             onclick="start('deep', 'deepBox')"
-            class="shrink-0 rounded-[7px] bg-gold text-white font-sans font-bold text-sm px-6 py-2.5 hover:bg-[#A88742] transition-colors"
+            class="shrink-0 btn btn-primary rounded-lg text-white font-sans font-bold text-sm px-6 py-2.5"
           >
             Open Technical Report
           </button>
         </div>
       </div>
 
-      <div class="mt-6 flex items-center gap-3">
+      <div class="mt-6 flex flex-col sm:flex-row sm:items-center gap-3">
         <input
           id="quickBox"
           type="text"
           placeholder="Quick report — ticker or company name"
-          class="flex-1 bg-panel border border-line rounded-[7px] text-[14px] text-ink placeholder:text-muted px-4 py-2.5 focus:border-gold focus:border-2"
+          class="field flex-1 bg-panel border border-line rounded-lg text-[14px] text-ink placeholder:text-muted px-4 py-2.5"
         >
-        <button id="quickBtn" onclick="start('technical', 'quickBox')" class="shrink-0 text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2.5 hover:bg-panel hover:border-muted transition-colors">
+        <button id="quickBtn" onclick="start('technical', 'quickBox')" class="shrink-0 btn text-[13px] font-sans font-bold text-ink border border-line rounded-lg px-5 py-2.5 hover:bg-brandSoft hover:border-brandLine hover:text-brandDeep">
           Quick Report &nbsp;&rarr;
         </button>
       </div>
@@ -140,17 +171,17 @@ tailwind.config = {
         <div class="font-mono text-[10px] tracking-[0.16em] text-muted uppercase mb-3">Feedback on that report</div>
         <div class="flex items-center gap-2 mb-3">
           <button onclick="rate(true)" id="rateUp"
-            class="text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-4 py-2 hover:bg-panel hover:border-muted transition-colors">Useful</button>
+            class="btn text-[13px] font-sans font-bold text-ink border border-line rounded-lg px-4 py-2 hover:bg-brandSoft hover:border-brandLine hover:text-brandDeep">Useful</button>
           <button onclick="rate(false)" id="rateDown"
-            class="text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-4 py-2 hover:bg-panel hover:border-muted transition-colors">Not useful</button>
+            class="btn text-[13px] font-sans font-bold text-ink border border-line rounded-lg px-4 py-2 hover:bg-brandSoft hover:border-brandLine hover:text-brandDeep">Not useful</button>
         </div>
         <textarea id="feedbackBox" rows="2"
           placeholder="What was wrong, missing, or worth keeping? Specifics help most."
-          class="w-full resize-none bg-panel border border-line rounded-[7px] text-[14px] text-ink leading-relaxed placeholder:text-muted p-3 focus:border-gold focus:border-2"></textarea>
-        <div class="flex items-center justify-between gap-4 mt-3">
+          class="field w-full resize-none bg-panel border border-line rounded-lg text-[14px] text-ink leading-relaxed placeholder:text-muted p-3"></textarea>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mt-3">
           <span id="feedbackNote" class="text-[11.5px] text-muted">Reviewed by a person before anything changes — feedback never edits a rating on its own.</span>
           <button onclick="sendFeedback()" id="feedbackBtn"
-            class="shrink-0 text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2 hover:bg-panel hover:border-muted transition-colors">Send</button>
+            class="shrink-0 btn text-[13px] font-sans font-bold text-ink border border-line rounded-lg px-5 py-2 hover:bg-brandSoft hover:border-brandLine hover:text-brandDeep">Send</button>
         </div>
       </div>
 
