@@ -39,17 +39,14 @@ from PySide6.QtWidgets import (
 
 from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
 from core.models import Horizon, ResearchRequest
+from core.request_builder import build_request
 from core.research_prompt import (
     append_revision_instructions,
     classify_research_intent,
-    is_historical_trade_request,
     parse_comparison_prompt,
     parse_custom_range,
     parse_deep_analysis_prompt,
-    parse_horizon,
     parse_overview_chart_request,
-    parse_portfolio_allocation,
-    parse_research_prompt,
 )
 from research.demo_provider import DemoResearchProvider
 from research.live_provider import LiveResearchProvider
@@ -79,15 +76,6 @@ _METRIC_EXPLANATIONS = {
     "benchmark": "Benchmark-relative performance shows how much the stock gained or lost beyond the selected sector or market ETF over the same dates.",
     "general": "This is one supporting data point. Read it together with the trend, fundamentals, valuation, risks, and the report's Overall Rating.",
 }
-
-
-def _horizon_from_text(brief: str) -> Horizon:
-    """The horizon stated in the question, defaulting to All Horizons."""
-    stated = parse_horizon(brief)
-    for horizon in Horizon:
-        if horizon.value == stated:
-            return horizon
-    return Horizon.ALL
 
 
 def _metric_help_key(label: str) -> str:
@@ -574,61 +562,12 @@ class MainWindow(QMainWindow):
         return page
 
     def _request(self, *, deep: bool = False, comparison: bool = False) -> ResearchRequest:
-        if comparison:
-            primary, secondary, brief = parse_comparison_prompt(self.comparison_query.toPlainText())
-            custom_start, custom_end = parse_custom_range(brief)
-            return ResearchRequest(
-                primary,
-                Horizon.ALL,
-                question=brief,
-                comparison_analysis=True,
-                comparison_query=secondary,
-                custom_start=custom_start,
-                custom_end=custom_end,
-                decision_intent=classify_research_intent(brief),
-                overview_chart=parse_overview_chart_request(brief),
-            )
-        if deep:
-            security_query, brief, comparisons, charts = parse_deep_analysis_prompt(self.deep_query.toPlainText())
-            custom_start, custom_end = parse_custom_range(brief)
-            return ResearchRequest(
-                security_query,
-                Horizon.ALL,
-                question=brief,
-                deep_analysis=True,
-                comparison_symbols=comparisons,
-                requested_charts=charts,
-                custom_start=custom_start,
-                custom_end=custom_end,
-                decision_intent=classify_research_intent(brief),
-                overview_chart=parse_overview_chart_request(brief),
-            )
-        security_query, research_brief = parse_research_prompt(self.query.toPlainText())
-        custom_start, custom_end = parse_custom_range(research_brief)
-        historical_trades = is_historical_trade_request(research_brief)
-        # Honour a horizon the user actually stated ("for the long term", "next
-        # few weeks"); All Horizons remains the default when they state none.
-        stated_horizon = _horizon_from_text(research_brief)
-        comparisons = ("SPY",) if historical_trades else ()
-        requested_charts = (
-            ("price_trend", "stop_loss", "momentum", "relative_performance", "historical_trades")
-            if historical_trades
-            else ()
-        )
-        return ResearchRequest(
-            security_query,
-            stated_horizon,
-            question=research_brief,
-            deep_analysis=historical_trades,
-            comparison_symbols=comparisons,
-            requested_charts=requested_charts,
-            custom_start=custom_start,
-            custom_end=custom_end,
-            decision_intent=classify_research_intent(research_brief),
-            portfolio_allocation=parse_portfolio_allocation(research_brief),
-            historical_trade_examples=historical_trades,
-            overview_chart=parse_overview_chart_request(research_brief),
-        )
+        # Parsing lives in core.request_builder so the desktop app and the web
+        # backend read a typed question identically -- horizon, custom range and
+        # intent must not drift between the two surfaces.
+        mode = "comparison" if comparison else "deep" if deep else "general"
+        source = self.comparison_query if comparison else self.deep_query if deep else self.query
+        return build_request(source.toPlainText(), mode)
 
     def _start_research(self, *, deep: bool = False, comparison: bool = False) -> None:
         if self.worker and self.worker.isRunning():
