@@ -6,7 +6,11 @@ output/
 tests/
 ui/
 scripts/
-resources/
+# resources/ is NOT excluded: reports/html_report.py reads the approved
+# stylesheets out of resources/*_base.html at runtime, so a server without them
+# cannot render a report at all. Only the vendored front-end assets are skipped,
+# since the desktop pages that use them are not served here.
+resources/vendor/
 dist/
 build/
 *.spec

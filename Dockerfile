@@ -24,6 +24,8 @@ RUN pip install -r deps/requirements-web.txt -r deps/requirements.txt
 COPY backend/ ./backend/
 COPY core/ ./core/
 COPY reports/ ./reports/
+# The approved report stylesheets live here and are read at render time.
+COPY resources/ ./resources/
 COPY research/ ./research/
 COPY security/ ./security/
 COPY services/ ./services/
