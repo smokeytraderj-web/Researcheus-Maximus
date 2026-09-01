@@ -41,9 +41,15 @@ COPY web/ ./web/
 # path. Without such a mount the directory is ordinary container storage and
 # reports last only as long as the container, which is the same disposable
 # behaviour the app has by default.
-ENV RESEARCHEUS_REPORTS_DIR=/app/reports \
+#
+# The path lives outside /app, and must keep doing so. A host volume mounts an
+# EMPTY filesystem over its mount point, hiding whatever the image put there.
+# Pointed at /app/reports it therefore erased the reports/ Python package, and
+# the server died on startup with "No module named 'reports.call_log'". Any
+# directory under /app that shares a name with a package here is the same trap.
+ENV RESEARCHEUS_REPORTS_DIR=/data/reports \
     RESEARCHEUS_KEEP_REPORTS=1
-RUN mkdir -p /app/reports
+RUN mkdir -p /data/reports
 
 # Hosts that inject $PORT (Railway, Render, Fly) override this.
 ENV PORT=8000
