@@ -82,6 +82,8 @@ Both formats share one visual system: a white editorial page, narrow left naviga
 - The main goal is to answer the user's exact question. Preserve the question verbatim and resolve it before the first chart.
 - Use this order: security and rating; the Conviction Checklist; the exact question; concise reasoning; what the advisor would do; one decision-relevant chart; essential data; risks and decision triggers; sources and disclosure.
 - The rating, the checklist and the reasoning together are the answer. Do not reintroduce a separate restated-answer block above them.
+- Do not print a confidence line under the rating. The Lead Analyst still assigns confidence and it still governs the synthesis; the General brief simply does not show it as a label, because the checklist score and the reasoning already tell the reader how firm the view is. Deep Technical still states it alongside the stance.
+- Keep the rating block tight. It is a heading, not a hero: the Conviction Checklist directly beneath it is the piece that should command the space.
 - Default to one chart. Select the chart that best supports the requested decision; use security-versus-SPY indexed total return when the user does not specify a chart.
 - Keep the data set compact and relevant to the question. General Research must not become a technical-analysis dump or a shortened copy of the technical report.
 - Add entry, stop, target, options, or other technical modules only when the user's request materially calls for them and the available evidence supports them.
@@ -296,7 +298,7 @@ Every report shows:
 - Fundamental Analyst rating.
 - Sentiment assessment.
 - Lead Analyst final rating.
-- High, Medium, or Low confidence.
+- High, Medium, or Low confidence — except the General Research brief, which deliberately does not print it under the rating (see the General Research section).
 - A concise rationale.
 - Material disagreement.
 - Conditions that would change the rating.

@@ -75,10 +75,10 @@ _DYNAMIC_CSS = r"""
 .stance-chip.challenges{background:#F6E9E9;color:var(--bear)}
 .stance-chip.partial{background:var(--panel);color:var(--neutral)}
 .stance-chip.watch{background:#FDF6E7;color:#8A6D2F}
-.verdict-hero{text-align:center;padding:30px 0 26px;border-bottom:1px solid var(--line)}
-.verdict-hero .vh-cap{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.13em;font-weight:600;margin-bottom:11px}
+.verdict-hero{text-align:center;padding:18px 0 15px;border-bottom:1px solid var(--line)}
+.verdict-hero .vh-cap{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.13em;font-weight:600;margin-bottom:7px}
 /* The tone classes carry a fill for inline chips; the hero wants the colour only. */
-.verdict-hero .vh-word{font-family:'Source Serif 4',Georgia,serif;font-size:46px;line-height:1;font-weight:600;margin-bottom:9px;background:none!important;padding:0}
+.verdict-hero .vh-word{font-family:'Source Serif 4',Georgia,serif;font-size:34px;line-height:1;font-weight:600;margin-bottom:0;background:none!important;padding:0}
 .verdict-hero .vh-sub{font-size:12px;color:var(--muted)}
 .verdict-hero .vh-sub b{color:var(--ink)}
 .pos-bar{display:flex;flex-wrap:wrap;gap:0;background:var(--panel);border-radius:7px;margin-bottom:22px;overflow:hidden}
@@ -121,26 +121,26 @@ _DYNAMIC_CSS = r"""
    shown as checkboxes with a headline score.  Supplementary evidence, never a rating label.
    Horizontal, one column per criterion, so the whole thing reads at a glance right under
    the masthead -- this is the report's most-scanned piece of reasoning, not a buried detail. */
-.cc-card{margin-top:22px;margin-bottom:26px}
-.cc-top{display:flex;align-items:center;gap:16px;padding:0 1px 20px}
+.cc-card{margin-top:16px;margin-bottom:24px}
+.cc-top{display:flex;align-items:center;gap:16px;padding:0 1px 16px}
 .cc-score{font-family:'Source Serif 4',Georgia,serif;font-size:34px;font-weight:700;color:var(--ink);line-height:1;white-space:nowrap}
 .cc-score.perfect{color:var(--bull)}
 .cc-toptext{flex:1}
 .cc-title{font-size:15px;font-weight:600;color:var(--ink)}
 .cc-sub{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.4}
-.cc-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:20px}
+.cc-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:15px}
 /* Each criterion is its own elevated card -- "floating" above the page rather
    than a row in a flat table, so the five read as independent, weighable checks.
    This is the report's most-scanned reasoning, so the cards are sized to command
    real screen space, not tucked away as a compact aside. */
-.cc-col{background:#fff;border:1px solid var(--line);border-radius:12px;padding:26px 22px 24px;min-height:200px;position:relative;box-shadow:0 3px 10px rgba(22,35,63,.09);transition:box-shadow .15s ease}
+.cc-col{background:#fff;border:1px solid var(--line);border-radius:12px;padding:30px 22px 28px;min-height:236px;position:relative;box-shadow:0 3px 10px rgba(22,35,63,.09);transition:box-shadow .15s ease}
 .cc-col:hover{box-shadow:0 7px 18px rgba(22,35,63,.15)}
 .cc-col-top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-.cc-box{flex:none;width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700}
+.cc-box{flex:none;width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700}
 .cc-box.pass{background:var(--bull);color:#fff}
 .cc-box.fail{background:#fff;border:1.5px solid var(--line);color:transparent}
 .cc-box.unconfirmed{background:var(--panel);border:1.5px solid var(--line);color:var(--muted);font-size:12px}
-.cc-label{flex:1;font-size:15px;font-weight:600;color:var(--ink);line-height:1.25}
+.cc-label{flex:1;font-size:16px;font-weight:600;color:var(--ink);line-height:1.25}
 /* The info circle takes hover OR focus, so a click (which focuses a button) works
    identically to a hover -- no JS needed, and it stays keyboard-reachable. */
 .cc-info{flex:none;width:19px;height:19px;padding:0;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--muted);font:italic 700 11px/1 'Source Serif 4',Georgia,serif;display:flex;align-items:center;justify-content:center;cursor:help}
@@ -224,7 +224,7 @@ _DYNAMIC_CSS = r"""
 .general-brief .tl{padding:8px 12px}
 .general-brief .tl-v{font-size:14px}
 .general-brief .verdict-hero{padding:11px 0 9px}
-.general-brief .verdict-hero .vh-word{font-size:29px;margin-bottom:5px}
+.general-brief .verdict-hero .vh-word{font-size:29px;margin-bottom:0}
 .general-brief .question-line{font-size:14.5px;margin-bottom:11px}
 .general-brief .answer-card{padding:11px 14px}
 .general-brief .answer{font-size:14px;line-height:1.45}
@@ -702,7 +702,6 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
 <div class="verdict-hero">
   <div class="vh-cap">Our recommendation</div>
   <div class="vh-word {tone_class}">{escape(result.lead_rating.value)}</div>
-  <div class="vh-sub">Confidence <b>{escape(result.confidence.value)}</b></div>
 </div>
 {_conviction_checklist_html(result.conviction_checklist)}
 {_topline(result)}
