@@ -24,7 +24,16 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from backend.credentials import load as load_credentials
-from backend.jobs import find_report, list_reports, purge_incomplete, registry
+from backend.jobs import (
+    KEEP_REPORTS,
+    default_reports_root,
+    discard_all_reports,
+    find_report,
+    list_reports,
+    purge_expired_reports,
+    purge_incomplete,
+    registry,
+)
 from core.request_builder import build_request
 from services.research_runner import ResearchRunner
 from services.technical_runner import TechnicalRunner
@@ -33,7 +42,9 @@ logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
-REPORTS_ROOT = ROOT / "output" / "web-sessions"
+# Reports go to the system temp directory, not into the project. Overridable
+# with RESEARCHEUS_REPORTS_DIR for a deployment that mounts a volume.
+REPORTS_ROOT = default_reports_root()
 
 RESEARCH_MODES = {"general", "deep", "comparison"}
 
@@ -48,12 +59,14 @@ _run_slots = threading.Semaphore(MAX_CONCURRENT_RUNS)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     REPORTS_ROOT.mkdir(parents=True, exist_ok=True)
-    # Clear what a previous crash left behind, mirroring the desktop app's
-    # startup purge -- but only *unfinished* runs. Finished reports are kept:
-    # deleting them would break every link already shared.
+    # Crash leftovers (directories with no finished report) always go. Expired
+    # reports go too unless the operator asked to keep them.
     purge_incomplete(REPORTS_ROOT)
+    purge_expired_reports(REPORTS_ROOT)
     yield
     registry.shutdown()
+    # Reports are temporary: leave nothing behind on the way out.
+    discard_all_reports(REPORTS_ROOT)
 
 
 app = FastAPI(title="Researcheus Maximus", lifespan=lifespan)
@@ -64,8 +77,8 @@ class ResearchStart(BaseModel):
     mode: str = "general"
 
 
-def _live_provider():
-    """A live provider when credentials are available, else None.
+def _provider():
+    """The research provider: live by default, demo only when forced.
 
     Keys are resolved server-side (environment, else the same OS keychain the
     desktop app uses). The browser never sends a key and the API never accepts
@@ -73,7 +86,9 @@ def _live_provider():
     """
     credentials = load_credentials()
     if not credentials.live_research:
-        return None
+        from research.demo_provider import DemoResearchProvider
+
+        return DemoResearchProvider()
     from research.live_provider import LiveResearchProvider
 
     return LiveResearchProvider(
@@ -103,7 +118,7 @@ def _run_research(job_id: str, prompt: str, mode: str) -> None:
     try:
         request = build_request(prompt, mode)
         registry.update(job_id, stage="Retrieving evidence")
-        runner = ResearchRunner(provider=_live_provider())
+        runner = ResearchRunner(provider=_provider())
         prepared = runner.prepare(request)
         registry.update(job_id, stage="Building the report", session_root=prepared.session.root)
         job_dir.mkdir(parents=True, exist_ok=True)
@@ -216,7 +231,8 @@ def view_report(job_id: str) -> FileResponse:
 @app.get("/api/reports")
 def recent_reports() -> dict:
     """Finished reports, newest first, so past work stays findable."""
-    return {"reports": list_reports(REPORTS_ROOT)}
+    purge_expired_reports(REPORTS_ROOT)
+    return {"reports": list_reports(REPORTS_ROOT), "retained": KEEP_REPORTS}
 
 
 @app.get("/api/health")
@@ -226,7 +242,7 @@ def health() -> dict:
     The frontend uses this to say up front when a workflow is unavailable,
     rather than letting the user start a run that is certain to fail.
     """
-    return {"status": "ok", **load_credentials().status()}
+    return {"status": "ok", "reports_retained": KEEP_REPORTS, **load_credentials().status()}
 
 
 # The frontend is served last so /api and /r win over the static mount.

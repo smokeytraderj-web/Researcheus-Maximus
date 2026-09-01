@@ -1,21 +1,30 @@
 """Research job tracking and finished-report storage for the web backend.
 
-Two different lifetimes are deliberately kept apart:
+Reports are **temporary by default**. They are written to the system temp
+directory -- never into the project -- expire after REPORT_TTL, and the whole
+directory is deleted when the server stops. Nothing accumulates, matching the
+desktop app's disposable-session rule, where the report the user deliberately
+exports is the only retained artifact.
 
-* The **job record** is in-memory progress state for one run. It only exists so
-  the browser can poll a run it just started, and it expires quickly.
-* The **report** is a file on disk. A shared link must keep working after the
-  job record has expired and after the server has restarted, so reports are
-  never tied to the in-memory registry and are never deleted on startup.
+The consequence is deliberate and worth stating: a shared link is good for the
+lifetime of the server plus the TTL, not forever. Set RESEARCHEUS_KEEP_REPORTS=1
+to keep reports instead, which is what a hosted deployment with a mounted volume
+wants.
 
-Temporary *session* data (working files, chart intermediates) still follows the
-desktop app's disposable-session rule and is removed as soon as a run ends.
+Two lifetimes are kept apart within that:
+
+* The **job record** is in-memory progress state, only so the browser can poll
+  a run it just started.
+* The **report file** outlives the job record, so a link still resolves after
+  the run has been forgotten -- until it expires or the server stops.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
+import tempfile
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -27,6 +36,48 @@ JobStatus = Literal["running", "ready", "failed"]
 
 # How long a *job record* stays pollable. Not how long a report lives.
 JOB_TTL = timedelta(hours=6)
+
+# How long a finished report survives before it is deleted. Reports are
+# temporary unless RESEARCHEUS_KEEP_REPORTS is set.
+REPORT_TTL = timedelta(hours=int(os.environ.get("RESEARCHEUS_REPORT_TTL_HOURS", "6")))
+KEEP_REPORTS = os.environ.get("RESEARCHEUS_KEEP_REPORTS", "").strip().lower() in {"1", "true", "yes"}
+
+
+def default_reports_root() -> Path:
+    """Where reports are written.
+
+    The system temp directory, not the project: a research tool should not
+    silently accumulate client-question output inside the user's source tree.
+    A deployment that wants durable links overrides this with
+    RESEARCHEUS_REPORTS_DIR and mounts a volume there.
+    """
+    override = os.environ.get("RESEARCHEUS_REPORTS_DIR", "").strip()
+    if override:
+        return Path(override)
+    return Path(tempfile.gettempdir()) / "researcheus-reports"
+
+
+def purge_expired_reports(reports_root: Path) -> int:
+    """Delete reports past REPORT_TTL. Returns how many went."""
+    if KEEP_REPORTS or not reports_root.is_dir():
+        return 0
+    cutoff = datetime.now(timezone.utc) - REPORT_TTL
+    removed = 0
+    for entry in reports_root.iterdir():
+        if not entry.is_dir():
+            continue
+        modified = datetime.fromtimestamp(entry.stat().st_mtime, timezone.utc)
+        if modified < cutoff:
+            shutil.rmtree(entry, ignore_errors=True)
+            removed += 1
+    return removed
+
+
+def discard_all_reports(reports_root: Path) -> None:
+    """Delete every report. Called on shutdown so nothing is left behind."""
+    if KEEP_REPORTS:
+        return
+    shutil.rmtree(reports_root, ignore_errors=True)
 
 # Job ids are generated here and also arrive from the URL, where they index
 # straight into the reports directory -- so they must be validated as opaque

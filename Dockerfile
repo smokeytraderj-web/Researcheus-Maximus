@@ -29,11 +29,13 @@ COPY security/ ./security/
 COPY services/ ./services/
 COPY web/ ./web/
 
-# Reports are written here. Mount a volume at this path to keep shared links
-# working across container restarts -- without one, every redeploy breaks
-# every link already shared.
-RUN mkdir -p /app/output/web-sessions
-VOLUME ["/app/output"]
+# Reports are temporary by default and deleted when the server stops. A hosted
+# deployment usually wants the opposite -- links that survive a redeploy -- so
+# it points them at a mounted volume and opts into retention.
+ENV RESEARCHEUS_REPORTS_DIR=/app/reports \
+    RESEARCHEUS_KEEP_REPORTS=1
+RUN mkdir -p /app/reports
+VOLUME ["/app/reports"]
 
 # Hosts that inject $PORT (Railway, Render, Fly) override this.
 ENV PORT=8000

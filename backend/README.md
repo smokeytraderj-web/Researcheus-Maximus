@@ -42,6 +42,10 @@ configured purely through the environment.
 | `RESEARCHEUS_SYNTHESIS_PROVIDER` | Provider name (default `OpenAI`). |
 | `RESEARCHEUS_MODEL` | Optional model override. |
 | `RESEARCHEUS_TVREMIX_KEY` | TV Remix key; required for Technical Quick Report. |
+| `RESEARCHEUS_DEMO` | Set to `1` to force synthetic output. |
+| `RESEARCHEUS_REPORTS_DIR` | Where reports are written (default: system temp). |
+| `RESEARCHEUS_KEEP_REPORTS` | Set to `1` to keep reports instead of deleting them. |
+| `RESEARCHEUS_REPORT_TTL_HOURS` | Report lifetime, default 6. |
 
 The browser never sends a key and the API never accepts one — credentials must
 not cross this boundary. `/api/health` reports only *whether* each key was
@@ -69,29 +73,31 @@ exhausting the machine.
 
 ## Sessions and retention
 
-Two lifetimes are kept deliberately apart:
+**Reports are temporary.** They are written to the system temp directory --
+never into the project -- expire after `RESEARCHEUS_REPORT_TTL_HOURS` (default
+6), and the whole directory is deleted when the server stops. Nothing
+accumulates, matching the desktop app's disposable-session rule.
+
+The trade-off is deliberate: **a shared link is good for the life of the server,
+not forever.** For durable links, set `RESEARCHEUS_KEEP_REPORTS=1` and point
+`RESEARCHEUS_REPORTS_DIR` at a mounted volume (the Docker image does both).
+
+Within that, two lifetimes are kept apart:
 
 * **Job records** are in-memory progress state, only so the browser can poll a
   run it just started. They expire after six hours.
-* **Reports** are files under `output/web-sessions/<id>/`. A shared link must
-  keep working, so `/r/{id}` resolves the report from disk and never consults
-  the job registry -- links survive job expiry and server restarts. Startup
-  purges only *unfinished* directories (crash leftovers), never finished
-  reports.
+* **Report files** outlive the job record, so `/r/{id}` still resolves after the
+  run has been forgotten -- until the report expires or the server stops.
 
-Temporary session data (working files, chart intermediates) still follows the
-desktop app's disposable-session rule and is deleted as soon as a run ends,
-including on failure. The desktop app's exported HTML remains the record copy,
-and the Track Record log is still written by the desktop app only.
-
-Reports accumulate on disk. Delete `output/web-sessions/` to clear them; doing
-so breaks any link already shared.
+Temporary session data (working files, chart intermediates) is deleted as soon
+as a run ends, including on failure. The desktop app's exported HTML remains the
+record copy, and the Track Record log is still written by the desktop app only.
 
 ## Deploying
 
 ```bash
 docker build -t researcheus .
-docker run -p 8000:8000 -v researcheus-reports:/app/output \
+docker run -p 8000:8000 -v researcheus-reports:/app/reports \
   -e RESEARCHEUS_API_KEY=... -e RESEARCHEUS_TVREMIX_KEY=... researcheus
 ```
 
@@ -100,8 +106,9 @@ PySide6 and pywin32 — neither is imported outside `ui/`) plus the backend's
 own dependencies. Verified: the whole stack runs with no GUI toolkit and no
 keyring installed.
 
-**Mount a volume at `/app/output`.** Reports live there, so without one every
-redeploy breaks every link already shared.
+**Mount a volume at `/app/reports`.** The image opts into report retention so
+hosted links survive a redeploy; without a volume, each redeploy still wipes
+them.
 
 Hosts that inject `$PORT` (Railway, Render, Fly) are handled. Set credentials
 as environment variables — a deployed server has no user keychain.

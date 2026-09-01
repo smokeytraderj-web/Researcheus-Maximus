@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import unittest
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import os
 import tempfile
@@ -12,10 +12,14 @@ from unittest import mock
 
 from backend.jobs import (
     JOB_TTL,
+    REPORT_TTL,
     JobRegistry,
+    default_reports_root,
+    discard_all_reports,
     find_report,
     is_valid_job_id,
     list_reports,
+    purge_expired_reports,
     purge_incomplete,
 )
 from backend.credentials import SYNTHESIS_ENV, TVREMIX_ENV
@@ -152,6 +156,33 @@ class SharedReportLinkTests(unittest.TestCase):
     def test_listing_is_empty_when_nothing_has_been_produced(self) -> None:
         self.assertEqual(list_reports(self.root), [])
 
+    def test_reports_default_to_the_temp_directory_not_the_project(self) -> None:
+        # A research tool must not silently accumulate output inside the repo.
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("RESEARCHEUS_REPORTS_DIR", None)
+            root = default_reports_root()
+        self.assertTrue(str(root).startswith(tempfile.gettempdir()))
+        self.assertNotIn("Researcheus-Maximus", str(root))
+
+    def test_reports_directory_can_be_overridden_for_deployment(self) -> None:
+        with mock.patch.dict(os.environ, {"RESEARCHEUS_REPORTS_DIR": "/srv/reports"}):
+            self.assertEqual(default_reports_root(), Path("/srv/reports"))
+
+    def test_expired_reports_are_deleted(self) -> None:
+        fresh = self._write_report("a" * 12)
+        stale = self._write_report("b" * 12)
+        old = (datetime.now(timezone.utc) - REPORT_TTL - timedelta(hours=1)).timestamp()
+        os.utime(stale.parent, (old, old))
+        removed = purge_expired_reports(self.root)
+        self.assertEqual(removed, 1)
+        self.assertTrue(fresh.exists())
+        self.assertFalse(stale.parent.exists())
+
+    def test_shutdown_leaves_nothing_behind(self) -> None:
+        self._write_report("a" * 12)
+        discard_all_reports(self.root)
+        self.assertFalse(self.root.exists())
+
 
 class CredentialResolutionTests(unittest.TestCase):
     """The web server must find the same keys the desktop app remembers."""
@@ -188,12 +219,22 @@ class CredentialResolutionTests(unittest.TestCase):
         self.assertEqual(credentials.tvremix_key, "env-value")
         self.assertEqual(credentials.tvremix_source, "environment")
 
-    def test_missing_key_disables_the_workflow(self) -> None:
+    def test_live_research_does_not_require_an_ai_key(self) -> None:
+        # Market data comes from yfinance and TV Remix; the synthesis key only
+        # buys an AI-written narrative. Gating live mode on it served synthetic
+        # numbers to real questions, which is the worst failure this app has.
         with mock.patch.object(secret_store, "load_secret", return_value=""):
             credentials = load_credentials()
-        self.assertFalse(credentials.live_research)
+        self.assertTrue(credentials.live_research)
+        self.assertFalse(credentials.ai_synthesis)
         self.assertFalse(credentials.technical_research)
         self.assertEqual(credentials.synthesis_source, "none")
+
+    def test_demo_is_only_ever_explicit(self) -> None:
+        with mock.patch.dict(os.environ, {"RESEARCHEUS_DEMO": "1"}):
+            self.assertFalse(load_credentials().live_research)
+        with mock.patch.dict(os.environ, {"RESEARCHEUS_DEMO": "0"}):
+            self.assertTrue(load_credentials().live_research)
 
     def test_status_never_exposes_a_key(self) -> None:
         os.environ[SYNTHESIS_ENV] = "super-secret-value"

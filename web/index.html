@@ -137,7 +137,10 @@ tailwind.config = {
       </div>
 
       <div id="recent" class="hidden mt-8 pt-6 border-t border-line2">
-        <div class="font-mono text-[10px] tracking-[0.16em] text-muted uppercase mb-3">Recent reports</div>
+        <div class="flex items-baseline justify-between gap-4 mb-3">
+          <span class="font-mono text-[10px] tracking-[0.16em] text-muted uppercase">Recent reports</span>
+          <span id="retentionNote" class="text-[11px] text-muted"></span>
+        </div>
         <ul id="recentList" class="space-y-1"></ul>
       </div>
 
@@ -265,6 +268,11 @@ tailwind.config = {
     fetch('/api/reports').then(function (r) { return r.json(); }).then(function (data) {
       var items = data.reports || [];
       if (!items.length) { el('recent').classList.add('hidden'); return; }
+      // Be explicit that links are not permanent, so nobody shares one
+      // expecting it to still resolve next week.
+      el('retentionNote').textContent = data.retained
+        ? 'Kept on this server'
+        : 'Temporary — cleared when the server stops';
       el('recentList').innerHTML = items.map(function (item) {
         var when = new Date(item.created_at).toLocaleString(undefined,
           { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
