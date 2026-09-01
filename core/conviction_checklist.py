@@ -43,6 +43,19 @@ WHY v2 DROPPED TWO CRITERIA (measured on 50 large-cap US equities, 2026-09-01):
   documented predictors of cross-sectional equity returns. Trailing growth is
   still reported in the fundamental section; it is simply no longer a checkbox.
 
+v2.1 widened coverage without moving a threshold. Revisions now judges the
+*direction* of the estimate, which is meaningful whether or not the company is
+expected to earn money: requiring a positive base had silently excluded every
+loss-making issuer -- growth names and turnarounds among them -- from ever
+confirming the criterion. A percentage is still quoted only off a positive base,
+where it means something. The lookback also falls back through 60, 30 and 7 days
+because the 90-day column is not always populated (this feed writes an absent
+estimate as 0.0, which must not be read as a forecast of breaking even), and the
+report states which window it actually used. Quality falls back to net income
+over shareholders' equity when the summary field is absent. For a fund both
+criteria report "not applicable" rather than "not available", because they
+describe company earnings a fund does not have.
+
 Quality (ROE) earned its place on independence: against every other criterion
 its correlation ran between -0.27 and +0.07, so it genuinely adds a lens rather
 than restating the price-based ones. Measured pass rates for the v2 set are
@@ -56,7 +69,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-POLICY_VERSION = "2.0"
+POLICY_VERSION = "2.1"
 
 _RSI_FLOOR = 40.0
 _RSI_CEILING = 75.0
@@ -166,7 +179,9 @@ def _relative_strength(
     return ConvictionCriterion("relative_strength", "Relative strength", passed, detail)
 
 
-def _quality(return_on_equity: float | None) -> ConvictionCriterion:
+def _quality(return_on_equity: float | None, not_applicable: str = "") -> ConvictionCriterion:
+    if not_applicable:
+        return ConvictionCriterion("quality", "Quality", None, not_applicable)
     if return_on_equity is None:
         return ConvictionCriterion(
             "quality", "Quality", None, "Return on equity was not available from the data source."
@@ -179,26 +194,48 @@ def _quality(return_on_equity: float | None) -> ConvictionCriterion:
     return ConvictionCriterion("quality", "Quality", passed, detail)
 
 
+def _money(value: float) -> str:
+    """A signed dollar figure, so a negative estimate reads as -$2.00."""
+    return f"-${abs(value):,.2f}" if value < 0 else f"${value:,.2f}"
+
+
 def _revisions(
     eps_estimate_now: float | None,
     eps_estimate_prior: float | None,
+    window_days: int = _REVISION_LOOKBACK_DAYS,
+    not_applicable: str = "",
 ) -> ConvictionCriterion:
-    # A prior estimate at or below zero has no meaningful percentage change, and
-    # a loss-making forecast turning less negative is not the same signal, so it
-    # is reported unconfirmed rather than forced into a direction.
-    if eps_estimate_now is None or eps_estimate_prior is None or eps_estimate_prior <= 0:
+    if not_applicable:
+        return ConvictionCriterion("revisions", "Revisions", None, not_applicable)
+    if eps_estimate_now is None or eps_estimate_prior is None:
         return ConvictionCriterion(
             "revisions",
             "Revisions",
             None,
-            f"A consensus earnings estimate from {_REVISION_LOOKBACK_DAYS} days ago was not available to compare against.",
+            "No earlier consensus earnings estimate was available to compare against.",
         )
+    # Direction is the criterion, and direction is meaningful whether or not the
+    # company is expected to earn money: a next-year forecast moving from -$2.39
+    # to -$2.00 is analysts marking the business up, exactly as $9.20 from $8.60
+    # is. An earlier version required a positive base, which silently excluded
+    # every loss-making issuer -- growth names and turnarounds among them -- from
+    # ever confirming this criterion.
     passed = eps_estimate_now > eps_estimate_prior
-    change = eps_estimate_now / eps_estimate_prior - 1.0
+    now_text, prior_text = _money(eps_estimate_now), _money(eps_estimate_prior)
+    if eps_estimate_prior > 0:
+        # A percentage is only meaningful off a positive base.
+        change = f" ({eps_estimate_now / eps_estimate_prior - 1.0:+.1%})"
+        movement = "raised" if passed else "cut" if eps_estimate_now < eps_estimate_prior else "unchanged"
+    else:
+        change = ""
+        movement = (
+            "loss forecast narrowed" if passed
+            else "loss forecast widened" if eps_estimate_now < eps_estimate_prior
+            else "unchanged"
+        )
     detail = (
-        f"Next-year consensus EPS ${eps_estimate_now:,.2f} versus ${eps_estimate_prior:,.2f} "
-        f"{_REVISION_LOOKBACK_DAYS} days ago ({change:+.1%}) -- estimates "
-        f"{'raised' if passed else 'cut' if change < 0 else 'unchanged'}."
+        f"Next-year consensus EPS {now_text} versus {prior_text} "
+        f"{window_days} days ago{change} -- {movement}."
     )
     return ConvictionCriterion("revisions", "Revisions", passed, detail)
 
@@ -216,15 +253,22 @@ def evaluate_conviction_checklist(
     return_on_equity: float | None,
     eps_estimate_now: float | None,
     eps_estimate_prior: float | None,
+    revision_window_days: int = _REVISION_LOOKBACK_DAYS,
+    is_fund: bool = False,
     benchmark: str = "SPY",
 ) -> ConvictionChecklist:
     """Evaluate all five criteria from already-computed evidence; never fetches anything itself."""
+    # A fund has no return on equity and no earnings consensus -- not because
+    # the data is missing, but because the measures do not apply to it. Saying
+    # so is more honest than "not available", which reads like a retrieval
+    # failure the reader might expect to resolve on a retry.
+    fund_note = "Not applicable to a fund, which has no company earnings of its own." if is_fund else ""
     return ConvictionChecklist(
         (
             _trend(price, sma50, sma200),
             _momentum(rsi14, macd, macd_signal),
             _relative_strength(security_return_pct, benchmark_return_pct, benchmark),
-            _quality(return_on_equity),
-            _revisions(eps_estimate_now, eps_estimate_prior),
+            _quality(return_on_equity, fund_note),
+            _revisions(eps_estimate_now, eps_estimate_prior, revision_window_days, fund_note),
         )
     )

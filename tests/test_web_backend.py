@@ -27,7 +27,7 @@ from backend.credentials import SYNTHESIS_ENV, TVREMIX_ENV
 from backend.credentials import load as load_credentials
 from core.models import Horizon
 from core.request_builder import build_general_request, build_request
-from research.live_provider import _eps_revision, _recent_growth
+from research.live_provider import _eps_revision, _recent_growth, _return_on_equity
 from security import secret_store
 
 import pandas as pd
@@ -298,7 +298,7 @@ class GrowthFreshnessTests(unittest.TestCase):
 
 
 class EpsRevisionTests(unittest.TestCase):
-    """The Revisions criterion compares next-year consensus against 90 days ago."""
+    """The Revisions criterion compares next-year consensus against an earlier date."""
 
     @staticmethod
     def _trend_frame(**rows) -> pd.DataFrame:
@@ -308,25 +308,71 @@ class EpsRevisionTests(unittest.TestCase):
         frame = self._trend_frame(
             **{"0y": [8.81, 8.80, 8.76, 8.75, 8.75], "+1y": [9.53, 9.53, 9.71, 9.67, 9.65]}
         )
-        now, prior = _eps_revision(mock.Mock(eps_trend=frame))
+        now, prior, window = _eps_revision(mock.Mock(eps_trend=frame))
         # The next full year, not the current one which is largely locked in.
         self.assertAlmostEqual(now, 9.53)
         self.assertAlmostEqual(prior, 9.65)
+        self.assertEqual(window, 90)
+
+    def test_zero_is_treated_as_no_estimate_and_a_shorter_window_is_used(self) -> None:
+        # Paramount's real shape: 0.0 at 60 and 90 days is a null written as a
+        # number, not a forecast of breaking even. Taking it at face value would
+        # compare against an estimate that was never made.
+        frame = self._trend_frame(**{"+1y": [-7.38, -14.6, -14.6, 0.0, 0.0]})
+        now, prior, window = _eps_revision(mock.Mock(eps_trend=frame))
+        self.assertAlmostEqual(now, -7.38)
+        self.assertAlmostEqual(prior, -14.6)
+        self.assertEqual(window, 30)
+
+    def test_current_year_is_the_fallback_when_next_year_is_absent(self) -> None:
+        frame = self._trend_frame(**{"0y": [8.81, 8.80, 8.76, 8.75, 8.70]})
+        now, prior, window = _eps_revision(mock.Mock(eps_trend=frame))
+        self.assertAlmostEqual(now, 8.81)
+        self.assertAlmostEqual(prior, 8.70)
+        self.assertEqual(window, 90)
 
     def test_missing_frame_or_period_is_unavailable_never_guessed(self) -> None:
-        self.assertEqual(_eps_revision(mock.Mock(eps_trend=None)), (None, None))
-        self.assertEqual(_eps_revision(mock.Mock(eps_trend=pd.DataFrame())), (None, None))
-        only_current_year = self._trend_frame(**{"0y": [8.8, 8.8, 8.7, 8.7, 8.7]})
-        self.assertEqual(_eps_revision(mock.Mock(eps_trend=only_current_year)), (None, None))
+        self.assertEqual(_eps_revision(mock.Mock(eps_trend=None)), (None, None, 0))
+        self.assertEqual(_eps_revision(mock.Mock(eps_trend=pd.DataFrame())), (None, None, 0))
+        only_quarters = self._trend_frame(**{"0q": [1.0, 1.0, 1.0, 1.0, 1.0]})
+        self.assertEqual(_eps_revision(mock.Mock(eps_trend=only_quarters)), (None, None, 0))
 
     def test_a_provider_error_is_not_an_error(self) -> None:
         broken = mock.Mock()
         type(broken).eps_trend = mock.PropertyMock(side_effect=RuntimeError("upstream down"))
-        self.assertEqual(_eps_revision(broken), (None, None))
+        self.assertEqual(_eps_revision(broken), (None, None, 0))
 
-    def test_nan_estimates_are_unavailable(self) -> None:
-        frame = self._trend_frame(**{"+1y": [float("nan"), 9.5, 9.5, 9.5, 9.6]})
-        self.assertEqual(_eps_revision(mock.Mock(eps_trend=frame)), (None, None))
+    def test_all_prior_columns_unusable_is_unavailable(self) -> None:
+        frame = self._trend_frame(**{"+1y": [9.5, 0.0, 0.0, 0.0, float("nan")]})
+        self.assertEqual(_eps_revision(mock.Mock(eps_trend=frame)), (None, None, 0))
+
+
+class ReturnOnEquityTests(unittest.TestCase):
+    """Quality falls back to the statements rather than reporting nothing."""
+
+    @staticmethod
+    def _balance(equity: float) -> pd.DataFrame:
+        return pd.DataFrame(
+            [[equity, equity * 0.9]],
+            index=["Stockholders Equity"],
+            columns=pd.to_datetime(["2026-06-30", "2026-03-31"]),
+        )
+
+    def test_summary_field_is_used_when_present(self) -> None:
+        ticker = mock.Mock(quarterly_balance_sheet=self._balance(1_000.0))
+        self.assertAlmostEqual(_return_on_equity(ticker, {"returnOnEquity": 0.42}), 0.42)
+
+    def test_derived_from_net_income_and_equity_when_the_summary_is_missing(self) -> None:
+        ticker = mock.Mock(quarterly_balance_sheet=self._balance(1_000.0))
+        self.assertAlmostEqual(_return_on_equity(ticker, {"netIncomeToCommon": 250.0}), 0.25)
+
+    def test_negative_equity_is_unavailable_not_a_wild_ratio(self) -> None:
+        ticker = mock.Mock(quarterly_balance_sheet=self._balance(-500.0))
+        self.assertIsNone(_return_on_equity(ticker, {"netIncomeToCommon": 250.0}))
+
+    def test_no_inputs_at_all_is_unavailable(self) -> None:
+        ticker = mock.Mock(quarterly_balance_sheet=pd.DataFrame())
+        self.assertIsNone(_return_on_equity(ticker, {}))
 
 
 class FeedbackTests(unittest.TestCase):

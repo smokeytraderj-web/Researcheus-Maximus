@@ -812,7 +812,45 @@ def _nasdaq_quote_metadata(session, symbol: str) -> dict:
     }
 
 
-def _eps_revision(ticker) -> tuple[float | None, float | None]:
+def _return_on_equity(ticker, info) -> float | None:
+    """Return on equity, derived from the statements when the summary omits it.
+
+    ``info['returnOnEquity']`` is usually present, but it is a summary field and
+    goes missing on issuers whose statements are perfectly complete. Net income
+    over shareholders' equity is the same measure computed from the filing, so
+    the criterion is reported unconfirmed only when the underlying figures are
+    genuinely absent -- never merely because one convenience field was empty.
+    """
+    summary = info.get("returnOnEquity")
+    if isinstance(summary, (int, float)) and summary == summary:  # not NaN
+        return float(summary)
+    net_income = info.get("netIncomeToCommon")
+    if not isinstance(net_income, (int, float)):
+        return None
+    try:
+        balance = ticker.quarterly_balance_sheet
+    except Exception:  # noqa: BLE001 - a missing statement is not an error
+        return None
+    if balance is None or getattr(balance, "empty", True):
+        return None
+    for row in ("Stockholders Equity", "Total Stockholder Equity", "Common Stock Equity"):
+        if row not in balance.index:
+            continue
+        series = balance.loc[row].dropna()
+        if series.empty:
+            continue
+        try:
+            equity = float(series.iloc[0])
+        except (TypeError, ValueError):
+            continue
+        # Negative equity makes the ratio meaningless rather than merely large.
+        if equity <= 0:
+            return None
+        return float(net_income) / equity
+    return None
+
+
+def _eps_revision(ticker) -> tuple[float | None, float | None, int]:
     """Consensus next-fiscal-year EPS estimate now, and the same estimate 90 days ago.
 
     This is the input to the Conviction Checklist's Revisions criterion: the
@@ -822,30 +860,51 @@ def _eps_revision(ticker) -> tuple[float | None, float | None]:
 
     yfinance exposes ``eps_trend`` as a frame indexed by period ("0q", "+1q",
     "0y", "+1y") with columns for the current estimate and the estimate 7, 30,
-    60 and 90 days ago. The next full fiscal year is used rather than the
-    current one, which is largely locked in by the time three quarters have
-    reported. Returns (None, None) whenever the comparison cannot be made --
-    never a guessed direction.
+    60 and 90 days ago. The next full fiscal year is preferred over the current
+    one, which is largely locked in by the time three quarters have reported.
+
+    The lookback falls back through shorter windows because the far columns are
+    not always populated: Paramount's +1y estimate reads 0.0 at both 60 and 90
+    days -- a null written as a number, not a real forecast of breaking even --
+    while its 30-day column holds a genuine figure. Taking 0.0 at face value
+    would have compared against a fictitious estimate; refusing to fall back
+    would have reported "no data" for an issuer that plainly has some.
+
+    Returns (now, prior, window_days), or (None, None, 0) when no window can be
+    compared -- never a guessed direction. The window is returned so the report
+    can state which one it actually used.
     """
     try:
         trend = ticker.eps_trend
     except Exception:  # noqa: BLE001 - a missing estimate frame is not an error
-        return None, None
+        return None, None, 0
     if trend is None or getattr(trend, "empty", True):
-        return None, None
-    if "+1y" not in trend.index:
-        return None, None
-    row = trend.loc["+1y"]
-    prior_column = f"{_REVISION_LOOKBACK_DAYS}daysAgo"
-    if "current" not in row.index or prior_column not in row.index:
-        return None, None
-    try:
-        now, prior = float(row["current"]), float(row[prior_column])
-    except (TypeError, ValueError):
-        return None, None
-    if any(value != value for value in (now, prior)):  # NaN
-        return None, None
-    return now, prior
+        return None, None, 0
+
+    def _value(row, column) -> float | None:
+        if column not in row.index:
+            return None
+        try:
+            number = float(row[column])
+        except (TypeError, ValueError):
+            return None
+        # NaN, and 0.0 which this feed uses as "no estimate for that date".
+        if number != number or number == 0.0:
+            return None
+        return number
+
+    for period in ("+1y", "0y"):
+        if period not in trend.index:
+            continue
+        row = trend.loc[period]
+        now = _value(row, "current")
+        if now is None:
+            continue
+        for window in (_REVISION_LOOKBACK_DAYS, 60, 30, 7):
+            prior = _value(row, f"{window}daysAgo")
+            if prior is not None:
+                return now, prior, window
+    return None, None, 0
 
 
 def _recent_growth(ticker, info) -> tuple[float | None, float | None, str]:
@@ -1836,8 +1895,9 @@ class LiveResearchProvider:
         # Checklist v2 inputs: profitability, and the direction of consensus
         # estimates. Trailing growth above is still reported in the fundamental
         # section; it is no longer one of the five boxes.
-        raw_return_on_equity = info.get("returnOnEquity")
-        eps_estimate_now, eps_estimate_prior = _eps_revision(ticker)
+        raw_return_on_equity = _return_on_equity(ticker, info)
+        eps_estimate_now, eps_estimate_prior, revision_window = _eps_revision(ticker)
+        is_fund = quote_type.upper() in {"ETF", "MUTUALFUND", "MUTUAL FUND"}
         conviction_checklist = evaluate_conviction_checklist(
             price=snapshot.price,
             sma50=snapshot.sma50,
@@ -1851,13 +1911,11 @@ class LiveResearchProvider:
                 if checklist_spy_history is not None
                 else None
             ),
-            return_on_equity=(
-                float(raw_return_on_equity)
-                if isinstance(raw_return_on_equity, (int, float))
-                else None
-            ),
+            return_on_equity=raw_return_on_equity,
             eps_estimate_now=eps_estimate_now,
             eps_estimate_prior=eps_estimate_prior,
+            revision_window_days=revision_window or _REVISION_LOOKBACK_DAYS,
+            is_fund=is_fund,
         )
         fund_metrics = []
         if quote_type.upper() in {"ETF", "MUTUALFUND", "MUTUAL FUND"} or portfolio_fit is not None:

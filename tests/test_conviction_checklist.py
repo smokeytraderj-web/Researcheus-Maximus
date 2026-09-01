@@ -94,10 +94,33 @@ class ConvictionChecklistTests(unittest.TestCase):
     def test_revisions_unconfirmed_without_a_usable_prior_estimate(self):
         self.assertIsNone(_base(eps_estimate_prior=None).criteria[4].passed)
         self.assertIsNone(_base(eps_estimate_now=None).criteria[4].passed)
-        # A loss-making prior forecast has no meaningful percentage change, and
-        # "less negative" is not the same signal as a raise.
-        self.assertIsNone(_base(eps_estimate_prior=-1.2).criteria[4].passed)
-        self.assertIsNone(_base(eps_estimate_prior=0.0).criteria[4].passed)
+
+    def test_revisions_work_for_loss_making_issuers(self):
+        # A next-year forecast moving from -$2.39 to -$2.00 is analysts marking
+        # the business up, exactly as $9.20 from $8.60 is. Requiring a positive
+        # base silently excluded every loss-maker from ever confirming this.
+        narrowing = _base(eps_estimate_now=-2.00, eps_estimate_prior=-2.39).criteria[4]
+        self.assertTrue(narrowing.passed)
+        self.assertIn("narrowed", narrowing.detail)
+        self.assertIn("-$2.00", narrowing.detail)
+        widening = _base(eps_estimate_now=-5.17, eps_estimate_prior=-4.67).criteria[4]
+        self.assertFalse(widening.passed)
+        self.assertIn("widened", widening.detail)
+        # No percentage is quoted off a negative base, where it would be nonsense.
+        self.assertNotIn("%", narrowing.detail)
+
+    def test_revisions_state_the_window_actually_compared(self):
+        detail = _base(revision_window_days=30).criteria[4].detail
+        self.assertIn("30 days ago", detail)
+
+    def test_a_fund_reports_the_two_company_criteria_as_inapplicable(self):
+        # A fund has no return on equity and no earnings consensus. Saying "not
+        # available" would read as a retrieval failure that a retry might fix.
+        checklist = _base(is_fund=True)
+        for criterion in checklist.criteria[3:]:
+            self.assertIsNone(criterion.passed)
+            self.assertIn("Not applicable to a fund", criterion.detail)
+        self.assertEqual(checklist.unconfirmed_count, 2)
 
     def test_street_conviction_is_gone_from_the_policy(self):
         # Removed in v2: it passed 90% of the time across 50 large caps, so it

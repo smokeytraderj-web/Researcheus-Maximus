@@ -54,7 +54,7 @@ _DYNAMIC_CSS = r"""
 .question-line span{display:block;font-family:'IBM Plex Sans',Arial,sans-serif;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:5px}
 .reason-list{border-top:1px solid var(--line)}
 .reason-row{display:grid;grid-template-columns:42px 190px minmax(0,1fr);gap:18px;padding:14px 0;border-bottom:1px solid var(--line-2);align-items:start}
-.reason-index{font-family:'Source Serif 4',Georgia,serif;font-size:24px;line-height:1;color:var(--gold);font-weight:600}
+.reason-index{font-family:'Source Serif 4',Georgia,serif;font-size:24px;line-height:1;color:var(--ink);opacity:.4;font-weight:600}
 .reason-title{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);font-weight:600;padding-top:3px}
 .reason-copy{font-size:13px;color:var(--body);line-height:1.52}
 .comparison-table{width:100%;border-collapse:collapse;font-size:12px}
