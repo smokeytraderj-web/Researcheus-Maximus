@@ -81,28 +81,22 @@ tailwind.config = {
       <div class="mt-4 rounded-md bg-white border border-line border-t-[3px] border-t-gold p-6 sm:p-7 shadow-[0_1px_3px_rgba(22,35,63,0.06)]">
         <div class="flex items-center gap-2 mb-4">
           <span class="font-serif text-[15px] font-semibold text-gold">02</span>
-          <span class="font-serif text-[19px] font-semibold text-ink">Technical Quick Report</span>
+          <span class="font-serif text-[19px] font-semibold text-ink">Technical</span>
         </div>
-        <input
-          id="technicalBox"
-          type="text"
-          placeholder="Ticker or company name, e.g. AAPL or Apple"
-          class="w-full bg-panel border border-line rounded-[7px] text-[15px] text-ink leading-relaxed placeholder:text-muted p-4 focus:border-gold focus:border-2"
-        >
-        <div class="flex items-center justify-between mt-4">
-          <span class="text-[12.5px] text-body">Rating gauge, key levels, and price structure from TV Remix.</span>
+        <div class="flex items-center justify-between gap-4">
+          <span class="text-[12.5px] text-body">Full multi-timeframe technical read: price structure, momentum, relative strength, Fibonacci, and a risk plan.</span>
           <button
-            onclick="submitTechnical()"
+            onclick="openDeep()"
             class="shrink-0 rounded-[7px] bg-gold text-white font-sans font-bold text-sm px-6 py-2.5 hover:bg-[#A88742] transition-colors"
           >
-            Run Technical Quick Report
+            Open Technical Report
           </button>
         </div>
       </div>
 
       <div class="mt-6 flex justify-center gap-3">
-        <button onclick="openDeep()" class="text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2.5 hover:bg-panel hover:border-muted transition-colors">
-          Technical &nbsp;&rarr;
+        <button onclick="openQuickTechnical()" class="text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2.5 hover:bg-panel hover:border-muted transition-colors">
+          Quick Report &nbsp;&rarr;
         </button>
         <button onclick="openTrack()" class="text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2.5 hover:bg-panel hover:border-muted transition-colors">
           Track Record &nbsp;&rarr;
@@ -132,24 +126,14 @@ tailwind.config = {
     if (!text || !bridge) return;
     bridge.submitQuery(text);
   }
-  function submitTechnical() {
-    var text = document.getElementById('technicalBox').value.trim();
-    if (!text || !bridge) return;
-    bridge.submitTechnicalQuery(text);
-  }
   function openDeep() { if (bridge) bridge.openDeepAnalysis(); }
+  function openQuickTechnical() { if (bridge) bridge.openTechnicalAnalysis(); }
   function openTrack() { if (bridge) bridge.openTrackRecord(); }
   function openSettings() { if (bridge) bridge.openSettings(); }
   document.getElementById('queryBox').addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       submitQuery();
-    }
-  });
-  document.getElementById('technicalBox').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      submitTechnical();
     }
   });
 </script>
