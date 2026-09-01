@@ -94,6 +94,7 @@ tailwind.config = {
         ></textarea>
         <div class="flex items-center justify-end mt-4">
           <button
+            id="generateBtn"
             onclick="start('general', 'queryBox')"
             class="shrink-0 rounded-[7px] bg-gold text-white font-sans font-bold text-sm px-6 py-2.5 hover:bg-[#A88742] transition-colors"
           >
@@ -116,6 +117,7 @@ tailwind.config = {
         <div class="flex items-center justify-between gap-4 mt-4">
           <span class="text-[12.5px] text-body">Price structure, momentum, relative strength, Fibonacci, and a risk plan.</span>
           <button
+            id="deepBtn"
             onclick="start('deep', 'deepBox')"
             class="shrink-0 rounded-[7px] bg-gold text-white font-sans font-bold text-sm px-6 py-2.5 hover:bg-[#A88742] transition-colors"
           >
@@ -157,7 +159,7 @@ tailwind.config = {
 </div>
 
 <script>
-  var pollTimer = null, startedAt = 0, reportUrl = '';
+  var pollTimer = null, startedAt = 0, reportUrl = '', busy = false;
 
   function el(id) { return document.getElementById(id); }
 
@@ -166,6 +168,7 @@ tailwind.config = {
     el('statusCard').classList.add('hidden');
     el('statusDone').classList.add('hidden');
     el('statusError').classList.add('hidden');
+    el('statusError').textContent = '';
     el('statusBar').classList.remove('hidden');
     el('statusElapsed').textContent = '';
   }
@@ -176,7 +179,7 @@ tailwind.config = {
     el('statusError').classList.add('hidden');
     el('statusBar').classList.remove('hidden');
     el('statusStage').textContent = stage || 'Preparing evidence';
-    el('statusCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    el('statusCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   function tickElapsed() {
@@ -185,12 +188,48 @@ tailwind.config = {
     el('statusElapsed').textContent = mins > 0 ? mins + 'm ' + (secs % 60) + 's' : secs + 's';
   }
 
+  var ACTIONS = ['generateBtn', 'deepBtn', 'quickBtn'];
+
+  function setBusy(isBusy) {
+    // While a run is in flight every action is disabled *visibly*. Silently
+    // ignoring a click is indistinguishable from a broken button.
+    ACTIONS.forEach(function (id) {
+      var btn = el(id);
+      if (!btn || btn.dataset.unavailable === '1') { return; }
+      btn.disabled = isBusy;
+      btn.classList.toggle('opacity-40', isBusy);
+      btn.classList.toggle('cursor-not-allowed', isBusy);
+    });
+  }
+
+  function notice(message) {
+    el('statusCard').classList.remove('hidden');
+    el('statusBar').classList.add('hidden');
+    el('statusDone').classList.add('hidden');
+    el('statusStage').textContent = 'Nothing to research';
+    var box = el('statusError');
+    box.textContent = message;
+    box.classList.remove('hidden');
+    el('statusCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   function start(mode, boxId) {
-    // One run at a time: a second click would start another job server-side
-    // while only the newest poller stayed attached to it.
-    if (pollTimer) { return; }
+    // One run at a time -- a second job would run server-side with nothing
+    // polling it -- but say so rather than swallowing the click. The flag is
+    // set synchronously here: pollTimer only exists once the POST resolves, so
+    // guarding on it alone let a fast second click through that window.
+    if (busy) {
+      notice('A research run is already in progress. Wait for it to finish, then try again.');
+      return;
+    }
     var text = el(boxId).value.trim();
-    if (!text) { el(boxId).focus(); return; }
+    if (!text) {
+      notice('Enter a company name or ticker first.');
+      el(boxId).focus();
+      return;
+    }
+    busy = true;
+    setBusy(true);
     resetStatus();
     showRunning('Preparing evidence');
     startedAt = Date.now();
@@ -231,7 +270,12 @@ tailwind.config = {
   }
 
   function showReady(job) {
+    busy = false;
+    setBusy(false);
     el('statusBar').classList.add('hidden');
+    // A notice from an earlier blocked click must not sit under a success.
+    el('statusError').classList.add('hidden');
+    el('statusError').textContent = '';
     el('statusDone').classList.remove('hidden');
     el('statusStage').textContent = 'Report ready';
     var name = job.company_name || job.ticker || 'This security';
@@ -248,6 +292,8 @@ tailwind.config = {
   }
 
   function showFailed(message) {
+    busy = false;
+    setBusy(false);
     el('statusCard').classList.remove('hidden');
     el('statusBar').classList.add('hidden');
     el('statusDone').classList.add('hidden');
@@ -319,6 +365,7 @@ tailwind.config = {
       el('quickBox').placeholder = 'Quick report — needs a TV Remix key';
       var btn = el('quickBtn');
       btn.disabled = true;
+      btn.dataset.unavailable = '1';
       btn.className = btn.className.replace('hover:bg-panel hover:border-muted', '') + ' opacity-40 cursor-not-allowed';
     }
   }).catch(function () {});
