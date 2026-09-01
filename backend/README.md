@@ -116,6 +116,18 @@ them.
 Hosts that inject `$PORT` (Railway, Render, Fly) are handled. Set credentials
 as environment variables — a deployed server has no user keychain.
 
+## Running fully offline
+
+Tailwind and all 27 font files are vendored under `web/vendor/`, so the app
+itself makes no external requests — it runs with no network at all. Research
+naturally still needs the internet to reach Yahoo Finance and TV Remix; only
+the interface is self-contained.
+
+Generated reports deliberately keep their remote font link. A report is a
+single self-contained file meant to be opened anywhere, so a relative path to
+this project's fonts would break it; offline it falls back to the system serif
+and sans stacks, which is the intended degradation.
+
 ## Feedback
 
 Readers can mark a report useful or not and leave a comment; entries are stored

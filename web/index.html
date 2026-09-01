@@ -4,9 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Researcheus Maximus</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
 <script src="vendor/tailwind.js"></script>
 <script>
 tailwind.config = {
@@ -43,16 +41,6 @@ tailwind.config = {
 <body class="min-h-screen font-sans text-body antialiased">
 
 <div class="min-h-screen flex flex-col">
-
-  <!-- The desktop app's masthead, matched to ui/theme.py QFrame#TopBar: navy
-       ground, 2px gold rule, white serif wordmark, gold firm name. -->
-  <header class="h-14 shrink-0 bg-ink border-b-2 border-gold flex items-center justify-between px-8">
-    <div class="flex items-center gap-[10px] min-w-0">
-      <span class="font-serif text-[18px] font-bold text-white tracking-tight whitespace-nowrap">RESEARCHEUS MAXIMUS</span>
-      <span class="w-px h-[14px] bg-[#46567A] shrink-0"></span>
-      <span class="text-[9px] font-bold tracking-[0.3px] text-[#D8BF7D] uppercase truncate">Gottfried &amp; Somberg Wealth Management</span>
-    </div>
-  </header>
 
   <div class="flex-1 flex items-center justify-center px-6 py-16">
     <div class="w-full max-w-3xl">
@@ -397,10 +385,20 @@ tailwind.config = {
 
 
   // Enter submits; Shift+Enter inserts a newline, matching the desktop app.
-  [['queryBox', 'general'], ['deepBox', 'deep'], ['quickBox', 'technical']].forEach(function (pair) {
-    el(pair[0]).addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); start(pair[1], pair[0]); }
-    });
+  // Bound on the document, not the boxes: typing then clicking away moved focus
+  // out of the textarea, and a box-level listener then never fired -- Enter
+  // simply did nothing. From anywhere on the page Enter runs Generate Research;
+  // inside one of the other boxes it runs that box instead.
+  var BOX_MODES = { queryBox: 'general', deepBox: 'deep', quickBox: 'technical' };
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) { return; }
+    var id = e.target && e.target.id;
+    // Let a real button keep its own Enter behaviour.
+    if (e.target && e.target.tagName === 'BUTTON') { return; }
+    var boxId = BOX_MODES[id] ? id : 'queryBox';
+    if (boxId === 'quickBox' && el('quickBox').disabled) { return; }
+    e.preventDefault();
+    start(BOX_MODES[boxId], boxId);
   });
 
   // Say plainly whether this server is running live research or demo data, so a
