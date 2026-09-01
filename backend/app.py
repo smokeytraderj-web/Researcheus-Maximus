@@ -13,6 +13,7 @@ Run locally:
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -23,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from backend.credentials import load as load_credentials
-from backend.jobs import find_report, purge_incomplete, registry
+from backend.jobs import find_report, list_reports, purge_incomplete, registry
 from core.request_builder import build_request
 from services.research_runner import ResearchRunner
 from services.technical_runner import TechnicalRunner
@@ -35,6 +36,13 @@ WEB_DIR = ROOT / "web"
 REPORTS_ROOT = ROOT / "output" / "web-sessions"
 
 RESEARCH_MODES = {"general", "deep", "comparison"}
+
+# Each run is CPU- and network-heavy and holds a worker thread for minutes.
+# Without a cap, a handful of impatient clicks would exhaust the machine and
+# make every run slower, so excess requests are refused with a clear message
+# rather than silently queued behind an invisible backlog.
+MAX_CONCURRENT_RUNS = int(os.environ.get("RESEARCHEUS_MAX_CONCURRENT_RUNS", "3"))
+_run_slots = threading.Semaphore(MAX_CONCURRENT_RUNS)
 
 
 @asynccontextmanager
@@ -118,6 +126,8 @@ def _run_research(job_id: str, prompt: str, mode: str) -> None:
         # The message is shown to the user; never leak a traceback or a path.
         registry.update(job_id, status="failed", stage="Failed", error=str(exc) or "Research failed.")
         _discard_failed(job_id, job_dir)
+    finally:
+        _run_slots.release()
 
 
 def _run_technical(job_id: str, prompt: str) -> None:
@@ -150,6 +160,8 @@ def _run_technical(job_id: str, prompt: str) -> None:
         logger.exception("Technical job %s failed", job_id)
         registry.update(job_id, status="failed", stage="Failed", error=str(exc) or "Research failed.")
         _discard_failed(job_id, job_dir)
+    finally:
+        _run_slots.release()
 
 
 @app.post("/api/research")
@@ -161,10 +173,21 @@ def start_research(body: ResearchStart) -> dict:
     prompt = body.prompt.strip()
     if not prompt:
         raise HTTPException(400, "Enter a company name or ticker.")
-    job = registry.create(mode, prompt)
-    target = _run_technical if mode == "technical" else _run_research
-    args = (job.id, prompt) if mode == "technical" else (job.id, prompt, mode)
-    threading.Thread(target=target, args=args, daemon=True).start()
+    if not _run_slots.acquire(blocking=False):
+        raise HTTPException(
+            503,
+            f"{MAX_CONCURRENT_RUNS} research runs are already in progress. "
+            "Wait for one to finish, then try again.",
+        )
+    try:
+        job = registry.create(mode, prompt)
+        target = _run_technical if mode == "technical" else _run_research
+        args = (job.id, prompt) if mode == "technical" else (job.id, prompt, mode)
+        threading.Thread(target=target, args=args, daemon=True).start()
+    except Exception:
+        # The worker never started, so nothing else will release the slot.
+        _run_slots.release()
+        raise
     return job.public()
 
 
@@ -188,6 +211,12 @@ def view_report(job_id: str) -> FileResponse:
     if report is None:
         raise HTTPException(404, "That report is no longer available.")
     return FileResponse(report, media_type="text/html")
+
+
+@app.get("/api/reports")
+def recent_reports() -> dict:
+    """Finished reports, newest first, so past work stays findable."""
+    return {"reports": list_reports(REPORTS_ROOT)}
 
 
 @app.get("/api/health")

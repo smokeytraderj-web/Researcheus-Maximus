@@ -1,0 +1,18 @@
+# Server-side dependencies: requirements.txt without the desktop-only packages.
+# PySide6 is a GUI toolkit with no role on a server, and it is not imported
+# anywhere outside ui/. pywin32 is Windows-desktop only.
+#
+# keyring is deliberately absent too: on a server there is no user keychain,
+# and security.secret_store already degrades quietly when it is missing, so a
+# deployment is configured entirely through environment variables.
+reportlab>=4.4,<5
+pypdf>=5,<7
+yfinance>=0.2.66,<1
+curl_cffi>=0.13,<1
+certifi>=2025.1.31
+truststore>=0.10.4,<1
+pandas>=2.2,<3
+numpy>=2.0,<3
+matplotlib>=3.9,<4
+openai>=1.100,<3
+mcp>=2.1,<3

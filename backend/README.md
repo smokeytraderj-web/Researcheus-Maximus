@@ -59,9 +59,13 @@ for YCharts-backed runs.
 | `POST` | `/api/research` | Start a run. Body: `{"prompt": "...", "mode": "general\|deep\|comparison\|technical"}`. Returns a job id. |
 | `GET` | `/api/research/{id}` | Poll status: `running` / `ready` / `failed`. |
 | `GET` | `/r/{id}` | The finished report — this is the shareable link. |
-| `GET` | `/api/health` | Liveness, and whether live research is configured. |
+| `GET` | `/api/reports` | Finished reports, newest first. |
+| `GET` | `/api/health` | Liveness, and which workflows are configured. |
 
 Research takes minutes, so runs happen in a worker thread and the client polls.
+At most `RESEARCHEUS_MAX_CONCURRENT_RUNS` (default 3) run at once; beyond that
+the API returns 503 with a clear message rather than queueing invisibly or
+exhausting the machine.
 
 ## Sessions and retention
 
@@ -82,6 +86,25 @@ and the Track Record log is still written by the desktop app only.
 
 Reports accumulate on disk. Delete `output/web-sessions/` to clear them; doing
 so breaks any link already shared.
+
+## Deploying
+
+```bash
+docker build -t researcheus .
+docker run -p 8000:8000 -v researcheus-reports:/app/output \
+  -e RESEARCHEUS_API_KEY=... -e RESEARCHEUS_TVREMIX_KEY=... researcheus
+```
+
+The image installs `requirements-web.txt` (the desktop requirements without
+PySide6 and pywin32 — neither is imported outside `ui/`) plus the backend's
+own dependencies. Verified: the whole stack runs with no GUI toolkit and no
+keyring installed.
+
+**Mount a volume at `/app/output`.** Reports live there, so without one every
+redeploy breaks every link already shared.
+
+Hosts that inject `$PORT` (Railway, Render, Fly) are handled. Set credentials
+as environment variables — a deployed server has no user keychain.
 
 ## Not yet built
 

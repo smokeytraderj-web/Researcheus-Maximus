@@ -15,6 +15,7 @@ from backend.jobs import (
     JobRegistry,
     find_report,
     is_valid_job_id,
+    list_reports,
     purge_incomplete,
 )
 from backend.credentials import SYNTHESIS_ENV, TVREMIX_ENV
@@ -130,6 +131,26 @@ class SharedReportLinkTests(unittest.TestCase):
         outside = self.root / "secret.html"
         outside.write_text("<html></html>", encoding="utf-8")
         self.assertIsNone(find_report(self.root / "jobs", "../secret"))
+
+    def test_listing_is_newest_first_and_titled_from_the_filename(self) -> None:
+        older = self._write_report("a" * 12, "AXON_Long_Term_Research.html")
+        newer = self._write_report("b" * 12, "NVDA_Deep_Technical_Analysis.html")
+        os.utime(older, (1_000_000, 1_000_000))
+        os.utime(newer, (2_000_000, 2_000_000))
+        listed = list_reports(self.root)
+        self.assertEqual([item["title"] for item in listed],
+                         ["NVDA Deep Technical Analysis", "AXON Long Term Research"])
+        self.assertEqual(listed[0]["report_url"], "/r/" + "b" * 12)
+
+    def test_listing_ignores_unfinished_and_foreign_directories(self) -> None:
+        (self.root / ("c" * 12)).mkdir()        # no report yet
+        (self.root / "not-a-job-id").mkdir()    # not ours
+        self._write_report("d" * 12)
+        listed = list_reports(self.root)
+        self.assertEqual([item["id"] for item in listed], ["d" * 12])
+
+    def test_listing_is_empty_when_nothing_has_been_produced(self) -> None:
+        self.assertEqual(list_reports(self.root), [])
 
 
 class CredentialResolutionTests(unittest.TestCase):

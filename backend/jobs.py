@@ -63,6 +63,40 @@ def find_report(reports_root: Path, job_id: str) -> Path | None:
     return reports[0] if reports else None
 
 
+def list_reports(reports_root: Path, limit: int = 50) -> list[dict]:
+    """Finished reports on disk, newest first.
+
+    Read from the filesystem rather than the job registry so the list survives
+    a restart -- the same reason /r/{id} resolves from disk.
+    """
+    if not reports_root.is_dir():
+        return []
+    found: list[tuple[float, dict]] = []
+    for entry in reports_root.iterdir():
+        if not entry.is_dir() or not is_valid_job_id(entry.name):
+            continue
+        reports = sorted(entry.glob("*.html"))
+        if not reports:
+            continue
+        report = reports[0]
+        modified = report.stat().st_mtime
+        found.append(
+            (
+                modified,
+                {
+                    "id": entry.name,
+                    # The exported filename already carries ticker and report
+                    # type ("AXON_Medium_Term_Research.html").
+                    "title": report.stem.replace("_", " "),
+                    "created_at": datetime.fromtimestamp(modified, timezone.utc).isoformat(),
+                    "report_url": f"/r/{entry.name}",
+                },
+            )
+        )
+    found.sort(key=lambda item: item[0], reverse=True)
+    return [item[1] for item in found[:limit]]
+
+
 def purge_incomplete(reports_root: Path) -> None:
     """Remove crash leftovers: job directories holding no finished report.
 

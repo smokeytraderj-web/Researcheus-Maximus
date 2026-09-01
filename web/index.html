@@ -136,6 +136,11 @@ tailwind.config = {
         </button>
       </div>
 
+      <div id="recent" class="hidden mt-8 pt-6 border-t border-line2">
+        <div class="font-mono text-[10px] tracking-[0.16em] text-muted uppercase mb-3">Recent reports</div>
+        <ul id="recentList" class="space-y-1"></ul>
+      </div>
+
       <p id="modeNote" class="mt-5 text-center text-[12px] text-muted"></p>
 
     </div>
@@ -236,6 +241,7 @@ tailwind.config = {
     reportUrl = new URL(job.report_url, window.location.origin).href;
     el('openReport').href = reportUrl;
     el('copyLink').textContent = 'Copy shareable link';
+    loadRecent();
   }
 
   function showFailed(message) {
@@ -255,12 +261,36 @@ tailwind.config = {
     });
   }
 
+  function loadRecent() {
+    fetch('/api/reports').then(function (r) { return r.json(); }).then(function (data) {
+      var items = data.reports || [];
+      if (!items.length) { el('recent').classList.add('hidden'); return; }
+      el('recentList').innerHTML = items.map(function (item) {
+        var when = new Date(item.created_at).toLocaleString(undefined,
+          { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        return '<li class="flex items-baseline justify-between gap-4 py-1.5 border-b border-line2 last:border-0">' +
+               '<a href="' + item.report_url + '" target="_blank" rel="noopener" ' +
+               'class="text-[13.5px] text-ink hover:text-gold transition-colors">' + escapeHtml(item.title) + '</a>' +
+               '<span class="font-mono text-[11px] text-muted shrink-0">' + when + '</span></li>';
+      }).join('');
+      el('recent').classList.remove('hidden');
+    }).catch(function () {});
+  }
+
+  function escapeHtml(value) {
+    var div = document.createElement('div');
+    div.textContent = value;
+    return div.innerHTML;
+  }
+
   // Enter submits; Shift+Enter inserts a newline, matching the desktop app.
   [['queryBox', 'general'], ['deepBox', 'deep'], ['quickBox', 'technical']].forEach(function (pair) {
     el(pair[0]).addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); start(pair[1], pair[0]); }
     });
   });
+
+  loadRecent();
 
   // Say plainly whether this server is running live research or demo data, so a
   // synthetic report is never mistaken for a real one -- and disable a workflow
