@@ -131,7 +131,7 @@ tailwind.config = {
           placeholder="Quick report — ticker or company name"
           class="flex-1 bg-panel border border-line rounded-[7px] text-[14px] text-ink placeholder:text-muted px-4 py-2.5 focus:border-gold focus:border-2"
         >
-        <button onclick="start('technical', 'quickBox')" class="shrink-0 text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2.5 hover:bg-panel hover:border-muted transition-colors">
+        <button id="quickBtn" onclick="start('technical', 'quickBox')" class="shrink-0 text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2.5 hover:bg-panel hover:border-muted transition-colors">
           Quick Report &nbsp;&rarr;
         </button>
       </div>
@@ -178,6 +178,9 @@ tailwind.config = {
   }
 
   function start(mode, boxId) {
+    // One run at a time: a second click would start another job server-side
+    // while only the newest poller stayed attached to it.
+    if (pollTimer) { return; }
     var text = el(boxId).value.trim();
     if (!text) { el(boxId).focus(); return; }
     resetStatus();
@@ -190,7 +193,12 @@ tailwind.config = {
     })
     .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
     .then(function (res) {
-      if (!res.ok) { return showFailed((res.body && res.body.detail) || 'Could not start the research run.'); }
+      if (!res.ok) {
+        var detail = res.body && res.body.detail;
+        // FastAPI validation errors arrive as a list of objects, not a string.
+        if (Array.isArray(detail)) { detail = detail.map(function (d) { return d.msg; }).join('; '); }
+        return showFailed(detail || 'Could not start the research run.');
+      }
       poll(res.body.id);
     })
     .catch(function () { showFailed('Could not reach the research service.'); });
@@ -255,11 +263,19 @@ tailwind.config = {
   });
 
   // Say plainly whether this server is running live research or demo data, so a
-  // synthetic report is never mistaken for a real one.
+  // synthetic report is never mistaken for a real one -- and disable a workflow
+  // this server cannot run rather than letting it fail after a long wait.
   fetch('/api/health').then(function (r) { return r.json(); }).then(function (h) {
     el('modeNote').textContent = h.live_research
       ? 'Live research is configured on this server.'
       : 'Demonstration mode — reports use synthetic evidence and are not client recommendations.';
+    if (!h.technical_research) {
+      el('quickBox').disabled = true;
+      el('quickBox').placeholder = 'Quick report — needs a TV Remix key on the server';
+      var btn = el('quickBtn');
+      btn.disabled = true;
+      btn.className = btn.className.replace('hover:bg-panel hover:border-muted', '') + ' opacity-40 cursor-not-allowed';
+    }
   }).catch(function () {});
 </script>
 </body>

@@ -19,11 +19,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from backend.jobs import registry
+from backend.jobs import find_report, purge_incomplete, registry
 from core.request_builder import build_request
 from services.research_runner import ResearchRunner
 from services.technical_runner import TechnicalRunner
@@ -40,13 +40,10 @@ RESEARCH_MODES = {"general", "deep", "comparison"}
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     REPORTS_ROOT.mkdir(parents=True, exist_ok=True)
-    # Clear anything a previous crash left behind, mirroring the desktop app's
-    # startup purge of abandoned sessions.
-    for stale in REPORTS_ROOT.iterdir():
-        if stale.is_dir():
-            import shutil
-
-            shutil.rmtree(stale, ignore_errors=True)
+    # Clear what a previous crash left behind, mirroring the desktop app's
+    # startup purge -- but only *unfinished* runs. Finished reports are kept:
+    # deleting them would break every link already shared.
+    purge_incomplete(REPORTS_ROOT)
     yield
     registry.shutdown()
 
@@ -80,6 +77,18 @@ def _live_provider():
     )
 
 
+def _tvremix_key() -> str:
+    return os.environ.get("RESEARCHEUS_TVREMIX_KEY", "").strip()
+
+
+def _discard_failed(job_id: str, job_dir: Path) -> None:
+    """Drop a failed run's temporary session and its empty output directory."""
+    import shutil
+
+    registry.release_session(job_id)
+    shutil.rmtree(job_dir, ignore_errors=True)
+
+
 def _run_research(job_id: str, prompt: str, mode: str) -> None:
     """Execute one research run in a worker thread."""
     job_dir = REPORTS_ROOT / job_id
@@ -90,14 +99,15 @@ def _run_research(job_id: str, prompt: str, mode: str) -> None:
         prepared = runner.prepare(request)
         registry.update(job_id, stage="Building the report", session_root=prepared.session.root)
         job_dir.mkdir(parents=True, exist_ok=True)
-        report = runner.finalize(prepared, job_dir)
+        runner.finalize(prepared, job_dir)
         result = prepared.result
+        # finalize() already cleaned up the temporary session; the report now
+        # lives in job_dir and is served from there by find_report().
         registry.update(
             job_id,
             status="ready",
             stage="Ready",
-            report_path=report,
-            session_root=job_dir,
+            session_root=None,
             ticker=result.identity.ticker,
             company_name=result.identity.company_name,
             rating=result.lead_rating.value,
@@ -107,21 +117,23 @@ def _run_research(job_id: str, prompt: str, mode: str) -> None:
         logger.exception("Research job %s failed", job_id)
         # The message is shown to the user; never leak a traceback or a path.
         registry.update(job_id, status="failed", stage="Failed", error=str(exc) or "Research failed.")
+        _discard_failed(job_id, job_dir)
 
 
 def _run_technical(job_id: str, prompt: str) -> None:
     """Execute one Technical Quick Report run in a worker thread."""
     job_dir = REPORTS_ROOT / job_id
     try:
-        api_key = os.environ.get("RESEARCHEUS_TVREMIX_KEY", "").strip()
+        api_key = _tvremix_key()
         if not api_key:
             raise RuntimeError(
                 "The Technical Quick Report needs a TV Remix key configured on the server."
             )
         registry.update(job_id, stage="Reading technical structure")
         prepared = TechnicalRunner(api_key=api_key).prepare(prompt)
+        registry.update(job_id, session_root=prepared.session.root)
         job_dir.mkdir(parents=True, exist_ok=True)
-        destination = job_dir / "report.html"
+        destination = job_dir / prepared.suggested_html_filename
         destination.write_bytes(prepared.interactive_path.read_bytes())
         prepared.session.cleanup()
         report = prepared.report
@@ -129,8 +141,7 @@ def _run_technical(job_id: str, prompt: str) -> None:
             job_id,
             status="ready",
             stage="Ready",
-            report_path=destination,
-            session_root=job_dir,
+            session_root=None,
             ticker=getattr(report, "resolved_symbol", ""),
             company_name=getattr(report, "company_name", ""),
             demo_mode=False,
@@ -138,6 +149,7 @@ def _run_technical(job_id: str, prompt: str) -> None:
     except Exception as exc:  # noqa: BLE001
         logger.exception("Technical job %s failed", job_id)
         registry.update(job_id, status="failed", stage="Failed", error=str(exc) or "Research failed.")
+        _discard_failed(job_id, job_dir)
 
 
 @app.post("/api/research")
@@ -164,20 +176,32 @@ def research_status(job_id: str) -> dict:
     return job.public()
 
 
-@app.get("/r/{job_id}", response_class=HTMLResponse)
+@app.get("/r/{job_id}")
 def view_report(job_id: str) -> FileResponse:
-    """Serve the finished report -- this is the shareable link."""
-    job = registry.get(job_id)
-    if not job or job.status != "ready" or not job.report_path:
+    """Serve the finished report -- this is the shareable link.
+
+    Resolved from disk rather than from the job registry, so a link keeps
+    working after the in-memory job has expired and across server restarts.
+    The id is validated as opaque hex before it reaches the filesystem.
+    """
+    report = find_report(REPORTS_ROOT, job_id)
+    if report is None:
         raise HTTPException(404, "That report is no longer available.")
-    if not job.report_path.is_file():
-        raise HTTPException(404, "That report is no longer available.")
-    return FileResponse(job.report_path, media_type="text/html")
+    return FileResponse(report, media_type="text/html")
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"status": "ok", "live_research": _live_provider() is not None}
+    """Liveness, plus which workflows this server can actually run.
+
+    The frontend uses this to say up front when a workflow is unavailable,
+    rather than letting the user start a run that is certain to fail.
+    """
+    return {
+        "status": "ok",
+        "live_research": _live_provider() is not None,
+        "technical_research": bool(_tvremix_key()),
+    }
 
 
 # The frontend is served last so /api and /r win over the static mount.

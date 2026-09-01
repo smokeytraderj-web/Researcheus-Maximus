@@ -5,7 +5,16 @@ from __future__ import annotations
 import unittest
 from datetime import timedelta
 
-from backend.jobs import JobRegistry
+import tempfile
+from pathlib import Path
+
+from backend.jobs import (
+    JOB_TTL,
+    JobRegistry,
+    find_report,
+    is_valid_job_id,
+    purge_incomplete,
+)
 from core.models import Horizon
 from core.request_builder import build_general_request, build_request
 
@@ -48,8 +57,8 @@ class JobRegistryTests(unittest.TestCase):
         public = job.public()
         self.assertEqual(public["status"], "running")
         # Filesystem paths must never reach the client.
-        self.assertNotIn("report_path", public)
         self.assertNotIn("session_root", public)
+        self.assertNotIn("prompt", public)
 
     def test_ready_job_exposes_a_report_url(self) -> None:
         job = self.registry.create("general", "AXON")
@@ -65,11 +74,57 @@ class JobRegistryTests(unittest.TestCase):
 
     def test_expired_jobs_are_dropped(self) -> None:
         job = self.registry.create("general", "AXON")
-        job.created_at -= timedelta(hours=3)
+        job.created_at -= JOB_TTL + timedelta(minutes=1)
         self.assertIsNone(self.registry.get(job.id))
 
     def test_unknown_job_is_absent(self) -> None:
         self.assertIsNone(self.registry.get("nope"))
+
+
+class SharedReportLinkTests(unittest.TestCase):
+    """A shared link must outlive the job record and the server process."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _write_report(self, job_id: str, name: str = "AXON_Research.html") -> Path:
+        directory = self.root / job_id
+        directory.mkdir(parents=True)
+        report = directory / name
+        report.write_text("<html></html>", encoding="utf-8")
+        return report
+
+    def test_report_is_found_without_any_job_record(self) -> None:
+        # The registry is deliberately not involved: this is what makes a link
+        # survive job expiry and a server restart.
+        report = self._write_report("a1b2c3d4e5f6")
+        self.assertEqual(find_report(self.root, "a1b2c3d4e5f6"), report)
+
+    def test_missing_report_resolves_to_none(self) -> None:
+        self.assertIsNone(find_report(self.root, "a1b2c3d4e5f6"))
+
+    def test_startup_purge_keeps_finished_reports(self) -> None:
+        self._write_report("a1b2c3d4e5f6")
+        purge_incomplete(self.root)
+        self.assertIsNotNone(find_report(self.root, "a1b2c3d4e5f6"))
+
+    def test_startup_purge_removes_crash_leftovers(self) -> None:
+        (self.root / "ffffffffffff").mkdir(parents=True)
+        purge_incomplete(self.root)
+        self.assertFalse((self.root / "ffffffffffff").exists())
+
+    def test_job_ids_outside_the_hex_format_are_rejected(self) -> None:
+        for bad in ("../../etc/passwd", "..", "a" * 13, "A1B2C3D4E5F6", "", "a1b2c3d4e5f/"):
+            self.assertFalse(is_valid_job_id(bad), bad)
+
+    def test_traversal_attempt_never_resolves_a_file(self) -> None:
+        outside = self.root / "secret.html"
+        outside.write_text("<html></html>", encoding="utf-8")
+        self.assertIsNone(find_report(self.root / "jobs", "../secret"))
 
 
 if __name__ == "__main__":

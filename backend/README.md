@@ -52,11 +52,23 @@ Research takes minutes, so runs happen in a worker thread and the client polls.
 
 ## Sessions and retention
 
-Jobs live in process memory and expire after two hours; their temporary
-directories are deleted on expiry, on shutdown, and on startup (purging what a
-crash left behind). Nothing is persisted, matching the desktop app's
-disposable-session rule. The desktop app's exported HTML remains the record
-copy, and the Track Record log is still written by the desktop app only.
+Two lifetimes are kept deliberately apart:
+
+* **Job records** are in-memory progress state, only so the browser can poll a
+  run it just started. They expire after six hours.
+* **Reports** are files under `output/web-sessions/<id>/`. A shared link must
+  keep working, so `/r/{id}` resolves the report from disk and never consults
+  the job registry -- links survive job expiry and server restarts. Startup
+  purges only *unfinished* directories (crash leftovers), never finished
+  reports.
+
+Temporary session data (working files, chart intermediates) still follows the
+desktop app's disposable-session rule and is deleted as soon as a run ends,
+including on failure. The desktop app's exported HTML remains the record copy,
+and the Track Record log is still written by the desktop app only.
+
+Reports accumulate on disk. Delete `output/web-sessions/` to clear them; doing
+so breaks any link already shared.
 
 ## Not yet built
 
