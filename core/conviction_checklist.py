@@ -133,6 +133,107 @@ class ConvictionChecklist:
         return self.total_count > 0 and self.passed_count == self.total_count
 
 
+# How each criterion reads in prose, confirmed and not, for the narrative below.
+# Phrased as findings rather than labels, so the paragraph reads like an analyst
+# wrote it instead of a checklist being recited back.
+_NARRATIVE_PHRASES = {
+    "trend": (
+        "price is holding above both its 50-day and 200-day averages",
+        "price has lost one or both of its long-run averages",
+    ),
+    "momentum": (
+        "momentum is participating without being stretched",
+        "momentum is not confirming the move",
+    ),
+    "relative_strength": (
+        "it has outpaced the S&P 500 over the same window",
+        "it has lagged the S&P 500 over the same window",
+    ),
+    "quality": (
+        "the business earns a strong return on shareholder capital",
+        "returns on shareholder capital fall short of the bar",
+    ),
+    "revisions": (
+        "analysts have been raising next-year earnings estimates",
+        "analysts have been cutting next-year earnings estimates",
+    ),
+}
+
+
+def _join(parts: list[str]) -> str:
+    """Oxford-comma list: 'a', 'a and b', 'a, b, and c'."""
+    if len(parts) <= 1:
+        return parts[0] if parts else ""
+    if len(parts) == 2:
+        return f"{parts[0]} and {parts[1]}"
+    return ", ".join(parts[:-1]) + f", and {parts[-1]}"
+
+
+def checklist_narrative(checklist: "ConvictionChecklist", *, rating: str = "") -> str:
+    """One readable paragraph explaining how the five checks combine.
+
+    Assembled deterministically from the criteria themselves -- no model text is
+    an input, exactly as for the boxes -- so the prose can never drift from the
+    score it is describing. It names what confirmed, what did not, and what could
+    not be judged, and closes on what the dissent means for the rating, which is
+    the part a reader actually wants and the boxes alone cannot say.
+    """
+    if checklist is None or not checklist.criteria:
+        return ""
+    confirmed, failed, unknown, inapplicable = [], [], [], []
+    for item in checklist.criteria:
+        phrases = _NARRATIVE_PHRASES.get(item.key)
+        if not phrases:
+            continue
+        if item.passed is True:
+            confirmed.append(phrases[0])
+        elif item.passed is False:
+            failed.append(phrases[1])
+        # "Does not apply" and "could not be retrieved" are different findings,
+        # and telling a reader a fund's earnings data was unavailable would
+        # invite them to retry for something that does not exist.
+        elif item.detail.startswith("Not applicable"):
+            inapplicable.append(item.label.lower())
+        else:
+            unknown.append(item.label.lower())
+
+    judged = checklist.total_count - checklist.unconfirmed_count
+    sentences = [
+        f"{checklist.passed_count} of the {judged} checks that could be judged confirm."
+        if checklist.unconfirmed_count
+        else f"{checklist.passed_count} of the {checklist.total_count} checks confirm."
+    ]
+    if confirmed:
+        sentences.append(f"In favour: {_join(confirmed)}.")
+    if failed:
+        lead = "Against" if confirmed else "The evidence against"
+        sentences.append(f"{lead}: {_join(failed)}.")
+    if inapplicable:
+        sentences.append(
+            f"{_join([u.capitalize() for u in inapplicable])} "
+            f"{'do' if len(inapplicable) > 1 else 'does'} not apply to a fund, "
+            f"which has no company earnings of its own."
+        )
+    if unknown:
+        sentences.append(
+            f"{_join([u.capitalize() for u in unknown])} could not be judged from the available evidence, "
+            "so {} counted neither way.".format("they were" if len(unknown) > 1 else "it was")
+        )
+
+    # What the balance means. Stated as weight of evidence, never as a promise.
+    if rating:
+        if not failed and confirmed:
+            sentences.append(f"Nothing in the checklist argues against the {rating} view.")
+        elif failed and confirmed:
+            sentences.append(
+                f"The {rating} view rests on the balance of these, not on agreement: "
+                f"{'the dissent is' if len(failed) == 1 else 'the dissents are'} what would need to change first."
+            )
+        elif failed and not confirmed:
+            sentences.append(f"The checklist offers no support for a constructive view here, which the {rating} rating reflects.")
+    return " ".join(sentences)
+
+
 def _trend(price: float, sma50: float, sma200: float | None) -> ConvictionCriterion:
     if sma200 is None:
         return ConvictionCriterion(

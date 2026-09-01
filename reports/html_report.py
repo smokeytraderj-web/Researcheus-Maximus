@@ -16,6 +16,7 @@ from html import escape
 from pathlib import Path
 
 from core.assessments import fundamental_outlook, strip_conclusion_prefix, technical_setup
+from core.conviction_checklist import checklist_narrative
 from core.models import ChartRecord, Rating, ResearchRequest, ResearchResult
 
 
@@ -96,6 +97,10 @@ _DYNAMIC_CSS = r"""
 .why-block{margin-top:20px;padding:16px 18px;border-left:3px solid var(--gold);background:var(--panel);border-radius:0 4px 4px 0}
 .why-block .why-k{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-bottom:9px}
 .why-block p{font-size:13.5px;color:var(--body);line-height:1.62;margin:0}
+.why-block p + p{margin-top:10px}
+/* The deterministic checklist reading leads, because it is the part tied
+   directly to the five boxes above it; the analyst prose follows. */
+.why-block .why-checks{color:var(--ink)}
 .ev-note{font-size:12.5px;color:var(--body);margin-bottom:16px;padding:12px 15px;background:var(--panel);border-left:3px solid var(--gold);border-radius:0 4px 4px 0;line-height:1.6}
 .ev-note b{color:var(--ink)}
 .metric-group{margin-bottom:22px}
@@ -684,6 +689,9 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
     triggers = "".join(f"<li>{escape(item)}</li>" for item in trigger_items)
     demo = '<div class="demo-note">Demonstration mode uses synthetic evidence and is not a client investment recommendation.</div>' if result.demo_mode else ""
     qualitative_summary = strip_conclusion_prefix(result.executive_summary) or answer
+    # Deterministic reading of the five boxes, so the prose beneath them can
+    # never drift from the score above them.
+    checks_narrative = checklist_narrative(result.conviction_checklist, rating=result.lead_rating.value)
 
     # Numbers behind the rating, alongside the chart -- the chart carries the
     # visual case, so this strip carries the figures it cannot show.  Draw from
@@ -716,6 +724,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
   <div class="why-block">
     <div class="why-k">Why</div>
     <p>{escape(qualitative_summary)}</p>
+    {f'<p class="why-checks">{escape(checks_narrative)}</p>' if checks_narrative else ''}
   </div>
   <div class="reason-list" style="margin-top:20px">{reason_html}</div>
   {demo}
@@ -799,6 +808,9 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
     if plan is None:
         return _general_report(result, request)
     tone_class, _ = _tone(result.lead_rating)
+    # Same deterministic reading of the five boxes the General brief carries, so
+    # both reports explain the rating against the same evidence in the same voice.
+    checks_narrative = checklist_narrative(result.conviction_checklist, rating=result.lead_rating.value)
     # Use the raw price-vs-average signal (not the full narrative summary) so this
     # chart's takeaway doesn't just repeat "The call" section verbatim.
     price_insight = result.technical.signals[0] if result.technical.signals else result.technical.summary
@@ -897,7 +909,12 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
     <div class="pos-cell"><div class="pos-k">First target</div><div class="pos-v bull">{_money(plan.first_target)}</div></div>
     <div class="pos-cell"><div class="pos-k">Reward / risk</div><div class="pos-v">{plan.reward_risk:.2f}×</div></div>
   </div>
-  <p class="lede" style="margin-top:18px">{escape(result.request_response or result.executive_summary)}</p><p>{escape(result.technical.summary)}</p>{demo}
+  {_conviction_checklist_html(result.conviction_checklist)}
+  <div class="why-block">
+    <div class="why-k">Why this call</div>
+    {f'<p class="why-checks">{escape(checks_narrative)}</p>' if checks_narrative else ''}
+    <p>{escape(strip_conclusion_prefix(result.technical.summary))}</p>
+  </div>{demo}
 </section>
 <section id="plan"><div class="sec-head"><h2>Action plan</h2><span class="verdict v-neu">{escape(plan.stance)}</span></div>
   <div class="ladder-wrap"><div class="ladder" id="ladder"></div><div class="rr"><div class="rr-k">Reward to risk</div><div class="rr-big num">{plan.reward_risk:.2f}×</div><div class="rr-note">Entry midpoint {_money(entry_mid)} to first target {_money(plan.first_target)}, measured against a {_money(plan.stop_level)} stop.</div><div class="rrbar"><div class="up" style="flex:{max(plan.reward_risk, 0.01):.2f}"></div><div class="dn" style="flex:1"></div></div><div class="rrleg"><span>+{_money(max(0, plan.first_target-entry_mid))} upside</span><span>−{_money(max(0, entry_mid-plan.stop_level))} risk</span></div></div></div>
