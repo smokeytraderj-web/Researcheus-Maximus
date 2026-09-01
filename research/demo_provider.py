@@ -152,12 +152,13 @@ class DemoResearchProvider:
                 index=dates,
             )
             demo_snapshot = analyze_history(primary_history)
-            # Synthetic growth/target figures, deterministic per ticker like `price` above --
-            # so the checklist card renders (and scores honestly against synthetic data) in
-            # demo mode too, not only against live evidence.
-            revenue_growth_pct = -0.05 + (digest[3] / 255) * 0.45
-            earnings_growth_pct = -0.20 + (digest[4] / 255) * 0.60
-            analyst_target = price * (0.90 + (digest[5] / 255) * 0.35)
+            # Synthetic quality/revision figures, deterministic per ticker like `price`
+            # above -- so the checklist card renders (and scores honestly against synthetic
+            # data) in demo mode too, not only against live evidence. Ranges straddle the
+            # policy thresholds so demo tickers do not all score identically.
+            return_on_equity = -0.05 + (digest[3] / 255) * 0.45
+            eps_estimate_prior = 2.0 + (digest[4] / 255) * 8.0
+            eps_estimate_now = eps_estimate_prior * (0.94 + (digest[5] / 255) * 0.14)
             custom_range = bool(request.custom_start and request.custom_end)
             conviction_checklist = evaluate_conviction_checklist(
                 price=price,
@@ -170,9 +171,9 @@ class DemoResearchProvider:
                 benchmark_return_pct=(
                     windowed_return_pct(spy_history, custom_range=custom_range) if ticker != "SPY" else None
                 ),
-                revenue_growth_pct=revenue_growth_pct,
-                earnings_growth_pct=earnings_growth_pct,
-                analyst_target=analyst_target,
+                return_on_equity=return_on_equity,
+                eps_estimate_now=eps_estimate_now,
+                eps_estimate_prior=eps_estimate_prior,
             )
             chart_path = str(
                 render_chart(

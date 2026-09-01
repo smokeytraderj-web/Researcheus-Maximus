@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
 from core.models import ChartRecord, Confidence, Horizon, PortfolioFitAssessment, Rating, ResearchRequest, ResearchResult, SecurityIdentity, SourceRecord, TechnicalActionPlan
-from core.conviction_checklist import evaluate_conviction_checklist
+from core.conviction_checklist import _REVISION_LOOKBACK_DAYS, evaluate_conviction_checklist
 from research.events import build_event_context, event_metrics, event_signals
 from research.options import options_insight
 from research.tvremix_provider import (
@@ -810,6 +810,42 @@ def _nasdaq_quote_metadata(session, symbol: str) -> dict:
         "currency": (data.get("primaryData") or {}).get("currency") or "USD",
         "quoteType": data.get("stockType") or "Equity",
     }
+
+
+def _eps_revision(ticker) -> tuple[float | None, float | None]:
+    """Consensus next-fiscal-year EPS estimate now, and the same estimate 90 days ago.
+
+    This is the input to the Conviction Checklist's Revisions criterion: the
+    direction analysts are moving their forecasts, which is a far better
+    discriminator than where a price target happens to sit (see the policy
+    docstring in core/conviction_checklist.py for the measured evidence).
+
+    yfinance exposes ``eps_trend`` as a frame indexed by period ("0q", "+1q",
+    "0y", "+1y") with columns for the current estimate and the estimate 7, 30,
+    60 and 90 days ago. The next full fiscal year is used rather than the
+    current one, which is largely locked in by the time three quarters have
+    reported. Returns (None, None) whenever the comparison cannot be made --
+    never a guessed direction.
+    """
+    try:
+        trend = ticker.eps_trend
+    except Exception:  # noqa: BLE001 - a missing estimate frame is not an error
+        return None, None
+    if trend is None or getattr(trend, "empty", True):
+        return None, None
+    if "+1y" not in trend.index:
+        return None, None
+    row = trend.loc["+1y"]
+    prior_column = f"{_REVISION_LOOKBACK_DAYS}daysAgo"
+    if "current" not in row.index or prior_column not in row.index:
+        return None, None
+    try:
+        now, prior = float(row["current"]), float(row[prior_column])
+    except (TypeError, ValueError):
+        return None, None
+    if any(value != value for value in (now, prior)):  # NaN
+        return None, None
+    return now, prior
 
 
 def _recent_growth(ticker, info) -> tuple[float | None, float | None, str]:
@@ -1797,6 +1833,11 @@ class LiveResearchProvider:
             except Exception:
                 checklist_spy_history = None
         raw_revenue_growth, raw_earnings_growth, growth_period = _recent_growth(ticker, info)
+        # Checklist v2 inputs: profitability, and the direction of consensus
+        # estimates. Trailing growth above is still reported in the fundamental
+        # section; it is no longer one of the five boxes.
+        raw_return_on_equity = info.get("returnOnEquity")
+        eps_estimate_now, eps_estimate_prior = _eps_revision(ticker)
         conviction_checklist = evaluate_conviction_checklist(
             price=snapshot.price,
             sma50=snapshot.sma50,
@@ -1810,10 +1851,13 @@ class LiveResearchProvider:
                 if checklist_spy_history is not None
                 else None
             ),
-            revenue_growth_pct=raw_revenue_growth,
-            earnings_growth_pct=raw_earnings_growth,
-            growth_period=growth_period,
-            analyst_target=analyst_target,
+            return_on_equity=(
+                float(raw_return_on_equity)
+                if isinstance(raw_return_on_equity, (int, float))
+                else None
+            ),
+            eps_estimate_now=eps_estimate_now,
+            eps_estimate_prior=eps_estimate_prior,
         )
         fund_metrics = []
         if quote_type.upper() in {"ETF", "MUTUALFUND", "MUTUAL FUND"} or portfolio_fit is not None:

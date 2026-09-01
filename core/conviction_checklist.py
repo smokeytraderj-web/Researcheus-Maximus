@@ -12,7 +12,7 @@ LLM text becomes an input here. A criterion that cannot be evaluated from the
 available evidence is reported as not-confirmed (with the reason stated), not
 guessed or silently skipped, and its report row is what states that gap.
 
-CRITERIA (v1) -- deliberately spread across five independent lenses so the
+CRITERIA (v2) -- deliberately spread across five independent lenses so the
 checklist cannot be swept by one strong theme (e.g. a hot momentum name):
 
 1. Trend      -- price above both the 50-day and 200-day moving averages.
@@ -21,13 +21,32 @@ checklist cannot be swept by one strong theme (e.g. a hot momentum name):
                  with participation, but short of a blow-off top.
 3. Relative strength -- total return over the same lookback beats the broad
                  benchmark (SPY) by at least 0 percentage points.
-4. Growth     -- both revenue growth and earnings growth are positive, taken
-                 from the most recent quarter year-over-year where the data
-                 source supports that comparison, else the last completed
-                 fiscal year. The period is always stated alongside the
-                 figures, so a stale annual number is never shown as current.
-5. Street conviction -- the analyst mean price target sits above the current
-                 price (positive implied upside).
+4. Quality    -- return on equity above 15%: the business earns a strong return
+                 on the capital shareholders have in it.
+5. Revisions  -- the consensus next-fiscal-year earnings estimate is higher than
+                 it was 90 days ago; analysts are marking the business up.
+
+WHY v2 DROPPED TWO CRITERIA (measured on 50 large-cap US equities, 2026-09-01):
+
+* "Street conviction" (analyst mean target above price) passed **90%** of the
+  time, with median implied upside +13.7% and a worst case of only -4.8%. A box
+  that is ticked for nine names in ten cannot separate them, and the reason is
+  structural: sell-side targets carry a documented upward bias. Worse, it
+  correlated *negatively* with trend (-0.23) and momentum (-0.34) -- because
+  targets lag price, it quietly rewarded stocks that had fallen, which is the
+  opposite of what a reader sees in the words "street conviction".
+
+* "Growth" (trailing revenue and earnings both positive) was the least
+  computable criterion at 86% and is backward-looking. Revisions measure the
+  same question -- is the business getting better? -- in the direction that
+  actually moves prices, and estimate revisions are among the most consistently
+  documented predictors of cross-sectional equity returns. Trailing growth is
+  still reported in the fundamental section; it is simply no longer a checkbox.
+
+Quality (ROE) earned its place on independence: against every other criterion
+its correlation ran between -0.27 and +0.07, so it genuinely adds a lens rather
+than restating the price-based ones. Measured pass rates for the v2 set are
+32-71% with 94-100% evaluable, so each box discriminates.
 
 Changing a threshold, adding, or removing a criterion is a policy change: bump
 POLICY_VERSION and update this docstring in the same change.
@@ -37,10 +56,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-POLICY_VERSION = "1.0"
+POLICY_VERSION = "2.0"
 
 _RSI_FLOOR = 40.0
 _RSI_CEILING = 75.0
+# Return on equity that marks a genuinely profitable business rather than one
+# merely in the black. Measured pass rate 68% across the large-cap sample.
+_ROE_FLOOR = 0.15
+# Lookback for the estimate-revision comparison. Shorter windows are dominated
+# by noise around a single earnings date.
+_REVISION_LOOKBACK_DAYS = 90
 
 # Plain-English, client-facing gloss for each criterion -- what it measures, not
 # what this security scored.  Fixed per key, versioned with the policy above;
@@ -49,8 +74,8 @@ _EXPLANATIONS = {
     "trend": "The stock's price relative to its own longer-run moving averages -- a measure of whether it sits in a sustained uptrend or downtrend.",
     "momentum": "The strength of short-term buying pressure: trending with participation, short of the overbought extreme where a pullback becomes likely.",
     "relative_strength": "The stock's total return against the S&P 500 over the same period -- outperformance, not simply a rising price.",
-    "growth": "Year-over-year growth in both revenue and earnings -- evidence the underlying business is expanding, not just the share price.",
-    "street_conviction": "The average Wall Street analyst price target compared with the current price, expressed as implied upside or downside.",
+    "quality": "How much profit the company earns on the money shareholders have invested in it -- a high figure means the business itself is genuinely profitable, not just growing.",
+    "revisions": "Whether analysts have raised or cut their earnings forecasts for next year over the past three months -- the direction expectations are moving, rather than where they stand.",
 }
 
 
@@ -141,35 +166,41 @@ def _relative_strength(
     return ConvictionCriterion("relative_strength", "Relative strength", passed, detail)
 
 
-def _growth(
-    revenue_growth_pct: float | None,
-    earnings_growth_pct: float | None,
-    growth_period: str = "",
-) -> ConvictionCriterion:
-    if revenue_growth_pct is None or earnings_growth_pct is None:
+def _quality(return_on_equity: float | None) -> ConvictionCriterion:
+    if return_on_equity is None:
         return ConvictionCriterion(
-            "growth", "Growth", None, "Revenue and/or earnings growth were not both available from the data source."
+            "quality", "Quality", None, "Return on equity was not available from the data source."
         )
-    passed = revenue_growth_pct > 0 and earnings_growth_pct > 0
-    # State the period. An unlabelled growth figure reads as current, and the
-    # underlying source may be reporting a fiscal year that closed months ago.
-    period = f" ({growth_period})" if growth_period else ""
+    passed = return_on_equity > _ROE_FLOOR
     detail = (
-        f"Revenue growth {revenue_growth_pct:+.1%} and earnings growth {earnings_growth_pct:+.1%}{period}, "
-        f"both {'positive' if passed else 'not both positive'}."
+        f"Return on equity {return_on_equity:+.1%} is "
+        f"{'above' if passed else 'not above'} the {_ROE_FLOOR:.0%} threshold."
     )
-    return ConvictionCriterion("growth", "Growth", passed, detail)
+    return ConvictionCriterion("quality", "Quality", passed, detail)
 
 
-def _street_conviction(current_price: float, analyst_target: float | None) -> ConvictionCriterion:
-    if analyst_target is None or analyst_target <= 0:
+def _revisions(
+    eps_estimate_now: float | None,
+    eps_estimate_prior: float | None,
+) -> ConvictionCriterion:
+    # A prior estimate at or below zero has no meaningful percentage change, and
+    # a loss-making forecast turning less negative is not the same signal, so it
+    # is reported unconfirmed rather than forced into a direction.
+    if eps_estimate_now is None or eps_estimate_prior is None or eps_estimate_prior <= 0:
         return ConvictionCriterion(
-            "street_conviction", "Street conviction", None, "No analyst mean price target was available."
+            "revisions",
+            "Revisions",
+            None,
+            f"A consensus earnings estimate from {_REVISION_LOOKBACK_DAYS} days ago was not available to compare against.",
         )
-    passed = analyst_target > current_price
-    upside = analyst_target / current_price - 1.0
-    detail = f"Analyst mean target ${analyst_target:,.2f} implies {upside:+.1%} versus the current price."
-    return ConvictionCriterion("street_conviction", "Street conviction", passed, detail)
+    passed = eps_estimate_now > eps_estimate_prior
+    change = eps_estimate_now / eps_estimate_prior - 1.0
+    detail = (
+        f"Next-year consensus EPS ${eps_estimate_now:,.2f} versus ${eps_estimate_prior:,.2f} "
+        f"{_REVISION_LOOKBACK_DAYS} days ago ({change:+.1%}) -- estimates "
+        f"{'raised' if passed else 'cut' if change < 0 else 'unchanged'}."
+    )
+    return ConvictionCriterion("revisions", "Revisions", passed, detail)
 
 
 def evaluate_conviction_checklist(
@@ -182,10 +213,9 @@ def evaluate_conviction_checklist(
     macd_signal: float,
     security_return_pct: float | None,
     benchmark_return_pct: float | None,
-    revenue_growth_pct: float | None,
-    earnings_growth_pct: float | None,
-    analyst_target: float | None,
-    growth_period: str = "",
+    return_on_equity: float | None,
+    eps_estimate_now: float | None,
+    eps_estimate_prior: float | None,
     benchmark: str = "SPY",
 ) -> ConvictionChecklist:
     """Evaluate all five criteria from already-computed evidence; never fetches anything itself."""
@@ -194,7 +224,7 @@ def evaluate_conviction_checklist(
             _trend(price, sma50, sma200),
             _momentum(rsi14, macd, macd_signal),
             _relative_strength(security_return_pct, benchmark_return_pct, benchmark),
-            _growth(revenue_growth_pct, earnings_growth_pct, growth_period),
-            _street_conviction(price, analyst_target),
+            _quality(return_on_equity),
+            _revisions(eps_estimate_now, eps_estimate_prior),
         )
     )

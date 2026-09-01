@@ -8,8 +8,8 @@ def _base(**overrides):
         price=800.0, sma50=760.0, sma200=650.0,
         rsi14=58.0, macd=12.0, macd_signal=8.0,
         security_return_pct=0.22, benchmark_return_pct=0.09,
-        revenue_growth_pct=0.31, earnings_growth_pct=0.44,
-        analyst_target=880.0,
+        return_on_equity=0.31,
+        eps_estimate_now=9.20, eps_estimate_prior=8.60,
     )
     values.update(overrides)
     return evaluate_conviction_checklist(**values)
@@ -24,7 +24,7 @@ class ConvictionChecklistTests(unittest.TestCase):
         self.assertEqual(checklist.total_count, 5)
         self.assertEqual(
             [item.key for item in checklist.criteria],
-            ["trend", "momentum", "relative_strength", "growth", "street_conviction"],
+            ["trend", "momentum", "relative_strength", "quality", "revisions"],
         )
         self.assertEqual(checklist.policy_version, POLICY_VERSION)
 
@@ -39,8 +39,8 @@ class ConvictionChecklistTests(unittest.TestCase):
             price=100.0, sma50=105.0, sma200=110.0,
             rsi14=32.0, macd=-1.0, macd_signal=0.5,
             security_return_pct=-0.05, benchmark_return_pct=0.08,
-            revenue_growth_pct=0.03, earnings_growth_pct=-0.02,
-            analyst_target=95.0,
+            return_on_equity=0.04,
+            eps_estimate_now=3.10, eps_estimate_prior=3.60,
         )
         self.assertEqual(checklist.passed_count, 0)
         self.assertFalse(checklist.is_perfect)
@@ -77,43 +77,56 @@ class ConvictionChecklistTests(unittest.TestCase):
         criterion = _base(benchmark_return_pct=None).criteria[2]
         self.assertIsNone(criterion.passed)
 
-    def test_growth_requires_both_measures_positive(self):
-        self.assertTrue(_base(revenue_growth_pct=0.1, earnings_growth_pct=0.1).criteria[3].passed)
-        self.assertFalse(_base(revenue_growth_pct=0.1, earnings_growth_pct=-0.1).criteria[3].passed)
-        self.assertFalse(_base(revenue_growth_pct=-0.1, earnings_growth_pct=0.1).criteria[3].passed)
+    def test_quality_requires_roe_above_the_threshold(self):
+        self.assertTrue(_base(return_on_equity=0.16).criteria[3].passed)
+        self.assertFalse(_base(return_on_equity=0.15).criteria[3].passed)  # threshold is exclusive
+        self.assertFalse(_base(return_on_equity=0.02).criteria[3].passed)
+        self.assertFalse(_base(return_on_equity=-0.10).criteria[3].passed)
 
-    def test_growth_unconfirmed_when_either_figure_is_missing(self):
-        self.assertIsNone(_base(revenue_growth_pct=None).criteria[3].passed)
-        self.assertIsNone(_base(earnings_growth_pct=None).criteria[3].passed)
+    def test_quality_unconfirmed_when_roe_is_missing(self):
+        self.assertIsNone(_base(return_on_equity=None).criteria[3].passed)
 
-    def test_street_conviction_requires_target_above_price(self):
-        self.assertTrue(_base(price=100, analyst_target=110).criteria[4].passed)
-        self.assertFalse(_base(price=100, analyst_target=90).criteria[4].passed)
+    def test_revisions_require_estimates_to_have_risen(self):
+        self.assertTrue(_base(eps_estimate_now=9.2, eps_estimate_prior=8.6).criteria[4].passed)
+        self.assertFalse(_base(eps_estimate_now=8.0, eps_estimate_prior=8.6).criteria[4].passed)
+        self.assertFalse(_base(eps_estimate_now=8.6, eps_estimate_prior=8.6).criteria[4].passed)  # flat is not a raise
 
-    def test_street_conviction_unconfirmed_without_a_target(self):
-        self.assertIsNone(_base(analyst_target=None).criteria[4].passed)
-        self.assertIsNone(_base(analyst_target=0).criteria[4].passed)
+    def test_revisions_unconfirmed_without_a_usable_prior_estimate(self):
+        self.assertIsNone(_base(eps_estimate_prior=None).criteria[4].passed)
+        self.assertIsNone(_base(eps_estimate_now=None).criteria[4].passed)
+        # A loss-making prior forecast has no meaningful percentage change, and
+        # "less negative" is not the same signal as a raise.
+        self.assertIsNone(_base(eps_estimate_prior=-1.2).criteria[4].passed)
+        self.assertIsNone(_base(eps_estimate_prior=0.0).criteria[4].passed)
+
+    def test_street_conviction_is_gone_from_the_policy(self):
+        # Removed in v2: it passed 90% of the time across 50 large caps, so it
+        # could not separate them, and it correlated negatively with trend and
+        # momentum -- rewarding stocks that had fallen, which is the opposite of
+        # what "street conviction" reads as. See the policy docstring.
+        self.assertNotIn("street_conviction", [item.key for item in _base().criteria])
+        self.assertNotIn("growth", [item.key for item in _base().criteria])
 
     def test_unconfirmed_criteria_are_never_counted_as_passed(self):
-        checklist = _base(sma200=None, revenue_growth_pct=None, earnings_growth_pct=None, analyst_target=None)
+        checklist = _base(sma200=None, return_on_equity=None, eps_estimate_prior=None)
         self.assertEqual(checklist.unconfirmed_count, 3)
         self.assertLessEqual(checklist.passed_count, 2)
         self.assertFalse(checklist.is_perfect)
 
     def test_real_axon_style_evidence_is_a_mixed_read_not_a_rubber_stamp(self):
-        # Fixture pinned to a real observed AXON snapshot: strong trend and street
-        # support, but momentum has cooled and earnings growth was negative. The
-        # checklist must not wave this through as a clean 5/5.
+        # Fixture pinned to a real observed AXON snapshot: strong trend and
+        # relative strength, but momentum has cooled and returns on equity are
+        # thin. The checklist must not wave this through as a clean 5/5.
         checklist = _base(
             price=566.56, sma50=560.14, sma200=506.29,
             rsi14=46.26, macd=13.02, macd_signal=19.75,
             security_return_pct=0.188, benchmark_return_pct=0.011,
-            revenue_growth_pct=0.353, earnings_growth_pct=-0.182,
-            analyst_target=693.40,
+            return_on_equity=0.118,
+            eps_estimate_now=2.41, eps_estimate_prior=2.28,
         )
         self.assertEqual(checklist.passed_count, 3)
         self.assertFalse(checklist.criteria[1].passed)  # momentum
-        self.assertFalse(checklist.criteria[3].passed)  # growth
+        self.assertFalse(checklist.criteria[3].passed)  # quality
 
 
 if __name__ == "__main__":

@@ -27,8 +27,7 @@ from backend.credentials import SYNTHESIS_ENV, TVREMIX_ENV
 from backend.credentials import load as load_credentials
 from core.models import Horizon
 from core.request_builder import build_general_request, build_request
-from core.conviction_checklist import _growth
-from research.live_provider import _recent_growth
+from research.live_provider import _eps_revision, _recent_growth
 from security import secret_store
 
 import pandas as pd
@@ -252,12 +251,11 @@ class CredentialResolutionTests(unittest.TestCase):
 
 
 class GrowthFreshnessTests(unittest.TestCase):
-    """Growth must be the most recent year-over-year figure, and say so."""
+    """Growth must be the most recent year-over-year figure, and say so.
 
-    def test_period_is_stated_alongside_the_figures(self) -> None:
-        criterion = _growth(0.852, 2.106, "most recent quarter ended 2026-04-30, year over year")
-        self.assertIn("most recent quarter ended 2026-04-30", criterion.detail)
-        self.assertTrue(criterion.passed)
+    Growth is no longer a Conviction Checklist criterion (policy v2), but it is
+    still reported in the fundamental section, so its freshness rules still hold.
+    """
 
     def test_quarterly_year_over_year_is_preferred_over_the_annual_figure(self) -> None:
         # Four quarters back is the same quarter a year earlier.
@@ -298,10 +296,37 @@ class GrowthFreshnessTests(unittest.TestCase):
         # Growth off a negative base is meaningless, not merely large.
         self.assertIsNone(earnings)
 
-    def test_missing_growth_is_unconfirmed_never_guessed(self) -> None:
-        criterion = _growth(None, 0.2, "whatever")
-        self.assertIsNone(criterion.passed)
-        self.assertIn("not both available", criterion.detail)
+
+class EpsRevisionTests(unittest.TestCase):
+    """The Revisions criterion compares next-year consensus against 90 days ago."""
+
+    @staticmethod
+    def _trend_frame(**rows) -> pd.DataFrame:
+        return pd.DataFrame(rows, index=["current", "7daysAgo", "30daysAgo", "60daysAgo", "90daysAgo"]).T
+
+    def test_next_fiscal_year_estimate_is_read_against_ninety_days_ago(self) -> None:
+        frame = self._trend_frame(
+            **{"0y": [8.81, 8.80, 8.76, 8.75, 8.75], "+1y": [9.53, 9.53, 9.71, 9.67, 9.65]}
+        )
+        now, prior = _eps_revision(mock.Mock(eps_trend=frame))
+        # The next full year, not the current one which is largely locked in.
+        self.assertAlmostEqual(now, 9.53)
+        self.assertAlmostEqual(prior, 9.65)
+
+    def test_missing_frame_or_period_is_unavailable_never_guessed(self) -> None:
+        self.assertEqual(_eps_revision(mock.Mock(eps_trend=None)), (None, None))
+        self.assertEqual(_eps_revision(mock.Mock(eps_trend=pd.DataFrame())), (None, None))
+        only_current_year = self._trend_frame(**{"0y": [8.8, 8.8, 8.7, 8.7, 8.7]})
+        self.assertEqual(_eps_revision(mock.Mock(eps_trend=only_current_year)), (None, None))
+
+    def test_a_provider_error_is_not_an_error(self) -> None:
+        broken = mock.Mock()
+        type(broken).eps_trend = mock.PropertyMock(side_effect=RuntimeError("upstream down"))
+        self.assertEqual(_eps_revision(broken), (None, None))
+
+    def test_nan_estimates_are_unavailable(self) -> None:
+        frame = self._trend_frame(**{"+1y": [float("nan"), 9.5, 9.5, 9.5, 9.6]})
+        self.assertEqual(_eps_revision(mock.Mock(eps_trend=frame)), (None, None))
 
 
 class FeedbackTests(unittest.TestCase):
