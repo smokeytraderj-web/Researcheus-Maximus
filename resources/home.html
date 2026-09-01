@@ -94,11 +94,17 @@ tailwind.config = {
         </div>
       </div>
 
-      <div class="mt-6 flex justify-center gap-3">
-        <button onclick="openQuickTechnical()" class="text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2.5 hover:bg-panel hover:border-muted transition-colors">
+      <div class="mt-6 flex items-center gap-3">
+        <input
+          id="quickBox"
+          type="text"
+          placeholder="Quick report — ticker or company name"
+          class="flex-1 bg-panel border border-line rounded-[7px] text-[14px] text-ink placeholder:text-muted px-4 py-2.5 focus:border-gold focus:border-2"
+        >
+        <button onclick="submitQuick()" class="shrink-0 text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2.5 hover:bg-panel hover:border-muted transition-colors">
           Quick Report &nbsp;&rarr;
         </button>
-        <button onclick="openTrack()" class="text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2.5 hover:bg-panel hover:border-muted transition-colors">
+        <button onclick="openTrack()" class="shrink-0 text-[13px] font-sans font-bold text-ink border border-line rounded-[7px] px-5 py-2.5 hover:bg-panel hover:border-muted transition-colors">
           Track Record &nbsp;&rarr;
         </button>
       </div>
@@ -126,14 +132,24 @@ tailwind.config = {
     if (!text || !bridge) return;
     bridge.submitQuery(text);
   }
+  function submitQuick() {
+    var text = document.getElementById('quickBox').value.trim();
+    if (!text || !bridge) return;
+    bridge.submitTechnicalQuery(text);
+  }
   function openDeep() { if (bridge) bridge.openDeepAnalysis(); }
-  function openQuickTechnical() { if (bridge) bridge.openTechnicalAnalysis(); }
   function openTrack() { if (bridge) bridge.openTrackRecord(); }
   function openSettings() { if (bridge) bridge.openSettings(); }
   document.getElementById('queryBox').addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       submitQuery();
+    }
+  });
+  document.getElementById('quickBox').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submitQuick();
     }
   });
 </script>
