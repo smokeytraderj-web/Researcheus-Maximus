@@ -9,17 +9,21 @@ import re
 
 _TICKER = re.compile(r"(?<![A-Za-z0-9])\$?([A-Z]{1,5}(?:[.-][A-Z])?)(?![A-Za-z0-9])")
 
-# Shared right-hand boundary for the open-ended "analysis of X", "what about X",
-# and "evaluate X" patterns below. Without a broad stop-word list here, the
-# non-greedy capture keeps eating trailing conversational words (e.g. "is this
-# a buying opportunity") into the security candidate instead of stopping at
-# the ticker/company name itself.
-_QUERY_STOP_BOUNDARY = (
-    r"(?=\s+(?:and|to|from|since|with|as|is|are|was|given|right|now|today|"
-    r"currently|still|buying|selling|holding|adding|worth|good|bad|great|"
-    r"opportunity|opportunities|position|positions|entry|chart|charts|"
-    r"analysis|analyze|after|before|near|at|following|for|because)\b|[?!.,]|$)"
+# Conversational words that end a security candidate. Without a broad stop-word
+# list, the non-greedy captures below keep eating trailing prose (e.g. "is this
+# a buying opportunity") instead of stopping at the ticker/company name itself.
+_QUERY_STOP_WORDS = (
+    "and", "to", "from", "since", "with", "as", "is", "are", "was", "given",
+    "right", "now", "today", "currently", "still", "buying", "selling",
+    "holding", "adding", "worth", "good", "bad", "great", "opportunity",
+    "opportunities", "position", "positions", "entry", "chart", "charts",
+    "analysis", "analyze", "after", "before", "near", "at", "following",
+    "for", "because",
 )
+
+# Shared right-hand boundary for the "buy/sell/hold X", "analysis of X",
+# "what about X", and "evaluate X" patterns below.
+_QUERY_STOP_BOUNDARY = r"(?=\s+(?:" + "|".join(_QUERY_STOP_WORDS) + r")\b|[?!.,]|$)"
 
 # Filler words the verb-prefix regex can latch onto when the verb follows the
 # ticker rather than precedes it, e.g. "a good opportunity to buy now".
@@ -49,6 +53,26 @@ _TICKER_STOPWORDS = {
     "WHAT",
     "YOU",
 }
+
+
+def _is_security_candidate(value: str) -> bool:
+    """Whether a verb-prefix capture is plausibly a security rather than prose.
+
+    "buy", "sell" and "hold" are also nouns, so "Is AAPL a buy for a medium term
+    hold?" fires the verb pattern on "a buy" and captures the prose after it --
+    "for a medium term hold" -- while the real ticker sits earlier in the
+    sentence. The tell is that such a capture opens with a word that would have
+    ended it had it appeared anywhere else, so a candidate is rejected when its
+    first word is a stop word. Rejecting sends the caller on to the ticker scan,
+    which finds the security the user actually named.
+
+    Deliberately not a capitalisation test: "should i buy apple" is a real
+    request for Apple, and requiring a capital would throw it away.
+    """
+    candidate = value.strip().lower()
+    if not candidate or candidate in _VERB_ADJACENT_FILLERS:
+        return False
+    return candidate.split()[0] not in _QUERY_STOP_WORDS
 
 
 def _clean_security_candidate(value: str) -> str:
@@ -95,7 +119,7 @@ def parse_research_prompt(value: str) -> tuple[str, str]:
     # the pattern above latches onto a filler word ("now") following the verb
     # instead. Skip a filler-word match so the ticker scan below can find the
     # real security earlier in the sentence.
-    if company and company.group(1).strip().lower() not in _VERB_ADJACENT_FILLERS:
+    if company and _is_security_candidate(company.group(1)):
         candidate = re.sub(r"\s+position$", "", company.group(1).strip(), flags=re.IGNORECASE)
         return _clean_security_candidate(candidate), prompt
 

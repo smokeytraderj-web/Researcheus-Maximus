@@ -51,6 +51,27 @@ class ResearchPromptTests(unittest.TestCase):
         query, _ = parse_research_prompt("Should I buy Walmart?")
         self.assertEqual(query, "Walmart")
 
+    def test_noun_use_of_buy_sell_hold_does_not_swallow_the_ticker(self):
+        # "buy", "sell" and "hold" are nouns too, so these fired the verb-prefix
+        # pattern on "a buy" and returned the prose after it ("for a medium term
+        # hold") as the security, losing the ticker the user plainly named.
+        for prompt, expected in (
+            ("Is AAPL a buy for a medium term hold?", "AAPL"),
+            ("Is TSLA a buy right now?", "TSLA"),
+            ("Is MSFT a sell after earnings?", "MSFT"),
+            ("Is AMD a hold for the next year?", "AMD"),
+        ):
+            with self.subTest(prompt=prompt):
+                query, brief = parse_research_prompt(prompt)
+                self.assertEqual(query, expected)
+                self.assertEqual(brief, prompt)
+
+    def test_lowercase_company_after_a_verb_is_still_accepted(self):
+        # The guard above rejects prose by its leading stop word, never by
+        # capitalisation -- this is a real request for Apple.
+        query, _ = parse_research_prompt("should i buy apple")
+        self.assertEqual(query, "apple")
+
     def test_revision_instructions_preserve_original_brief(self):
         revised = append_revision_instructions("Research WMT", "Make the entry strategy conservative.")
         self.assertIn("Research WMT", revised)
