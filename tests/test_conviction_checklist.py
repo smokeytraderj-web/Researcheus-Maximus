@@ -136,15 +136,81 @@ class ConvictionChecklistTests(unittest.TestCase):
         # so tells the reader nothing. Name the thing to watch.
         from core.conviction_checklist import checklist_narrative
         text = checklist_narrative(_base(eps_estimate_now=8.0, eps_estimate_prior=8.6), rating="Buy")
-        self.assertIn("watch for estimates turning back up", text)
+        self.assertIn("Watch for estimates turning back up", text)
         self.assertNotIn("what would need to change first", text)
 
     def test_narrative_reports_the_balance_and_both_sides(self):
         from core.conviction_checklist import checklist_narrative
         text = checklist_narrative(_base(eps_estimate_now=8.0, eps_estimate_prior=8.6), rating="Buy")
-        self.assertIn("4 of the 5 checks confirm", text)
-        self.assertIn("In favour:", text)
-        self.assertIn("Against:", text)
+        self.assertIn("Four of five", text)
+        self.assertIn("price is holding above both", text)          # what confirms
+        self.assertIn("cutting next-year earnings estimates", text)  # what does not
+
+    def test_narrative_groups_the_evidence_by_lens(self):
+        # The point of the paragraph over a list of five findings: it says what
+        # *kind* of evidence is carrying the call, so a reader knows what kind
+        # would break it.
+        from core.conviction_checklist import checklist_narrative
+        text = checklist_narrative(_base(eps_estimate_now=8.0, eps_estimate_prior=8.6), rating="Buy")
+        self.assertIn("every price-based lens agrees", text)
+        self.assertIn("On the business,", text)
+
+    def test_narrative_is_two_paragraphs_agreement_then_dissent(self):
+        from core.conviction_checklist import checklist_paragraphs
+        first, second = checklist_paragraphs(
+            _base(eps_estimate_now=8.0, eps_estimate_prior=8.6), rating="Buy"
+        )
+        # The first paragraph carries what confirms; spelling the failures out in
+        # both is what made the old version read as the same list twice.
+        self.assertNotIn("cutting next-year earnings estimates", first)
+        self.assertIn("The one that does not confirm is the interesting one.", second)
+
+    def test_the_dissent_is_weighed_against_a_concrete_figure(self):
+        # A dissent set against a mood is worthless; set it against the strongest
+        # thing that does confirm, quoted with its own number.
+        from core.conviction_checklist import checklist_paragraphs
+        second = checklist_paragraphs(
+            _base(eps_estimate_now=8.0, eps_estimate_prior=8.6), rating="Buy"
+        )[1]
+        self.assertIn("while the stock returned +22% against SPY's +9%", second)
+
+    def test_the_dissent_says_what_the_case_rests_on_and_what_it_does_not(self):
+        from core.conviction_checklist import checklist_paragraphs
+        second = checklist_paragraphs(
+            _base(eps_estimate_now=8.0, eps_estimate_prior=8.6), rating="Buy"
+        )[1]
+        self.assertIn("the case rests on: price and profitability", second)
+        self.assertIn("not on improving expectations", second)
+        # A missing checkbox is not a sell signal, and the report must not let a
+        # reader read it as one.
+        self.assertIn("not on its own a reason to sell", second)
+
+    def test_a_bearish_rating_flips_the_action_the_dissent_is_not_grounds_for(self):
+        from core.conviction_checklist import checklist_paragraphs
+        second = checklist_paragraphs(
+            _base(price=100.0, sma50=105.0, sma200=110.0), rating="Reduce"
+        )[1]
+        self.assertIn("not on its own a reason to buy", second)
+
+    def test_a_full_house_does_not_claim_a_clean_sweep_when_two_were_unjudged(self):
+        # A fund confirms all three price checks. Calling that "a clean sweep"
+        # would sell a partial read as a complete one.
+        from core.conviction_checklist import checklist_narrative
+        text = checklist_narrative(_base(is_fund=True), rating="Hold")
+        self.assertNotIn("clean sweep", text)
+        self.assertIn("as clean a read as this evidence allows", text)
+
+    def test_nothing_confirming_never_reads_as_a_dissent_worth_naming(self):
+        from core.conviction_checklist import checklist_narrative
+        text = checklist_narrative(
+            _base(price=100.0, sma50=105.0, sma200=110.0, rsi14=32.0, macd=-1.0, macd_signal=0.5,
+                  security_return_pct=-0.05, benchmark_return_pct=0.08, return_on_equity=0.04,
+                  eps_estimate_now=3.10, eps_estimate_prior=3.60),
+            rating="Reduce",
+        )
+        self.assertIn("Not one of the five checks confirms", text)
+        self.assertNotIn("the interesting one", text)
+        self.assertNotIn("rating still stands", text)
 
     def test_narrative_for_a_fund_says_inapplicable_not_unavailable(self):
         from core.conviction_checklist import checklist_narrative

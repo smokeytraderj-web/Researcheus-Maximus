@@ -77,6 +77,18 @@ the cost is that a custom range of a month or of five years measures the same
 three points against very different amounts of drift, so the report states the
 window alongside the figures.
 
+HOW THE CHECKLIST IS NARRATED (`checklist_paragraphs`): the prose is assembled
+from the criteria, never from model text, so it cannot drift from the score. It
+is written in two movements rather than as a list. The first groups the findings
+by lens -- the three price criteria together, the two business criteria together
+-- because "every price-based lens agrees" tells a reader what kind of evidence
+is carrying the call, and therefore what kind of evidence would break it, which
+five ticked boxes cannot. The second takes the dissent seriously: it names what
+does not confirm, sets a concrete counterweight against it, says what it is not
+grounds for, and states what the case rests on and what it does not. This is not
+a policy change and does not move POLICY_VERSION -- no threshold, criterion or
+score is affected, only how the same result is put into words.
+
 Changing a threshold, adding, or removing a criterion is a policy change: bump
 POLICY_VERSION and update this docstring in the same change.
 """
@@ -119,6 +131,11 @@ class ConvictionCriterion:
     passed: bool | None  # None = not confirmable from the available evidence
     detail: str
     explanation: str = ""
+    # A short, security-specific quantity as a clause -- "the stock returned +42%
+    # against SPY's +18%". `detail` states the criterion's own verdict at length;
+    # this is the same evidence cut short enough to sit inside a sentence about a
+    # different criterion, which is what a contrast needs.
+    figure: str = ""
 
     def __post_init__(self) -> None:
         if not self.explanation:
@@ -242,27 +259,103 @@ def _join(parts: list[str]) -> str:
     return ", ".join(parts[:-1]) + f", and {parts[-1]}"
 
 
-def checklist_narrative(checklist: "ConvictionChecklist", *, rating: str = "") -> str:
-    """One readable paragraph explaining how the five checks combine.
+# The three price-based lenses and the two business ones. Grouping is the whole
+# point of the paragraph: "every price-based lens agrees" says something a flat
+# list of five findings cannot, because it tells a reader what *kind* of evidence
+# is carrying the call -- and therefore what kind of evidence would break it.
+_PRICE_KEYS = ("trend", "momentum", "relative_strength")
+_BUSINESS_KEYS = ("quality", "revisions")
+
+# What a confirmed criterion means the case is resting on. The three price
+# criteria collapse to one word when two or more of them agree: a reader deciding
+# what they are exposed to needs "price and profitability", not a list of three
+# correlated price measures dressed up as three independent supports.
+_RELIANCE = {
+    "trend": "the trend",
+    "momentum": "momentum",
+    "relative_strength": "relative strength",
+    "quality": "profitability",
+    "revisions": "improving expectations",
+}
+
+# Findings in the business register, which is a different register from price.
+_BUSINESS_PHRASES = {
+    "quality": ("returns on shareholder capital are strong", "returns on shareholder capital are thin"),
+    "revisions": ("analysts are raising next-year estimates", "analysts are cutting next-year estimates"),
+}
+
+_NUMBER_WORDS = ("None", "One", "Two", "Three", "Four", "Five")
+
+# Preference order for the criterion quoted as the counterweight to a dissent.
+# Relative strength first because a return against the market is the most
+# concrete thing on the list; momentum last because an RSI reading is the least.
+_CONTRAST_ORDER = ("relative_strength", "quality", "trend", "revisions", "momentum")
+
+_BEARISH_RATINGS = {"reduce", "sell", "avoid"}
+
+
+def _word(count: int) -> str:
+    return _NUMBER_WORDS[count] if 0 <= count < len(_NUMBER_WORDS) else str(count)
+
+
+def _characterisation(passed: int, judged: int, partial: bool) -> str:
+    """The score as a picture. Weight of evidence, never a forecast.
+
+    `partial` says some criteria could not be judged, which is why a full house
+    is not called a clean sweep there -- it is a clean read of less evidence.
+    """
+    if judged == 0:
+        return "too little to judge on"
+    share = passed / judged
+    if share == 1:
+        return "as clean a read as this evidence allows" if partial else "a clean sweep"
+    if share >= 0.75:
+        return "a constructive picture"
+    if share > 0.5:
+        return "a mixed but net-positive picture"
+    if share == 0.5:
+        return "an evenly split picture"
+    if share > 0:
+        return "a weak picture"
+    return "no support at all"
+
+
+def _reliance(passed_keys: list[str]) -> list[str]:
+    """What the case actually rests on, in the coarsest honest terms."""
+    price = [key for key in passed_keys if key in _PRICE_KEYS]
+    parts = []
+    if len(price) >= 2:
+        parts.append("price")
+    elif price:
+        parts.append(_RELIANCE[price[0]])
+    parts.extend(_RELIANCE[key] for key in _BUSINESS_KEYS if key in passed_keys)
+    return parts
+
+
+def checklist_paragraphs(checklist: "ConvictionChecklist", *, rating: str = "") -> tuple[str, ...]:
+    """How the five checks combine, as an analyst would actually put it.
+
+    Two movements. The first reports the balance grouped by lens -- price
+    evidence together, business evidence together -- because what carries a call
+    is more useful than which five boxes were ticked. The second takes the
+    dissent seriously: it names what does not confirm, sets a concrete
+    counterweight against it, says what it is *not* grounds for, and then states
+    precisely what the reader is relying on and what they are not.
 
     Assembled deterministically from the criteria themselves -- no model text is
     an input, exactly as for the boxes -- so the prose can never drift from the
-    score it is describing. It names what confirmed, what did not, and what could
-    not be judged, and closes on what the dissent means for the rating, which is
-    the part a reader actually wants and the boxes alone cannot say.
+    score it is describing. An earlier version read "In favour: a, b, c, and d.
+    Against: e", which is the checklist recited back rather than read.
     """
     if checklist is None or not checklist.criteria:
-        return ""
-    confirmed, failed, unknown, inapplicable = [], [], [], []
-    failed_keys: list[str] = []
+        return ()
+    passed_keys, failed_keys, unknown, inapplicable = [], [], [], []
+    figures: dict[str, str] = {}
     for item in checklist.criteria:
-        phrases = _NARRATIVE_PHRASES.get(item.key)
-        if not phrases:
-            continue
+        figures[item.key] = item.figure
         if item.passed is True:
-            confirmed.append(phrases[0])
+            passed_keys.append(item.key)
         elif item.passed is False:
-            failed.append(phrases[1])
             failed_keys.append(item.key)
         # "Does not apply" and "could not be retrieved" are different findings,
         # and telling a reader a fund's earnings data was unavailable would
@@ -273,41 +366,154 @@ def checklist_narrative(checklist: "ConvictionChecklist", *, rating: str = "") -
             unknown.append(item.label.lower())
 
     judged = checklist.total_count - checklist.unconfirmed_count
-    sentences = [
-        f"{checklist.passed_count} of the {judged} checks that could be judged confirm."
-        if checklist.unconfirmed_count
-        else f"{checklist.passed_count} of the {checklist.total_count} checks confirm."
-    ]
-    if confirmed:
-        sentences.append(f"In favour: {_join(confirmed)}.")
-    if failed:
-        lead = "Against" if confirmed else "The evidence against"
-        sentences.append(f"{lead}: {_join(failed)}.")
+    partial = bool(checklist.unconfirmed_count)
+    picture = _characterisation(checklist.passed_count, judged, partial)
+    if not passed_keys:
+        # "No support at all" after "not one confirms" is the same sentence twice.
+        opening = f"Not one of the {_word(judged).lower()} checks confirms"
+    elif partial:
+        opening = (
+            f"{_word(checklist.passed_count)} of the {_word(judged).lower()} that could be "
+            f"judged confirm — {picture}"
+        )
+    else:
+        opening = f"{_word(checklist.passed_count)} of {_word(checklist.total_count).lower()} is {picture}"
+
+    # Price evidence as a group. This paragraph carries what confirms; the
+    # dissent paragraph carries what does not, at length. Spelling the failures
+    # out in both is how the old version came to read as a list read twice, so
+    # failures appear here only as their names, or in full when nothing passed.
+    price_pass = [key for key in _PRICE_KEYS if key in passed_keys]
+    price_fail = [key for key in _PRICE_KEYS if key in failed_keys]
+    price_said = [_NARRATIVE_PHRASES[key][0] for key in price_pass]
+    if price_pass and not price_fail:
+        grouping = (
+            f"every price-based lens agrees: {_join(price_said)}"
+            if len(price_pass) > 1
+            else f"the price evidence agrees: {_join(price_said)}"
+        )
+    elif price_pass and price_fail:
+        names = _join([_RELIANCE[key] for key in price_fail])
+        grouping = (
+            f"the price evidence is split: {_join(price_said)}, "
+            f"while {names} {'do' if len(price_fail) > 1 else 'does'} not confirm"
+        )
+    elif price_fail:
+        grouping = "no price-based lens supports it: " + _join(
+            [_NARRATIVE_PHRASES[key][1] for key in price_fail]
+        )
+    else:
+        grouping = ""
+    # An em dash already carries the partial opening, so a second clause hung off
+    # it with "and" reads as a run-on. Start a sentence instead.
+    if not grouping:
+        first = opening + "."
+    elif partial and passed_keys:
+        first = f"{opening}. {grouping[:1].upper()}{grouping[1:]}."
+    else:
+        first = f"{opening}, and {grouping}."
+
+    # Business evidence, in its own register and its own sentence. Confirmations
+    # only, for the same reason -- unless nothing at all confirmed, in which case
+    # there is no dissent paragraph to hold the failures.
+    business_pass = [key for key in _BUSINESS_KEYS if key in passed_keys]
+    if business_pass:
+        first += f" On the business, {_join([_BUSINESS_PHRASES[key][0] for key in business_pass])}."
+    elif not passed_keys:
+        business_fail = [key for key in _BUSINESS_KEYS if key in failed_keys]
+        if business_fail:
+            first += f" On the business, {_join([_BUSINESS_PHRASES[key][1] for key in business_fail])}."
     if inapplicable:
-        sentences.append(
-            f"{_join([u.capitalize() for u in inapplicable])} "
+        first += (
+            f" {_join([item.capitalize() for item in inapplicable])} "
             f"{'do' if len(inapplicable) > 1 else 'does'} not apply to a fund, "
-            f"which has no company earnings of its own."
+            "which has no company earnings of its own."
         )
     if unknown:
-        sentences.append(
-            f"{_join([u.capitalize() for u in unknown])} could not be judged from the available evidence, "
-            "so {} counted neither way.".format("they were" if len(unknown) > 1 else "it was")
+        first += (
+            f" {_join([item.capitalize() for item in unknown])} could not be judged from the "
+            "available evidence, so {} counted neither way.".format(
+                "they were" if len(unknown) > 1 else "it was"
+            )
         )
 
-    # What the balance means. Stated as weight of evidence, never as a promise.
-    if rating:
-        if not failed and confirmed:
-            sentences.append(f"Nothing in the checklist argues against the {rating} view.")
-        elif failed and confirmed:
-            watch = _join([_WOULD_CHANGE[key] for key in failed_keys if key in _WOULD_CHANGE])
-            sentences.append(
-                f"The {rating} view rests on the balance of these rather than on agreement"
-                + (f"; watch for {watch}." if watch else ".")
+    paragraphs = [first]
+    second = _dissent_paragraph(passed_keys, failed_keys, figures, rating)
+    if second:
+        paragraphs.append(second)
+    return tuple(paragraphs)
+
+
+def _dissent_paragraph(
+    passed_keys: list[str], failed_keys: list[str], figures: dict[str, str], rating: str
+) -> str:
+    """The part a reader actually wants: what the disagreement costs them.
+
+    A dissent is only useful if it is priced. Naming it, weighing it against the
+    strongest thing that does confirm, and then saying what the case rests on --
+    and what it does not -- is the difference between a checklist and a view.
+    """
+    resting_on = _reliance(passed_keys)
+    reliance = _join(resting_on)
+    contrary = "buy" if rating.strip().lower() in _BEARISH_RATINGS else "sell"
+
+    if not failed_keys:
+        if not passed_keys:
+            return ""
+        text = "Nothing on the list argues the other way."
+        if reliance:
+            text += (
+                f" That makes this a case resting on {reliance}"
+                f"{' all' if len(resting_on) > 1 else ''} continuing to hold: "
+                "the risk here is deterioration, not the absence of support."
             )
-        elif failed and not confirmed:
-            sentences.append(f"The checklist offers no support for a constructive view here, which the {rating} rating reflects.")
-    return " ".join(sentences)
+        if rating:
+            text += f" The {rating} view is the balance of that evidence, not a guarantee of it."
+        return text
+
+    if not passed_keys:
+        if not rating:
+            return ""
+        return (
+            "There is no counterweight to set against that. The checklist offers no support for a "
+            f"constructive view here, which the {rating} rating reflects."
+        )
+
+    # The strongest confirmed criterion, quoted with its own figure, so the
+    # dissent is set against something concrete rather than against a mood.
+    counterweight = next(
+        (figures[key] for key in _CONTRAST_ORDER if key in passed_keys and figures.get(key)), ""
+    )
+    lead = (
+        "The one that does not confirm is the interesting one."
+        if len(failed_keys) == 1
+        else f"{_word(len(failed_keys))} do not confirm, and they are the interesting ones."
+    )
+    body = _join([_NARRATIVE_PHRASES[key][1] for key in failed_keys])
+    text = f"{lead} {body[:1].upper()}{body[1:]}"
+    text += f", while {counterweight}." if counterweight else "."
+
+    if rating:
+        text += (
+            f" That is not on its own a reason to {contrary}, and the {rating} rating still stands."
+        )
+    # "and not momentum and relative strength" stacks two ands on one clause; the
+    # dissent is a set of things the case does *not* rest on, which is an "or".
+    dissent = " or ".join(_RELIANCE[key] for key in failed_keys if key in _RELIANCE)
+    if reliance and dissent:
+        text += (
+            f" It is a reason to be precise about what the case rests on: {reliance}, "
+            f"and not on {dissent} — because that is what this evidence does not show."
+        )
+    watch = _join([_WOULD_CHANGE[key] for key in failed_keys if key in _WOULD_CHANGE])
+    if watch:
+        text += f" Watch for {watch}."
+    return text
+
+
+def checklist_narrative(checklist: "ConvictionChecklist", *, rating: str = "") -> str:
+    """The paragraphs as one string, for callers that render a single block."""
+    return " ".join(checklist_paragraphs(checklist, rating=rating))
 
 
 def _trend(price: float, sma50: float, sma200: float | None) -> ConvictionCriterion:
@@ -321,7 +527,10 @@ def _trend(price: float, sma50: float, sma200: float | None) -> ConvictionCriter
         if passed
         else f"Price ${price:,.2f} is not above both the 50-day (${sma50:,.2f}) and 200-day (${sma200:,.2f}) averages."
     )
-    return ConvictionCriterion("trend", "Trend", passed, detail)
+    return ConvictionCriterion(
+        "trend", "Trend", passed, detail,
+        figure=f"price is holding {price / sma200 - 1:+.0%} against its 200-day average",
+    )
 
 
 def _momentum(rsi14: float, macd: float, macd_signal: float) -> ConvictionCriterion:
@@ -336,7 +545,9 @@ def _momentum(rsi14: float, macd: float, macd_signal: float) -> ConvictionCriter
         f"({'below' if rsi14 < _RSI_FLOOR else 'above' if rsi14 > _RSI_CEILING else 'inside'} the "
         f"{_RSI_FLOOR:.0f}-{_RSI_CEILING:.0f} range) -- momentum does not confirm both conditions."
     )
-    return ConvictionCriterion("momentum", "Momentum", passed, detail)
+    return ConvictionCriterion(
+        "momentum", "Momentum", passed, detail, figure=f"RSI sits at {rsi14:.0f}"
+    )
 
 
 def _relative_strength(
@@ -359,7 +570,13 @@ def _relative_strength(
         f"over the same dates -- {'ahead by' if lead >= 0 else 'behind by'} {abs(lead):.1%}, "
         f"{'clearing' if passed else 'short of'} the {_RELATIVE_STRENGTH_MARGIN:.0%} margin."
     )
-    return ConvictionCriterion("relative_strength", "Relative strength", passed, detail)
+    return ConvictionCriterion(
+        "relative_strength", "Relative strength", passed, detail,
+        figure=(
+            f"the stock returned {security_return_pct:+.0%} against "
+            f"{benchmark}'s {benchmark_return_pct:+.0%} over the same window"
+        ),
+    )
 
 
 def _quality(return_on_equity: float | None, not_applicable: str = "") -> ConvictionCriterion:
@@ -374,7 +591,10 @@ def _quality(return_on_equity: float | None, not_applicable: str = "") -> Convic
         f"Return on equity {return_on_equity:+.1%} is "
         f"{'above' if passed else 'not above'} the {_ROE_FLOOR:.0%} threshold."
     )
-    return ConvictionCriterion("quality", "Quality", passed, detail)
+    return ConvictionCriterion(
+        "quality", "Quality", passed, detail,
+        figure=f"the business earns {return_on_equity:.0%} on shareholder capital",
+    )
 
 
 def _money(value: float) -> str:
@@ -420,7 +640,10 @@ def _revisions(
         f"Next-year consensus EPS {now_text} versus {prior_text} "
         f"{window_days} days ago{change} -- {movement}."
     )
-    return ConvictionCriterion("revisions", "Revisions", passed, detail)
+    return ConvictionCriterion(
+        "revisions", "Revisions", passed, detail,
+        figure=f"next-year consensus has moved from {prior_text} to {now_text}",
+    )
 
 
 def evaluate_conviction_checklist(
