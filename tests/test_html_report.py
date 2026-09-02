@@ -81,3 +81,44 @@ class ReadingOrderTests(unittest.TestCase):
                 html = self._render(mode)
                 self.assertNotIn('class="verdict-hero"', html)
                 self.assertEqual(html.count('class="rating-word'), 1)
+
+
+class SlideDeckTests(unittest.TestCase):
+    """The deck is an export of the same report, not a second version of it."""
+
+    def _render(self, mode: str) -> str:
+        with tempfile.TemporaryDirectory() as tmp:
+            request = build_request("AXON price structure and momentum", mode)
+            result = DemoResearchProvider().run(request, Path(tmp))
+            target = Path(tmp) / "report.html"
+            build_research_html(result, request, target)
+            return target.read_text(encoding="utf-8")
+
+    def test_both_reports_carry_a_deck_and_an_export_button(self):
+        for mode in ("general", "deep"):
+            with self.subTest(mode=mode):
+                html = self._render(mode)
+                self.assertIn('id="deckBtn"', html)
+                self.assertIn('class="deck"', html)
+                self.assertGreaterEqual(html.count('<section class="slide">'), 5)
+
+    def test_the_deck_is_hidden_until_the_button_turns_it_on(self):
+        # A reader opening the report must see the report, not a deck stacked
+        # underneath it.
+        html = self._render("general")
+        self.assertIn(".deck{display:none}", html)
+        self.assertIn("body.deck-on .deck{display:block}", html)
+
+    def test_the_landscape_page_box_is_only_applied_while_printing_the_deck(self):
+        # @page cannot be scoped to a class, so an always-present landscape rule
+        # would silently re-page the ordinary Print / save PDF output too.
+        html = self._render("general")
+        self.assertNotIn("@page{size:297mm", html.split("<body")[0])
+        self.assertIn("pageStyle.textContent='@page{size:297mm 167mm;margin:0}'", html)
+
+    def test_the_deck_carries_its_own_disclosure(self):
+        # A deck leaves the room without the report attached to it.
+        html = self._render("general")
+        deck = html[html.index('class="deck"'):]
+        self.assertIn("Firm compliance review is required", deck)
+        self.assertIn("Internal use only", deck)

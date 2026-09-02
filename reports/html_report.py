@@ -617,7 +617,7 @@ def _source_html(result: ResearchResult) -> str:
 
 
 def _document(title: str, css_reference: str, body: str, script: str = "", extra_css: str = "") -> str:
-    css = _approved_css(css_reference) + _DYNAMIC_CSS + extra_css
+    css = _approved_css(css_reference) + _DYNAMIC_CSS + _DECK_CSS + extra_css
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -771,7 +771,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
 <nav class="rail" aria-label="Sections">
   <div class="rail-label">General Research</div>
   <a href="#answer" class="on">The answer</a><a href="#action">What we should do</a><a href="#evidence">Evidence</a><a href="#data">Essential data</a><a href="#risks">Risks &amp; triggers</a><a href="#sources">Sources</a>
-  <div class="rail-tools"><button class="btn" onclick="window.print()">Print / save PDF</button></div>
+  <div class="rail-tools"><button class="btn" id="deckBtn">Export slides</button><button class="btn" onclick="window.print()">Print / save PDF</button></div>
 </nav>
 <main class="page general-brief">
 {_masthead(result, 'General Research', f'{result.horizon.value} view')}
@@ -829,12 +829,13 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
   <p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing involves risk, including possible loss of principal. Firm compliance review is required before client distribution.</p>
   <footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer>
 </section>
-</main></div>"""
+</main></div>
+{_deck_html(result, request, question, checks_narrative, qualitative_summary, _general_chart(result))}"""
     return _document(
         f"{result.identity.ticker} General Research — Technical Analyst Agent",
         "general_research_base.html",
         body,
-        _navigation_script(),
+        _navigation_script() + _deck_script(),
     )
 
 
@@ -1005,7 +1006,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
   <a href="#page1" class="page-tab on" data-page="page1">1 — The call</a>
   <a href="#page2" class="page-tab" data-page="page2">2 — Charts</a>
   <a href="#page3" class="page-tab" data-page="page3">3 — Fundamentals</a>
-  <div class="rail-tools"><button class="btn" id="advBtn" aria-pressed="false">Advisor detail: off</button><button class="btn" onclick="window.print()">Print / save PDF</button></div>
+  <div class="rail-tools"><button class="btn" id="advBtn" aria-pressed="false">Advisor detail: off</button><button class="btn" id="deckBtn">Export slides</button><button class="btn" onclick="window.print()">Print / save PDF</button></div>
 </nav>
 <main class="page tech-report">
 <div class="page-view" id="page1">
@@ -1041,8 +1042,9 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 <section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p><details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*result.fundamental.signals, *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div></section>
 <section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div><p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
 </div>
-</main></div>"""
-    script = f"const PLAN={plan_json};\nconst TV_SYMBOL={json.dumps(tv_symbol)};\n" + _technical_script()
+</main></div>
+{_deck_html(result, request, request.query, checks_narrative, condense_reasoning(result.technical.summary), price_chart)}"""
+    script = f"const PLAN={plan_json};\nconst TV_SYMBOL={json.dumps(tv_symbol)};\n" + _technical_script() + _deck_script()
     return _document(
         f"{result.identity.ticker} Technical Research — Technical Analyst Agent",
         "technical_research_base.html",
@@ -1254,3 +1256,216 @@ def build_research_html(result: ResearchResult, request: ResearchRequest, output
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(html, encoding="utf-8")
     return output_path
+
+
+# ---------------------------------------------------------------------------
+# Slide deck
+#
+# A landscape, presentation-shaped view of the same report, for showing a
+# conclusion rather than reading one. It lives inside the report file instead of
+# being a second artifact: the exported HTML is the retained research record,
+# and a deck that could drift from it would be a second version of the answer.
+#
+# Printing is the export. The report's own Print / save PDF control is already
+# the supported PDF path, so the deck reuses it -- a landscape @page rule is
+# injected only while the deck is being printed, because @page cannot be scoped
+# to a class.
+# ---------------------------------------------------------------------------
+
+_DECK_CSS = """
+.deck{display:none}
+body.deck-on .page,body.deck-on .rail{display:none!important}
+body.deck-on .deck{display:block}
+body.deck-on{background:#0E1E3A}
+.slide{position:relative;width:1160px;max-width:96vw;aspect-ratio:16/9;margin:26px auto;
+  background:linear-gradient(160deg,#12264A 0%,#0C1A33 100%);color:#E8EDF6;
+  border-radius:14px;padding:52px 60px;box-sizing:border-box;overflow:hidden;
+  display:flex;flex-direction:column;box-shadow:0 18px 44px rgba(0,0,0,.34)}
+.slide:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#C9A227}
+.s-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;
+  text-transform:uppercase;color:#7FA0CE;margin-bottom:16px}
+.s-h1{font-family:'Source Serif 4',Georgia,serif;font-size:56px;line-height:1.04;font-weight:600;margin:0;color:#FFFFFF;letter-spacing:-.01em}
+.s-h2{font-family:'Source Serif 4',Georgia,serif;font-size:34px;line-height:1.12;font-weight:600;margin:0 0 22px;color:#FFFFFF}
+.s-sub{font-size:16px;color:#9DB4D6;margin-top:14px}
+.s-body{font-size:17px;line-height:1.62;color:#D6E0EF;margin:0}
+.s-body + .s-body{margin-top:14px}
+.s-mid{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center}
+.s-foot{margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#6F8CB8;padding-top:22px}
+.s-rating{font-family:'Source Serif 4',Georgia,serif;font-size:64px;font-weight:700;line-height:1}
+.s-rating.up{color:#63C89A}.s-rating.down{color:#E8827C}.s-rating.flat{color:#E6C868}
+/* Checklist: five columns, the same five criteria, sized for a room. */
+.s-checks{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:6px}
+.s-check{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+  border-radius:10px;padding:16px 15px}
+.s-check-top{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.s-mark{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;
+  justify-content:center;font-size:13px;font-weight:700;flex:none}
+.s-mark.pass{background:#2E8B63;color:#fff}
+.s-mark.fail{background:transparent;border:1.5px solid rgba(255,255,255,.30);color:transparent}
+.s-mark.unconfirmed{background:rgba(255,255,255,.10);border:1.5px solid rgba(255,255,255,.22);color:#9DB4D6;font-size:11px}
+.s-check-label{font-size:14px;font-weight:600;color:#EAF0F9;line-height:1.2}
+.s-check-detail{font-size:11.5px;line-height:1.45;color:#A9BEDC}
+.s-score{font-family:'Source Serif 4',Georgia,serif;font-size:46px;font-weight:700;color:#fff;line-height:1}
+.s-figs{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.12);border-radius:10px;overflow:hidden;margin-top:8px}
+.s-fig{background:#12264A;padding:18px 18px}
+.s-fig-k{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:#7FA0CE}
+.s-fig-v{font-size:25px;font-weight:600;color:#fff;margin-top:7px;font-family:'IBM Plex Mono',monospace}
+.s-fig-v.down{color:#E8827C}.s-fig-v.up{color:#63C89A}
+.s-chart{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
+  background:#fff;border-radius:10px;padding:14px;margin-top:4px}
+.s-chart img{max-width:100%;max-height:100%;object-fit:contain}
+.s-list{margin:0;padding-left:20px;font-size:16px;line-height:1.62;color:#D6E0EF}
+.s-list li{margin-bottom:9px}
+.s-two{display:grid;grid-template-columns:1fr 1fr;gap:34px;flex:1;min-height:0}
+.s-disc{font-size:11.5px;line-height:1.55;color:#8FA6C8}
+@media print{
+  body.deck-on{background:#fff}
+  .slide{margin:0;border-radius:0;box-shadow:none;width:100%;max-width:none;
+    aspect-ratio:auto;height:100vh;break-after:page;break-inside:avoid;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .slide:last-child{break-after:auto}
+}
+"""
+
+
+def _deck_slide(eyebrow: str, body: str, result: ResearchResult) -> str:
+    return (
+        f'<section class="slide"><div class="s-eyebrow">{escape(eyebrow)}</div>'
+        f'<div class="s-mid">{body}</div>'
+        f'<div class="s-foot"><span>Gottfried &amp; Somberg Wealth Management</span>'
+        f'<span>{escape(result.identity.ticker)} · {escape(_date_only(result.as_of))}</span></div></section>'
+    )
+
+
+def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
+               checks_narrative: str, reasoning: str, chart: ChartRecord | None) -> str:
+    """The report as a small deck: one idea per slide, nothing that needs reading twice."""
+    tone = {"up": "up", "down": "down"}.get(_tone(result.lead_rating)[1], "flat")
+    tone_class = "up" if _tone(result.lead_rating)[0] in {"v-bull"} else "down" if _tone(result.lead_rating)[0] in {"v-bear"} else "flat"
+    slides = []
+
+    # 1. The call.
+    slides.append(_deck_slide(
+        f"{result.horizon.value} view",
+        f'<h1 class="s-h1">{escape(result.identity.company_name)}</h1>'
+        f'<div class="s-sub">{escape(result.identity.ticker)} · {escape(result.identity.exchange)} · '
+        f'{_money(result.current_price)} · as of {escape(_date_only(result.as_of))}</div>'
+        f'<div style="margin-top:34px"><div class="s-eyebrow" style="margin-bottom:8px">Our recommendation</div>'
+        f'<div class="s-rating {tone_class}">{escape(result.lead_rating.value)}</div></div>',
+        result,
+    ))
+
+    # 2. The checklist, which is the evidence the rating rests on.
+    checklist = result.conviction_checklist
+    if checklist is not None and checklist.criteria:
+        cells = "".join(
+            f'<div class="s-check"><div class="s-check-top">'
+            f'<span class="s-mark {item.status}">{"&#10003;" if item.passed else "?" if item.passed is None else ""}</span>'
+            f'<span class="s-check-label">{escape(item.label)}</span></div>'
+            f'<div class="s-check-detail">{escape(item.detail)}</div></div>'
+            for item in checklist.criteria
+        )
+        slides.append(_deck_slide(
+            "Conviction checklist",
+            f'<div style="display:flex;align-items:baseline;gap:16px;margin-bottom:18px">'
+            f'<span class="s-score">{checklist.passed_count}/{checklist.total_count}</span>'
+            f'<span class="s-body" style="color:#9DB4D6">Five independent, deterministic criteria &mdash; '
+            f'supplementary evidence, not a rating.</span></div>'
+            f'<div class="s-checks">{cells}</div>',
+            result,
+        ))
+
+    # 3. The question and the reasoning against it.
+    body = f'<h2 class="s-h2">{escape(question)}</h2>' if question else '<h2 class="s-h2">Why this view</h2>'
+    if checks_narrative:
+        body += f'<p class="s-body">{escape(checks_narrative)}</p>'
+    if reasoning:
+        body += f'<p class="s-body">{escape(reasoning)}</p>'
+    slides.append(_deck_slide("The answer", body, result))
+
+    # 4. The plan, as figures rather than prose.
+    plan = result.technical_plan
+    if plan is not None:
+        slides.append(_deck_slide(
+            "What we would do",
+            f'<h2 class="s-h2">{escape(plan.stance)}</h2>'
+            f'<div class="s-figs">'
+            f'<div class="s-fig"><div class="s-fig-k">Entry</div><div class="s-fig-v">{_money(plan.entry_low)}&ndash;{_money(plan.entry_high)}</div></div>'
+            f'<div class="s-fig"><div class="s-fig-k">Stop</div><div class="s-fig-v down">{_money(plan.stop_level)}</div></div>'
+            f'<div class="s-fig"><div class="s-fig-k">First target</div><div class="s-fig-v up">{_money(plan.first_target)}</div></div>'
+            f'<div class="s-fig"><div class="s-fig-k">Reward / risk</div><div class="s-fig-v">{plan.reward_risk:.2f}&times;</div></div>'
+            f'</div>'
+            f'<p class="s-body" style="margin-top:20px">{escape(plan.confirmation)}</p>'
+            f'<p class="s-body">{escape(plan.invalidation)}</p>',
+            result,
+        ))
+
+    # 5. The chart, given the whole slide.
+    if chart is not None:
+        image = _image_data_url(chart.path)
+        if image:
+            slides.append(_deck_slide(
+                "Evidence",
+                f'<h2 class="s-h2" style="margin-bottom:14px">{escape(chart.title)}</h2>'
+                f'<div class="s-chart"><img src="{image}" alt="{escape(chart.title)}"></div>',
+                result,
+            ))
+
+    # 6. Risks and what would change the view.
+    risks = "".join(f"<li>{escape(item)}</li>" for item in result.risks[:4])
+    triggers = "".join(f"<li>{escape(item)}</li>" for item in result.change_conditions[:4])
+    if risks or triggers:
+        slides.append(_deck_slide(
+            "Risks and triggers",
+            '<div class="s-two">'
+            f'<div><h2 class="s-h2">Principal risks</h2><ul class="s-list">{risks or "<li>None reported.</li>"}</ul></div>'
+            f'<div><h2 class="s-h2">What would change this</h2><ul class="s-list">{triggers or "<li>None reported.</li>"}</ul></div>'
+            '</div>',
+            result,
+        ))
+
+    # 7. Disclosure. A deck leaves the room without its report, so it carries its own.
+    slides.append(_deck_slide(
+        "Disclosure",
+        '<h2 class="s-h2">Important information</h2>'
+        '<p class="s-disc">This material is informational and reflects conditions as of the stated time. '
+        'Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without '
+        'notice. Investing involves risk, including possible loss of principal. Firm compliance review is '
+        'required before client distribution. Internal use only.</p>'
+        f'<p class="s-disc" style="margin-top:18px">Confidence in this view: '
+        f'<b style="color:#E8EDF6">{escape(result.confidence.value)}</b></p>',
+        result,
+    ))
+    return f'<div class="deck">{"".join(slides)}</div>'
+
+
+def _deck_script() -> str:
+    """Print the deck in landscape without disturbing the report's own printing.
+
+    An @page rule cannot be scoped to a class, so the landscape page box is
+    injected only for the duration of the deck's print and removed afterwards.
+    """
+    return r"""
+(function(){
+  var btn=document.getElementById('deckBtn'); if(!btn) return;
+  var pageStyle=null;
+  function enter(){
+    document.body.classList.add('deck-on');
+    pageStyle=document.createElement('style');
+    pageStyle.textContent='@page{size:297mm 167mm;margin:0}';
+    document.head.appendChild(pageStyle);
+  }
+  function leave(){
+    document.body.classList.remove('deck-on');
+    if(pageStyle){pageStyle.remove();pageStyle=null;}
+  }
+  btn.addEventListener('click',function(){
+    enter();
+    window.addEventListener('afterprint',function once(){leave();window.removeEventListener('afterprint',once);});
+    setTimeout(function(){window.print();},60);
+  });
+})();
+"""
