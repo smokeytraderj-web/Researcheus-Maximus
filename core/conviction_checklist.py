@@ -20,7 +20,7 @@ checklist cannot be swept by one strong theme (e.g. a hot momentum name):
 2. Momentum   -- MACD above its signal line AND RSI(14) in [40, 75]: trending
                  with participation, but short of a blow-off top.
 3. Relative strength -- total return over the same lookback beats the broad
-                 benchmark (SPY) by at least 0 percentage points.
+                 benchmark (SPY) by at least _RELATIVE_STRENGTH_MARGIN.
 4. Quality    -- return on equity above 15%: the business earns a strong return
                  on the capital shareholders have in it.
 5. Revisions  -- the consensus next-fiscal-year earnings estimate is higher than
@@ -61,6 +61,22 @@ its correlation ran between -0.27 and +0.07, so it genuinely adds a lens rather
 than restating the price-based ones. Measured pass rates for the v2 set are
 32-71% with 94-100% evaluable, so each box discriminates.
 
+v2.2 gave relative strength a margin. It had been a bare `>=` against the
+benchmark, so a security returning +1.5% against SPY's +1.4% confirmed the
+criterion and the report told the reader it was "ahead of the S&P 500". Over the
+64-session default window a tenth of a point is noise, and a box that flips on
+noise cannot discriminate however sound the factor behind it. The criterion now
+requires a margin, which is a statement about measurement, not about relative
+strength itself: cross-sectional momentum is among the most replicated
+predictors in the literature, and the fault was in reading a rounding error as
+outperformance.
+
+The margin is flat rather than scaled to the window. Almost every report uses
+the 64-session default, and a fixed figure is one a reader can hold in mind;
+the cost is that a custom range of a month or of five years measures the same
+three points against very different amounts of drift, so the report states the
+window alongside the figures.
+
 Changing a threshold, adding, or removing a criterion is a policy change: bump
 POLICY_VERSION and update this docstring in the same change.
 """
@@ -69,7 +85,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-POLICY_VERSION = "2.1"
+POLICY_VERSION = "2.2"
 
 _RSI_FLOOR = 40.0
 _RSI_CEILING = 75.0
@@ -79,6 +95,10 @@ _ROE_FLOOR = 0.15
 # Lookback for the estimate-revision comparison. Shorter windows are dominated
 # by noise around a single earnings date.
 _REVISION_LOOKBACK_DAYS = 90
+# How far ahead of the benchmark counts as ahead. Three points over the
+# 64-session default window is small enough that a genuinely leading stock still
+# clears it, and large enough that a dead heat does not.
+_RELATIVE_STRENGTH_MARGIN = 0.03
 
 # Plain-English, client-facing gloss for each criterion -- what it measures, not
 # what this security scored.  Fixed per key, versioned with the policy above;
@@ -86,7 +106,7 @@ _REVISION_LOOKBACK_DAYS = 90
 _EXPLANATIONS = {
     "trend": "The stock's price relative to its own longer-run moving averages -- a measure of whether it sits in a sustained uptrend or downtrend.",
     "momentum": "The strength of short-term buying pressure: trending with participation, short of the overbought extreme where a pullback becomes likely.",
-    "relative_strength": "The stock's total return against the S&P 500 over the same period -- outperformance, not simply a rising price.",
+    "relative_strength": "The stock's total return against the S&P 500 over the same period -- outperformance, not simply a rising price. It must lead by a clear margin, so that a dead heat is not read as strength.",
     "quality": "How much profit the company earns on the money shareholders have invested in it -- a high figure means the business itself is genuinely profitable, not just growing.",
     "revisions": "Whether analysts have raised or cut their earnings forecasts for next year over the past three months -- the direction expectations are moving, rather than where they stand.",
 }
@@ -139,7 +159,9 @@ class ConvictionChecklist:
 _SLIDE_PHRASES = {
     "trend": ("Above the 50 and 200-day", "Below its long-run averages"),
     "momentum": ("Momentum participating", "Momentum not confirming"),
-    "relative_strength": ("Ahead of the S&P 500", "Behind the S&P 500"),
+    # Not "Behind the S&P 500": a stock ahead by less than the margin misses the
+    # criterion while still being ahead, and the slide must not say otherwise.
+    "relative_strength": ("Ahead of the S&P 500", "Not clearly ahead of the S&P 500"),
     "quality": ("Strong return on capital", "Thin return on capital"),
     "revisions": ("Estimates rising", "Estimates falling"),
 }
@@ -179,7 +201,7 @@ def checklist_watch(checklist: "ConvictionChecklist") -> str:
 _WOULD_CHANGE = {
     "trend": "price reclaiming both long-run averages",
     "momentum": "momentum confirming rather than fading",
-    "relative_strength": "the stock beginning to outpace the market",
+    "relative_strength": "the stock pulling clearly ahead of the market",
     "quality": "returns on shareholder capital improving",
     "revisions": "estimates turning back up",
 }
@@ -198,7 +220,7 @@ _NARRATIVE_PHRASES = {
     ),
     "relative_strength": (
         "it has outpaced the S&P 500 over the same window",
-        "it has lagged the S&P 500 over the same window",
+        "it has not pulled clearly ahead of the S&P 500 over the same window",
     ),
     "quality": (
         "the business earns a strong return on shareholder capital",
@@ -327,9 +349,15 @@ def _relative_strength(
             None,
             f"A comparable return series against {benchmark} was not available.",
         )
-    passed = security_return_pct >= benchmark_return_pct
+    lead = security_return_pct - benchmark_return_pct
+    passed = lead >= _RELATIVE_STRENGTH_MARGIN
+    # The gap is quoted, not just the two returns, because the gap is the
+    # criterion -- and a reader who sees +1.5% against +1.4% marked as a miss is
+    # owed the margin that decided it.
     detail = (
-        f"Returned {security_return_pct:+.1%} versus {benchmark}'s {benchmark_return_pct:+.1%} over the same dates."
+        f"Returned {security_return_pct:+.1%} versus {benchmark}'s {benchmark_return_pct:+.1%} "
+        f"over the same dates -- {'ahead by' if lead >= 0 else 'behind by'} {abs(lead):.1%}, "
+        f"{'clearing' if passed else 'short of'} the {_RELATIVE_STRENGTH_MARGIN:.0%} margin."
     )
     return ConvictionCriterion("relative_strength", "Relative strength", passed, detail)
 

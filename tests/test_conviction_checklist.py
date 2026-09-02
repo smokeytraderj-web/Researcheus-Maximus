@@ -68,10 +68,28 @@ class ConvictionChecklistTests(unittest.TestCase):
         self.assertFalse(_base(macd=1, macd_signal=0, rsi14=39.9).criteria[1].passed)
         self.assertFalse(_base(macd=1, macd_signal=0, rsi14=75.1).criteria[1].passed)
 
-    def test_relative_strength_requires_beating_the_benchmark(self):
+    def test_relative_strength_requires_beating_the_benchmark_by_the_margin(self):
         self.assertTrue(_base(security_return_pct=0.10, benchmark_return_pct=0.05).criteria[2].passed)
-        self.assertTrue(_base(security_return_pct=0.05, benchmark_return_pct=0.05).criteria[2].passed)  # tie passes
+        self.assertFalse(_base(security_return_pct=0.05, benchmark_return_pct=0.05).criteria[2].passed)  # a tie is not a lead
         self.assertFalse(_base(security_return_pct=0.02, benchmark_return_pct=0.05).criteria[2].passed)
+
+    def test_relative_strength_margin_boundary(self):
+        # Exactly the margin confirms; a hair under does not.
+        self.assertTrue(_base(security_return_pct=0.08, benchmark_return_pct=0.05).criteria[2].passed)
+        self.assertFalse(_base(security_return_pct=0.0799, benchmark_return_pct=0.05).criteria[2].passed)
+
+    def test_a_dead_heat_no_longer_confirms(self):
+        # The case that prompted v2.2: +1.5% against the benchmark's +1.4% was
+        # reported as "ahead of the S&P 500" on a tenth of a point.
+        criterion = _base(security_return_pct=0.015, benchmark_return_pct=0.014).criteria[2]
+        self.assertFalse(criterion.passed)
+
+    def test_a_narrow_lead_is_not_described_as_lagging(self):
+        # It misses the criterion while still being ahead, and the report must
+        # not tell a reader it is behind.
+        detail = _base(security_return_pct=0.015, benchmark_return_pct=0.014).criteria[2].detail
+        self.assertIn("ahead by", detail)
+        self.assertNotIn("behind by", detail)
 
     def test_relative_strength_unconfirmed_without_a_benchmark_series(self):
         criterion = _base(benchmark_return_pct=None).criteria[2]

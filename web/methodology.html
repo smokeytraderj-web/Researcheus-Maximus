@@ -63,7 +63,7 @@ tailwind.config = {
       measurements that decided it.
     </p>
     <div class="mt-6 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[11px] text-muted">
-      <span>Policy version 2.1</span>
+      <span>Policy version 2.2</span>
       <span>Measured on 50 large-cap US equities</span>
       <span>1 September 2026</span>
     </div>
@@ -142,8 +142,8 @@ tailwind.config = {
           </tr>
           <tr>
             <td class="py-4 px-5 font-semibold text-ink align-top">Relative strength</td>
-            <td class="py-4 px-5 leading-relaxed">Total return beats the S&amp;P 500 over the same dates. Outperformance, not simply a rising price in a rising market.</td>
-            <td class="py-4 px-5 text-right fig text-ink align-top">48%</td>
+            <td class="py-4 px-5 leading-relaxed">Total return beats the S&amp;P 500 over the same dates <i>by at least three percentage points</i>. Outperformance, not simply a rising price in a rising market &mdash; and not a dead heat either.</td>
+            <td class="py-4 px-5 text-right fig text-ink align-top">48%<span class="text-muted">&dagger;</span></td>
           </tr>
           <tr>
             <td class="py-4 px-5 font-semibold text-ink align-top">Quality</td>
@@ -163,6 +163,12 @@ tailwind.config = {
       Quality earned its place on independence as much as merit: measured against every other criterion,
       its correlation ran between <span class="fig">&minus;0.27</span> and <span class="fig">+0.07</span>.
       It genuinely adds a lens rather than restating the price-based ones.
+    </p>
+    <p class="text-[14px] leading-relaxed text-muted mt-3">
+      <span class="fig">&dagger;</span> Relative strength&rsquo;s <span class="fig">48%</span> was measured
+      under version&nbsp;2.1, which required only that the stock beat the index rather than beat it by a
+      margin. The margin will lower that figure; it has not yet been re-measured, and we would rather say
+      so than quote a number we have not taken.
     </p>
   </section>
 
@@ -203,6 +209,33 @@ tailwind.config = {
         and it looks backwards. Revisions ask the same question &mdash; is this business getting better?
         &mdash; in the direction that actually moves prices. Trailing growth is still reported in the
         fundamentals section of every note; it is simply no longer one of the five boxes.
+      </p>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="mb-12">
+    <h2 class="font-serif text-[26px] font-semibold text-ink mb-5">What changed in 2.2</h2>
+    <div class="card rounded-xl bg-white border border-line border-l-[3px] border-l-brand p-6">
+      <div class="font-mono text-[10px] tracking-[0.14em] uppercase text-brand mb-2">Re-thresholded &nbsp;&middot;&nbsp; Relative strength</div>
+      <p class="text-[15px] leading-relaxed mb-3">
+        The criterion had been a bare comparison: beat the index by anything at all. So a stock returning
+        <span class="fig">+1.5%</span> against the S&amp;P 500&rsquo;s <span class="fig">+1.4%</span>
+        confirmed it, and the note told the reader it was ahead of the market. Over a three-month window
+        a tenth of a point is noise, and a box that turns on noise cannot separate names however sound
+        the factor behind it.
+      </p>
+      <p class="text-[15px] leading-relaxed mb-3">
+        It now requires a lead of <b class="text-ink">three percentage points</b>. Note that this is a
+        statement about measurement, not a demotion of the factor: relative strength is among the most
+        replicated predictors in the literature, and the fault was in reading a rounding error as
+        outperformance.
+      </p>
+      <p class="text-[15px] leading-relaxed">
+        One consequence is worth stating plainly. A stock ahead by two points now misses the check while
+        still being ahead, so the wording had to change with the rule: a miss reads
+        &ldquo;not clearly ahead of the S&amp;P 500&rdquo;, never &ldquo;behind&rdquo;. A threshold that
+        made the report say something untrue would have been a worse fault than the one it fixed.
       </p>
     </div>
   </section>
@@ -303,7 +336,7 @@ tailwind.config = {
       </div>
       <div class="flex gap-4">
         <span class="font-mono text-[11px] text-brand mt-1 flex-none w-6">04</span>
-        <p class="text-[15px] leading-relaxed"><b class="text-ink">Changing it is a versioned decision.</b> Adding, removing or re-thresholding a criterion bumps the policy version and is recorded with the measurement that justified it. This document describes version&nbsp;2.1.</p>
+        <p class="text-[15px] leading-relaxed"><b class="text-ink">Changing it is a versioned decision.</b> Adding, removing or re-thresholding a criterion bumps the policy version and is recorded with the measurement that justified it. This document describes version&nbsp;2.2.</p>
       </div>
     </div>
   </section>
@@ -317,7 +350,7 @@ tailwind.config = {
     </p>
     <div class="mt-4 flex items-center justify-between font-mono text-[10.5px] text-ink/40">
       <span>Technical Analyst Agent</span>
-      <span>Policy 2.1 &middot; 1 September 2026</span>
+      <span>Policy 2.2 &middot; 1 September 2026</span>
     </div>
   </footer>
 
