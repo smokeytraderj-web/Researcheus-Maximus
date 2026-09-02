@@ -140,25 +140,41 @@ class ReportIntegrationTests(unittest.TestCase):
 
     def test_a_cited_view_shows_its_house_rating_target_and_age(self):
         html = self._render((_view(ticker="AXON"),))
-        self.assertIn("Research house views", html)
-        self.assertIn("J.P. Morgan", html)
         self.assertIn("Overweight", html)
         self.assertIn("$255.00", html)
         self.assertIn("A+", html)
         self.assertIn("published 19 days ago", html)   # dated, not silently current
 
+    def test_every_house_figure_carries_the_house_name(self):
+        # The figures are woven in among our own, so attribution has to travel
+        # with each number rather than sitting in a section heading above them.
+        html = self._render((_view(ticker="AXON"),))
+        for label in ("J.P. Morgan rating", "J.P. Morgan target", "J.P. Morgan credit"):
+            with self.subTest(label=label):
+                self.assertIn(label, html)
+
+    def test_the_house_figures_sit_in_the_data_block_not_a_section_of_their_own(self):
+        # Given a page to itself a house's rating read as a second verdict.
+        html = self._render((_view(ticker="AXON"),))
+        self.assertNotIn('id="houses"', html)
+        self.assertIn('class="topline house-line"', html)
+
     def test_a_stale_view_says_so(self):
         html = self._render((_view(ticker="AXON", published="2024-01-05"),))
         self.assertIn("confirm it still stands", html)
 
-    def test_the_section_is_absent_when_nothing_is_cited(self):
-        self.assertNotIn("Research house views", self._render(()))
+    def test_nothing_is_added_when_nothing_is_cited(self):
+        # The stylesheet always carries the rules; the markup must not appear.
+        html = self._render(())
+        self.assertNotIn('class="topline house-line"', html)
+        self.assertNotIn("Research houses &mdash;", html)
+        self.assertNotIn("hv-note-block", html.split("</style>")[1])
 
     def test_the_house_rating_is_never_presented_as_our_rating(self):
         # An Overweight from another firm is not this app's Buy: the scales
         # differ, and the report must say whose call is whose.
         html = self._render((_view(ticker="AXON"),))
-        self.assertIn("which is not this report's", html)
+        self.assertIn("each on its own scale, not this report", html)
         self.assertEqual(html.count('class="rating-word'), 1)
 
 
@@ -240,8 +256,8 @@ class PriceDisagreementTests(unittest.TestCase):
 class JpmmReportTests(ReportIntegrationTests):
     def test_the_full_page_renders_rating_profile_and_note(self):
         html = self._render((_jpmm(),))
-        for expected in ("Overweight", "$755.00", "+45.7%", "End date 31 Dec 2027",
-                         "Joseph Cardoso", "Aerospace &amp; Defense",
+        for expected in ("Overweight", "$755.00", "+45.7%",
+                         "Aerospace &amp; Defense",
                          "Market cap ($ mn)", "42,748", "19|1|0",
                          "2Q26 Review", "broad-based momentum"):
             with self.subTest(expected=expected):

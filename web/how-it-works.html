@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How I work — Technical Analyst Agent</title>
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
+<script src="vendor/tailwind.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        ink: '#14213D', ink2: '#25324F', body: '#3E4759', muted: '#65758B',
+        brand: '#1A4F8B', brandDeep: '#123A69', brandSoft: '#EAF1FA', brandLine: '#C4D8EE',
+        gold: '#BFA054', goldSoft: '#EFE4C7',
+        line: '#DCE3EC', line2: '#EDF1F6', panel: '#F7F9FC',
+        pass: '#2C6A4F', fail: '#A0362F',
+      },
+      fontFamily: {
+        serif: ['Source Serif 4', 'Georgia', 'Times New Roman', 'serif'],
+        sans: ['IBM Plex Sans', 'Segoe UI', 'system-ui', 'sans-serif'],
+        mono: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
+      },
+    },
+  },
+}
+</script>
+<style>
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(1100px 620px at 50% -12%, #E4EDF9 0%, rgba(228,237,249,0) 68%),
+      linear-gradient(#FBFCFE, #F4F7FB);
+    background-attachment: fixed;
+  }
+  .font-serif { font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif; }
+  .font-mono  { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .card { box-shadow: 0 1px 2px rgba(20,33,61,.05), 0 10px 28px -18px rgba(20,33,61,.32); }
+  h2 { scroll-margin-top: 24px; }
+  /* The diagram is the argument on this page, so it gets to be wide. */
+  .flow { width: 100%; height: auto; display: block; }
+  .flow text { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+  .flow .lbl { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 9px;
+               letter-spacing: .14em; text-transform: uppercase; fill: #65758B; }
+  .flow .ttl { font-family: 'Source Serif 4', Georgia, serif; font-size: 14px;
+               font-weight: 600; fill: #14213D; }
+  .flow .sm  { font-size: 10.5px; fill: #3E4759; }
+  .flow .box { fill: #FFFFFF; stroke: #DCE3EC; }
+  .flow .box-b { fill: #EAF1FA; stroke: #C4D8EE; }
+  .flow .box-g { fill: #FDFAF2; stroke: #E8DCBC; }
+  .flow .arrow { stroke: #C4D8EE; stroke-width: 1.6; fill: none; }
+  .flow .gate { fill: #BFA054; }
+</style>
+</head>
+<body class="min-h-screen font-sans text-body antialiased">
+
+<div class="max-w-3xl mx-auto px-6 py-14 sm:py-20">
+
+  <a href="/" class="inline-flex items-center gap-2 text-[12px] font-mono tracking-[0.14em] uppercase text-brand hover:text-brandDeep transition-colors mb-10">&larr; Back</a>
+
+  <header class="mb-12">
+    <div class="inline-flex items-center gap-2 rounded-full bg-brandSoft border border-brandLine px-3.5 py-1.5 mb-6">
+      <span class="h-1.5 w-1.5 rounded-full bg-brand"></span>
+      <span class="font-mono text-[10.5px] tracking-[0.18em] uppercase text-brandDeep">How I work</span>
+    </div>
+    <h1 class="font-serif text-[38px] sm:text-[50px] font-semibold tracking-tight text-ink leading-[1.08]">
+      From a ticker to a note
+    </h1>
+    <p class="mt-5 text-[16px] leading-relaxed text-body">
+      What happens between typing a name and getting a research note back: where the evidence comes
+      from, who reasons over it, and the points where the work stops rather than guessing.
+    </p>
+  </header>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="mb-14">
+    <div class="card rounded-xl bg-white border border-line p-5 sm:p-7">
+      <svg class="flow" viewBox="0 0 720 486" role="img"
+           aria-label="Pipeline: a ticker is resolved to one listed security, evidence is retrieved from market, filing, chart and research sources, two specialists analyse it separately, a lead analyst reconciles them, and the result passes a review gate before the note is written.">
+
+        <!-- 1. input -->
+        <text class="lbl" x="0" y="12">You type</text>
+        <rect class="box" x="0" y="20" width="150" height="52" rx="7"/>
+        <text class="ttl" x="14" y="43">AAPL, or Apple</text>
+        <text class="sm"  x="14" y="60">plus a horizon</text>
+        <path class="arrow" d="M150 46 H196"/>
+        <path class="arrow" d="M190 41 l7 5 -7 5" />
+
+        <!-- 2. resolve -->
+        <text class="lbl" x="200" y="12">Step one</text>
+        <rect class="box box-b" x="200" y="20" width="192" height="52" rx="7"/>
+        <text class="ttl" x="214" y="43">Resolve the security</text>
+        <text class="sm"  x="214" y="60">Exchange, class, currency &mdash; confirmed</text>
+        <path class="arrow" d="M296 72 V104"/>
+        <path class="arrow" d="M291 98 l5 7 5 -7"/>
+
+        <!-- 3. sources -->
+        <text class="lbl" x="0" y="120">Step two &mdash; evidence, each with its source and timestamp</text>
+        <rect class="box" x="0" y="128" width="720" height="104" rx="9"/>
+
+        <rect class="box box-b" x="16" y="146" width="160" height="68" rx="6"/>
+        <text class="ttl" x="28" y="167" style="font-size:12.5px">Market data</text>
+        <text class="sm"  x="28" y="185">Prices, volume, history</text>
+        <text class="sm"  x="28" y="200">Fundamentals, estimates</text>
+
+        <rect class="box box-b" x="188" y="146" width="160" height="68" rx="6"/>
+        <text class="ttl" x="200" y="167" style="font-size:12.5px">Charts &amp; technicals</text>
+        <text class="sm"  x="200" y="185">TradingView / TV&nbsp;Remix</text>
+        <text class="sm"  x="200" y="200">Computed here, not read</text>
+
+        <rect class="box box-b" x="360" y="146" width="160" height="68" rx="6"/>
+        <text class="ttl" x="372" y="167" style="font-size:12.5px">Filings &amp; issuer</text>
+        <text class="sm"  x="372" y="185">SEC EDGAR, IR material</text>
+        <text class="sm"  x="372" y="200">The official record</text>
+
+        <rect class="box box-g" x="532" y="146" width="172" height="68" rx="6"/>
+        <text class="ttl" x="544" y="167" style="font-size:12.5px">Research houses</text>
+        <text class="sm"  x="544" y="185">J.P. Morgan Markets</text>
+        <text class="sm"  x="544" y="200">Entered by an entitled reader</text>
+
+        <path class="arrow" d="M240 232 V264"/>
+        <path class="arrow" d="M235 258 l5 7 5 -7"/>
+        <path class="arrow" d="M480 232 V264"/>
+        <path class="arrow" d="M475 258 l5 7 5 -7"/>
+
+        <!-- 4. specialists -->
+        <text class="lbl" x="0" y="280">Step three &mdash; two specialists, neither shown the other's rating</text>
+        <rect class="box" x="96" y="288" width="240" height="62" rx="7"/>
+        <text class="ttl" x="110" y="311">Technical Analyst</text>
+        <text class="sm"  x="110" y="329">Trend, momentum, structure, risk</text>
+
+        <rect class="box" x="384" y="288" width="240" height="62" rx="7"/>
+        <text class="ttl" x="398" y="311">Fundamental Analyst</text>
+        <text class="sm"  x="398" y="329">Business, financials, valuation</text>
+
+        <path class="arrow" d="M216 350 V372 H360"/>
+        <path class="arrow" d="M504 350 V372 H360"/>
+        <path class="arrow" d="M360 372 V392"/>
+        <path class="arrow" d="M355 386 l5 7 5 -7"/>
+
+        <!-- 5. lead -->
+        <text class="lbl" x="180" y="408">Step four</text>
+        <rect class="box box-b" x="180" y="416" width="360" height="56" rx="7"/>
+        <text class="ttl" x="196" y="439">Lead Analyst reconciles</text>
+        <text class="sm"  x="196" y="457">Weighs the two by horizon, states where they disagree</text>
+
+      </svg>
+
+      <div class="mt-6 pt-5 border-t border-line2">
+        <p class="font-mono text-[10px] tracking-[0.16em] uppercase text-gold mb-3">The work stops, at any step, if</p>
+      <div class="grid sm:grid-cols-2 gap-x-8 gap-y-2 text-[12.5px] text-muted">
+        <p><span class="inline-block h-1.5 w-1.5 rounded-full bg-gold align-middle mr-2"></span>
+          Two securities could match the name</p>
+        <p><span class="inline-block h-1.5 w-1.5 rounded-full bg-gold align-middle mr-2"></span>
+          A required source did not answer</p>
+        <p><span class="inline-block h-1.5 w-1.5 rounded-full bg-gold align-middle mr-2"></span>
+          Two sources materially disagree</p>
+        <p><span class="inline-block h-1.5 w-1.5 rounded-full bg-gold align-middle mr-2"></span>
+          The evidence will not support the call</p>
+      </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="mb-12">
+    <h2 class="font-serif text-[26px] font-semibold text-ink mb-4">Where the evidence comes from</h2>
+    <p class="text-[15.5px] leading-relaxed mb-5">
+      Sources are ranked, and the most authoritative one available answers each claim. A price comes
+      from market data, never from a research note that quotes a price; a reported financial comes from
+      the filing, never from a summary of it.
+    </p>
+
+    <div class="space-y-3">
+      <div class="card rounded-xl bg-white border border-line p-5">
+        <div class="flex items-baseline gap-3 mb-1">
+          <span class="font-mono text-[11px] text-gold">01</span>
+          <span class="font-serif text-[16px] font-semibold text-ink">Exchange and security master</span>
+        </div>
+        <p class="text-[13.5px] leading-relaxed text-body ml-8">Identity, listing, share class, currency. Everything else is keyed to the security this step confirms &mdash; not to what was typed.</p>
+      </div>
+      <div class="card rounded-xl bg-white border border-line p-5">
+        <div class="flex items-baseline gap-3 mb-1">
+          <span class="font-mono text-[11px] text-gold">02</span>
+          <span class="font-serif text-[16px] font-semibold text-ink">SEC filings and issuer material</span>
+        </div>
+        <p class="text-[13.5px] leading-relaxed text-body ml-8">10-K, 10-Q, 8-K, earnings releases and investor presentations. The official record wins over anyone's description of it.</p>
+      </div>
+      <div class="card rounded-xl bg-white border border-line p-5">
+        <div class="flex items-baseline gap-3 mb-1">
+          <span class="font-mono text-[11px] text-gold">03</span>
+          <span class="font-serif text-[16px] font-semibold text-ink">Market and fundamental data</span>
+        </div>
+        <p class="text-[13.5px] leading-relaxed text-body ml-8">Prices, volume, history, normalised financials, valuation and consensus estimates. Every indicator in a note is computed here from that history &mdash; never read off a picture of a chart.</p>
+      </div>
+      <div class="card rounded-xl bg-white border border-line p-5">
+        <div class="flex items-baseline gap-3 mb-1">
+          <span class="font-mono text-[11px] text-gold">04</span>
+          <span class="font-serif text-[16px] font-semibold text-ink">Research houses</span>
+        </div>
+        <p class="text-[13.5px] leading-relaxed text-body ml-8">
+          A house's published equity rating, price target, credit rating and latest note &mdash;
+          J.P. Morgan Markets among them. Read on the portal by an entitled reader and recorded here;
+          nothing automates against it and no credential is held. Each house's rating stays in that
+          house's own words, because an Overweight is not this firm's Buy.
+        </p>
+      </div>
+      <div class="card rounded-xl bg-white border border-line p-5">
+        <div class="flex items-baseline gap-3 mb-1">
+          <span class="font-mono text-[11px] text-gold">05</span>
+          <span class="font-serif text-[16px] font-semibold text-ink">News and public sentiment</span>
+        </div>
+        <p class="text-[13.5px] leading-relaxed text-body ml-8">Current developments, and public discussion where it is legible. Sentiment is context. It never justifies a rating on its own.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="mb-12">
+    <h2 class="font-serif text-[26px] font-semibold text-ink mb-4">How the reasoning is split</h2>
+    <p class="text-[15.5px] leading-relaxed mb-4">
+      The technical and fundamental workstreams run <b class="text-ink">separately</b>, and neither sees
+      the other's conclusion before reaching its own. That is deliberate: shown a rating first, the
+      second opinion tends to become an argument for it rather than a test of it.
+    </p>
+    <p class="text-[15.5px] leading-relaxed mb-4">
+      The Lead Analyst then reconciles rather than averages, weighting the two by the horizon asked for.
+      A short-horizon question leans on price structure; a long-horizon one leans on the business. When
+      the two disagree &mdash; a strong company in a falling chart is the common case &mdash; the note
+      says so plainly instead of splitting the difference and calling it a Hold.
+    </p>
+    <div class="card rounded-xl bg-panel border border-line p-5">
+      <p class="text-[13.5px] leading-relaxed text-body">
+        Alongside the rating, five deterministic checks are computed straight from the numbers with no
+        model judgment anywhere in them. They are supplementary evidence, never the rating itself.
+        <a href="methodology.html" class="text-brand hover:text-brandDeep font-medium">Why those five &rarr;</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="mb-12">
+    <h2 class="font-serif text-[26px] font-semibold text-ink mb-4">What it will not do</h2>
+    <ul class="space-y-3 text-[15.5px] leading-relaxed">
+      <li class="flex gap-3"><span class="text-fail font-mono text-[13px] mt-0.5">&times;</span>
+        <span><b class="text-ink">Fill a gap with a guess.</b> A figure that could not be retrieved is reported missing, with the reason. It is never quietly replaced by an estimate.</span></li>
+      <li class="flex gap-3"><span class="text-fail font-mono text-[13px] mt-0.5">&times;</span>
+        <span><b class="text-ink">Read a number off a chart image.</b> Indicators are computed from price history. If the history is not there, the indicator is not reported.</span></li>
+      <li class="flex gap-3"><span class="text-fail font-mono text-[13px] mt-0.5">&times;</span>
+        <span><b class="text-ink">Bypass a paywall or a login.</b> Licensed sources are reached through the entitlement the reader already holds, or not at all.</span></li>
+      <li class="flex gap-3"><span class="text-fail font-mono text-[13px] mt-0.5">&times;</span>
+        <span><b class="text-ink">Resolve a material conflict by itself.</b> When two sources disagree on a price or a figure, both are shown with their timestamps and a person decides.</span></li>
+      <li class="flex gap-3"><span class="text-fail font-mono text-[13px] mt-0.5">&times;</span>
+        <span><b class="text-ink">Change its own conclusions from feedback.</b> Feedback is logged for a person to read. It never edits a rating.</span></li>
+    </ul>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <footer class="mt-16 pt-8 border-t border-line">
+    <p class="text-[12.5px] leading-relaxed text-muted">
+      Ratings, levels and scenarios are evidence-based assessments, not guarantees, and investing
+      involves risk including possible loss of principal. Internal use only &mdash; not for client
+      distribution.
+    </p>
+    <div class="mt-4 flex items-center justify-between font-mono text-[10.5px] text-ink/40">
+      <span>Technical Analyst Agent</span>
+      <span>Gottfried &amp; Somberg Wealth Management</span>
+    </div>
+  </footer>
+
+</div>
+
+</body>
+</html>

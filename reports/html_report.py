@@ -122,6 +122,8 @@ _DYNAMIC_CSS = r"""
 .plan-line .tl-v{font-size:19px}
 /* An entry zone is two prices and a dash -- it wrapped mid-range at strip size. */
 .plan-line .tl-v.range{font-size:16.5px}
+.house-line{margin-top:0}
+.hv-profiles{display:grid;grid-template-columns:repeat(2,1fr);gap:0 34px;margin-top:18px}
 .hv-list{display:grid;gap:14px}
 .hv{border:1px solid var(--line);border-radius:8px;padding:14px 16px;background:#fff}
 .hv.stale{border-left:3px solid var(--gold)}
@@ -789,80 +791,98 @@ def _topline(result: ResearchResult) -> str:
 </div>"""
 
 
-def _house_views_html(result: ResearchResult) -> str:
-    """Third-party house views, attributed and dated.
+def _house_strip(result: ResearchResult) -> str:
+    """Each house's call, in the same strip language as the plan and the market.
 
-    Shown as evidence beside our own conclusion, never folded into it. Each view
-    keeps the house's own rating wording, states how old it is -- a price target
-    with no date beside it reads as current however old it is -- and says so
-    when the house's own price differs materially from the one this analysis was
-    run at, because the upside they quote is measured against theirs.
+    Woven into the data block rather than given a section of its own: a house's
+    rating is one more figure a reader weighs against the others, and putting it
+    on a page by itself made it look like a second verdict. Every cell names the
+    house, so attribution travels with the number wherever it is read.
     """
     views = getattr(result, "house_views", ())
     if not views:
         return ""
-    blocks = []
+    cells = []
+    flags = []
     for view in views:
         age, stale = house_views.freshness(view, result.as_of)
-        figures = []
         if view.equity_rating:
-            figures.append(f"<dt>Equity rating</dt><dd>{escape(view.equity_rating)}</dd>")
+            cells.append(
+                f'<div class="tl"><div class="tl-k">{escape(view.house)} rating</div>'
+                f'<div class="tl-v">{escape(view.equity_rating)}</div>'
+                f'<div class="tl-n">{escape(age)}</div></div>'
+            )
         if view.price_target is not None:
-            extra = []
-            if view.upside_pct is not None:
-                extra.append(f"{view.upside_pct:+.1%}")
-            if view.target_horizon:
-                extra.append(escape(view.target_horizon))
-            tail = f' <span class="hv-h">{" · ".join(extra)}</span>' if extra else ""
-            figures.append(
-                f'<dt>Price target</dt><dd class="num">{_money(view.price_target)}{tail}</dd>'
+            note = f"{view.upside_pct:+.1%} on their price" if view.upside_pct is not None else escape(view.target_horizon)
+            cells.append(
+                f'<div class="tl"><div class="tl-k">{escape(view.house)} target</div>'
+                f'<div class="tl-v num">{_money(view.price_target)}</div>'
+                f'<div class="tl-n">{note}</div></div>'
             )
         if view.credit_rating:
-            scale = f' <span class="hv-h">{escape(view.credit_rating_scale)}</span>' if view.credit_rating_scale else ""
-            figures.append(f"<dt>Credit rating</dt><dd>{escape(view.credit_rating)}{scale}</dd>")
-
-        context = " · ".join(escape(part) for part in (view.analyst, view.sector, view.region) if part)
-        profile = ""
-        if view.profile:
-            rows = "".join(
-                f"<tr><th>{escape(str(label))}</th><td class=\"num\">{escape(str(value))}</td></tr>"
-                for label, value in view.profile
-            )
-            profile = f'<table class="hv-profile"><tbody>{rows}</tbody></table>'
-
-        note_html = ""
-        note = view.latest_note
-        if note is not None:
-            byline = " · ".join(escape(p) for p in (note.kind, note.authors, note.published) if p)
-            note_html = (
-                '<div class="hv-note-block"><div class="hv-k">Latest note</div>'
-                f'<div class="hv-note-title">{escape(note.title)}</div>'
-                + (f'<p class="hv-note-sum">{escape(note.summary)}</p>' if note.summary else "")
-                + (f'<div class="hv-note-by">{byline}</div>' if byline else "")
-                + "</div>"
+            scale = escape(view.credit_rating_scale) or "Credit view"
+            cells.append(
+                f'<div class="tl"><div class="tl-k">{escape(view.house)} credit</div>'
+                f'<div class="tl-v">{escape(view.credit_rating)}</div>'
+                f'<div class="tl-n">{scale}</div></div>'
             )
         conflict = house_views.price_disagreement(view, result.current_price)
+        if conflict:
+            flags.append(conflict)
+        if stale:
+            flags.append(
+                f"{view.house}'s view was {age}; confirm it still stands before relying on it."
+            )
+    if not cells:
+        return ""
+    warning = (
+        f'<div class="hv-flag">{escape(" ".join(flags))}</div>' if flags else ""
+    )
+    return (
+        '<div class="data-group">'
+        "<div class=\"data-k\">Research houses &mdash; each on its own scale, not this report&rsquo;s</div>"
+        f'<div class="topline house-line">{"".join(cells)}</div>{warning}</div>'
+    )
+
+
+def _house_profile_html(result: ResearchResult) -> str:
+    """The house's own profile figures, in the data section with the rest."""
+    blocks = []
+    for view in getattr(result, "house_views", ()):
+        if not view.profile:
+            continue
+        rows = "".join(
+            f'<div class="dr"><dt>{escape(str(label))}</dt><dd>{escape(str(value))}</dd></div>'
+            for label, value in view.profile
+        )
+        context = " · ".join(escape(p) for p in (view.sector, view.region) if p)
         blocks.append(
-            f'<div class="hv{" stale" if stale else ""}">'
-            f'<div class="hv-top"><span class="hv-house">{escape(view.house)}</span>'
-            f'<span class="hv-age">{escape(age)}</span></div>'
+            f'<div class="metric-group"><div class="dl-h">{escape(view.house)} profile</div>'
+            f'<dl class="dl">{rows}</dl>'
             + (f'<div class="hv-ctx">{context}</div>' if context else "")
-            + f'<dl class="hv-figs">{"".join(figures)}</dl>'
-            + (f'<div class="hv-flag">{escape(conflict)}</div>' if conflict else "")
-            + note_html
-            + (f'<div class="hv-body">{profile}</div>' if profile else "")
-            + (f'<div class="hv-stale">Published more than {house_views.STALE_AFTER_DAYS} days ago; '
-               "confirm it still stands before relying on it.</div>" if stale else "")
             + "</div>"
         )
-    return (
-        '<section id="houses"><div class="sec-head"><h2>Research house views</h2>'
-        f'<span class="verdict v-neu">{len(views)} cited</span></div>'
-        f'<div class="hv-list">{"".join(blocks)}</div>'
-        '<p class="hv-note">Published views of third-party research houses, cited as evidence. '
-        "Each house uses its own rating scale, which is not this report's; the rating above is "
-        "this firm's own conclusion.</p></section>"
-    )
+    return f'<div class="hv-profiles">{"".join(blocks)}</div>' if blocks else ""
+
+
+def _house_notes_html(result: ResearchResult) -> str:
+    """The latest note each house published, as a citation and a summary."""
+    blocks = []
+    for view in getattr(result, "house_views", ()):
+        note = view.latest_note
+        if note is None:
+            continue
+        byline = " · ".join(
+            escape(part) for part in (note.kind, note.authors, note.published) if part
+        )
+        blocks.append(
+            f'<div class="hv-note-block"><div class="hv-k">{escape(view.house)} &mdash; latest note</div>'
+            f'<div class="hv-note-title">{escape(note.title)}</div>'
+            + (f'<p class="hv-note-sum">{escape(note.summary)}</p>' if note.summary else "")
+            + (f'<div class="hv-note-by">{byline}</div>' if byline else "")
+            + "</div>"
+        )
+    return "".join(blocks)
 
 
 def _plan_line(plan, entry_mid: float) -> str:
@@ -1038,9 +1058,8 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
 </section>
 <section id="data">
   <div class="sec-head"><h2>Essential data</h2></div>
-  {data_html}
+  {data_html}{_house_profile_html(result)}{_house_notes_html(result)}
 </section>
-{_house_views_html(result)}
 <section id="risks">
   <div class="sec-head"><h2>Risks and decision triggers</h2></div>
   <div class="grid3">
@@ -1313,7 +1332,8 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
   <div class="data-group">
     <div class="data-k">Market and consensus</div>
     {_topline(result)}
-  </div>{demo}
+  </div>
+  {_house_strip(result)}{demo}
 </section>
 <section id="plan"><div class="sec-head"><h2>Action plan</h2><span class="verdict v-neu">{escape(plan.stance)}</span></div>
   <div class="ladder-wrap"><div class="ladder" id="ladder"></div><div class="rr"><div class="rr-k">Reward to risk</div><div class="rr-big num">{plan.reward_risk:.2f}×</div><div class="rr-note">Entry midpoint {_money(entry_mid)} to first target {_money(plan.first_target)}, measured against a {_money(plan.stop_level)} stop.</div><div class="rrbar"><div class="up" style="flex:{max(plan.reward_risk, 0.01):.2f}"></div><div class="dn" style="flex:1"></div></div><div class="rrleg"><span>+{_money(max(0, plan.first_target-entry_mid))} upside</span><span>−{_money(max(0, entry_mid-plan.stop_level))} risk</span></div></div></div>
@@ -1328,8 +1348,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </div>
 <div class="page-view" id="page3" hidden>
 {page2_strip}
-<section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p><details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*result.fundamental.signals, *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div></section>
-{_house_views_html(result)}
+<section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p>{_house_notes_html(result)}<details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*result.fundamental.signals, *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div>{_house_profile_html(result)}</section>
 <section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div><p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
 </div>
 </main></div>
