@@ -173,5 +173,31 @@ class ConvictionChecklistTests(unittest.TestCase):
         self.assertFalse(checklist.criteria[3].passed)  # quality
 
 
+class MethodologyDocumentTests(unittest.TestCase):
+    """web/methodology.html states the policy to readers. If the policy moves and
+    the document does not, the published reasoning becomes wrong -- which is worse
+    than not publishing it."""
+
+    @staticmethod
+    def _document() -> str:
+        from pathlib import Path
+        return (Path(__file__).resolve().parent.parent / "web" / "methodology.html").read_text(encoding="utf-8")
+
+    def test_the_document_states_the_current_policy_version(self):
+        self.assertIn(f"Policy version {POLICY_VERSION}", self._document())
+
+    def test_the_document_names_the_five_current_criteria(self):
+        text = self._document()
+        for label in ("Trend", "Momentum", "Relative strength", "Quality", "Revisions"):
+            with self.subTest(label=label):
+                self.assertIn(f">{label}</td>", text)
+
+    def test_the_document_does_not_present_removed_criteria_as_current(self):
+        text = self._document()
+        table = text[text.index("<tbody"):text.index("</tbody>")]
+        self.assertNotIn("Street conviction", table)
+        self.assertNotIn(">Growth</td>", table)
+
+
 if __name__ == "__main__":
     unittest.main()

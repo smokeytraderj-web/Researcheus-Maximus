@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conviction Checklist — Methodology</title>
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
+<script src="vendor/tailwind.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        ink: '#14213D', ink2: '#25324F', body: '#3E4759', muted: '#65758B',
+        brand: '#1A4F8B', brandDeep: '#123A69', brandSoft: '#EAF1FA', brandLine: '#C4D8EE',
+        gold: '#BFA054', goldSoft: '#EFE4C7',
+        line: '#DCE3EC', line2: '#EDF1F6', panel: '#F7F9FC',
+        pass: '#2C6A4F', fail: '#A0362F',
+      },
+      fontFamily: {
+        serif: ['Source Serif 4', 'Georgia', 'Times New Roman', 'serif'],
+        sans: ['IBM Plex Sans', 'Segoe UI', 'system-ui', 'sans-serif'],
+        mono: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
+      },
+    },
+  },
+}
+</script>
+<style>
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(1100px 620px at 50% -12%, #E4EDF9 0%, rgba(228,237,249,0) 68%),
+      linear-gradient(#FBFCFE, #F4F7FB);
+    background-attachment: fixed;
+  }
+  .font-serif { font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif; }
+  .font-mono  { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .card { box-shadow: 0 1px 2px rgba(20,33,61,.05), 0 10px 28px -18px rgba(20,33,61,.32); }
+  /* Figures are the argument here, so they get the monospace treatment the
+     reports use for anything a reader might check. */
+  .fig { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  h2 { scroll-margin-top: 24px; }
+</style>
+</head>
+<body class="min-h-screen font-sans text-body antialiased">
+
+<div class="max-w-3xl mx-auto px-6 py-14 sm:py-20">
+
+  <a href="/" class="inline-flex items-center gap-2 text-[12px] font-mono tracking-[0.14em] uppercase text-brand hover:text-brandDeep transition-colors mb-10">&larr; Back</a>
+
+  <header class="mb-12">
+    <div class="inline-flex items-center gap-2 rounded-full bg-brandSoft border border-brandLine px-3.5 py-1.5 mb-6">
+      <span class="h-1.5 w-1.5 rounded-full bg-brand"></span>
+      <span class="font-mono text-[10.5px] tracking-[0.18em] uppercase text-brandDeep">Methodology</span>
+    </div>
+    <h1 class="font-serif text-[38px] sm:text-[50px] font-semibold tracking-tight text-ink leading-[1.08]">
+      Why these five checks
+    </h1>
+    <p class="mt-5 text-[16px] leading-relaxed text-body">
+      Every research note we produce carries a five-point Conviction Checklist. This is the reasoning
+      behind which five, why those thresholds, and what we removed along the way &mdash; with the
+      measurements that decided it.
+    </p>
+    <div class="mt-6 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[11px] text-muted">
+      <span>Policy version 2.1</span>
+      <span>Measured on 50 large-cap US equities</span>
+      <span>1 September 2026</span>
+    </div>
+  </header>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="mb-12">
+    <h2 class="font-serif text-[26px] font-semibold text-ink mb-4">What it is, and what it is not</h2>
+    <p class="text-[15.5px] leading-relaxed mb-4">
+      The checklist is <b class="text-ink">supplementary evidence, not a rating</b>. It never renames,
+      replaces or overrides the seven-label rating a note carries, and it is not an input to it. It is a
+      second, transparent view of the same evidence, so a reader can see at a glance how many
+      independent conditions the current picture actually satisfies.
+    </p>
+    <p class="text-[15.5px] leading-relaxed">
+      Every criterion is deterministic and threshold-based. No model judgment and no generated prose is
+      an input. Given the same data on the same day, it returns the same five answers &mdash; which is
+      the point: it is the part of a note you can check.
+    </p>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="mb-12">
+    <h2 class="font-serif text-[26px] font-semibold text-ink mb-5">The bar a criterion has to clear</h2>
+    <p class="text-[15.5px] leading-relaxed mb-6">
+      A checklist is only worth reading if each box can come out either way, and if the five are not
+      quietly measuring the same thing. We hold candidates to four tests before they earn a place.
+    </p>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div class="card rounded-xl bg-white border border-line p-5">
+        <div class="font-mono text-[10px] tracking-[0.14em] uppercase text-brand mb-2">01 &nbsp;Discriminates</div>
+        <p class="text-[14px] leading-relaxed">It must pass for some names and fail for others. A box ticked for nine names in ten cannot separate them, however sound it sounds.</p>
+      </div>
+      <div class="card rounded-xl bg-white border border-line p-5">
+        <div class="font-mono text-[10px] tracking-[0.14em] uppercase text-brand mb-2">02 &nbsp;Independent</div>
+        <p class="text-[14px] leading-relaxed">It must add a lens rather than restate one. Five correlated checks are one check reported five times, and they let a single strong theme sweep the score.</p>
+      </div>
+      <div class="card rounded-xl bg-white border border-line p-5">
+        <div class="font-mono text-[10px] tracking-[0.14em] uppercase text-brand mb-2">03 &nbsp;Computable</div>
+        <p class="text-[14px] leading-relaxed">It must be evaluable for the securities we actually cover. A criterion that is routinely blank is worse than no criterion at all.</p>
+      </div>
+      <div class="card rounded-xl bg-white border border-line p-5">
+        <div class="font-mono text-[10px] tracking-[0.14em] uppercase text-brand mb-2">04 &nbsp;Deterministic</div>
+        <p class="text-[14px] leading-relaxed">It must be a stated threshold on a stated figure, so the reader can disagree with the rule rather than with a judgment they cannot see.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="mb-12">
+    <h2 class="font-serif text-[26px] font-semibold text-ink mb-5">The five</h2>
+    <p class="text-[15.5px] leading-relaxed mb-6">
+      Three read price from different angles; two read the business. Measured pass rates are in the
+      right-hand column &mdash; each sits in the range where a box actually separates names.
+    </p>
+
+    <div class="card rounded-xl bg-white border border-line overflow-hidden">
+      <table class="w-full text-[14px]">
+        <thead>
+          <tr class="bg-panel border-b border-line text-left">
+            <th class="py-3 px-5 font-mono text-[10px] tracking-[0.14em] uppercase text-muted font-semibold">Check</th>
+            <th class="py-3 px-5 font-mono text-[10px] tracking-[0.14em] uppercase text-muted font-semibold">Confirms when</th>
+            <th class="py-3 px-5 font-mono text-[10px] tracking-[0.14em] uppercase text-muted font-semibold text-right">Passes</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-line2">
+          <tr>
+            <td class="py-4 px-5 font-semibold text-ink align-top">Trend</td>
+            <td class="py-4 px-5 leading-relaxed">Price is above both its 50-day and 200-day averages. Two horizons, so a single sharp week cannot carry it.</td>
+            <td class="py-4 px-5 text-right fig text-ink align-top">46%</td>
+          </tr>
+          <tr>
+            <td class="py-4 px-5 font-semibold text-ink align-top">Momentum</td>
+            <td class="py-4 px-5 leading-relaxed">MACD is above its signal <i>and</i> RSI sits between 40 and 75 &mdash; trending with participation, short of the overbought extreme where a pullback becomes likely.</td>
+            <td class="py-4 px-5 text-right fig text-ink align-top">32%</td>
+          </tr>
+          <tr>
+            <td class="py-4 px-5 font-semibold text-ink align-top">Relative strength</td>
+            <td class="py-4 px-5 leading-relaxed">Total return beats the S&amp;P 500 over the same dates. Outperformance, not simply a rising price in a rising market.</td>
+            <td class="py-4 px-5 text-right fig text-ink align-top">48%</td>
+          </tr>
+          <tr>
+            <td class="py-4 px-5 font-semibold text-ink align-top">Quality</td>
+            <td class="py-4 px-5 leading-relaxed">Return on equity above 15%. The business earns a strong return on the capital shareholders have in it &mdash; profitable, not merely in the black.</td>
+            <td class="py-4 px-5 text-right fig text-ink align-top">68%</td>
+          </tr>
+          <tr>
+            <td class="py-4 px-5 font-semibold text-ink align-top">Revisions</td>
+            <td class="py-4 px-5 leading-relaxed">Next-year consensus earnings are higher than 90 days ago. Not where expectations stand, but which way they are moving.</td>
+            <td class="py-4 px-5 text-right fig text-ink align-top">71%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="text-[14px] leading-relaxed text-muted mt-4">
+      Quality earned its place on independence as much as merit: measured against every other criterion,
+      its correlation ran between <span class="fig">&minus;0.27</span> and <span class="fig">+0.07</span>.
+      It genuinely adds a lens rather than restating the price-based ones.
+    </p>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="mb-12">
+    <h2 class="font-serif text-[26px] font-semibold text-ink mb-5">What we removed, and why</h2>
+    <p class="text-[15.5px] leading-relaxed mb-6">
+      Version&nbsp;1 carried two criteria that sounded right and did no work. We only found that out by
+      measuring them, which is now the rule: nothing joins or leaves the checklist on argument alone.
+    </p>
+
+    <div class="card rounded-xl bg-white border border-line border-l-[3px] border-l-fail p-6 mb-4">
+      <div class="font-mono text-[10px] tracking-[0.14em] uppercase text-fail mb-2">Removed &nbsp;&middot;&nbsp; Street conviction</div>
+      <p class="text-[15px] leading-relaxed mb-3">
+        <i>The analyst mean price target sits above the current price.</i>
+      </p>
+      <p class="text-[14.5px] leading-relaxed mb-3">
+        It passed <b class="text-ink fig">90%</b> of the time. Median implied upside was
+        <span class="fig">+13.7%</span>, and the <i>worst</i> case across fifty large caps was only
+        <span class="fig">&minus;4.8%</span>. Sell-side targets carry a documented upward bias, so the box
+        was very nearly always ticked &mdash; and a box ticked for nine names in ten cannot separate them.
+      </p>
+      <p class="text-[14.5px] leading-relaxed">
+        Worse, it correlated <i>negatively</i> with trend (<span class="fig">&minus;0.23</span>) and
+        momentum (<span class="fig">&minus;0.34</span>). Because targets lag price, it was quietly
+        rewarding stocks that had fallen &mdash; the opposite of what a reader takes from the words
+        &ldquo;street conviction&rdquo;.
+      </p>
+    </div>
+
+    <div class="card rounded-xl bg-white border border-line border-l-[3px] border-l-fail p-6">
+      <div class="font-mono text-[10px] tracking-[0.14em] uppercase text-fail mb-2">Removed &nbsp;&middot;&nbsp; Growth</div>
+      <p class="text-[15px] leading-relaxed mb-3">
+        <i>Trailing revenue growth and earnings growth both positive.</i>
+      </p>
+      <p class="text-[14.5px] leading-relaxed">
+        It was the least computable criterion we had, evaluable on <span class="fig">86%</span> of names,
+        and it looks backwards. Revisions ask the same question &mdash; is this business getting better?
+        &mdash; in the direction that actually moves prices. Trailing growth is still reported in the
+        fundamentals section of every note; it is simply no longer one of the five boxes.
+      </p>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="mb-12">
+    <h2 class="font-serif text-[26px] font-semibold text-ink mb-3">A worked example</h2>
+    <p class="text-[15.5px] leading-relaxed mb-6">
+      The clearest way to show what the checklist is for is a name nobody is neutral about. Below is
+      Apple as the checklist read it on 1 September 2026, at <span class="fig">$325.13</span>.
+      <span class="text-muted">These are that day&rsquo;s figures, kept as a fixed illustration.</span>
+    </p>
+
+    <div class="card rounded-xl bg-white border border-line overflow-hidden mb-5">
+      <div class="flex items-baseline gap-4 px-6 pt-6 pb-4 border-b border-line2">
+        <span class="font-serif text-[40px] font-semibold text-ink leading-none">4<span class="text-muted text-[26px]">/5</span></span>
+        <div>
+          <div class="font-semibold text-ink text-[15px]">Apple Inc. &middot; AAPL</div>
+          <div class="text-[13px] text-muted">Four checks confirm, one does not.</div>
+        </div>
+      </div>
+      <ul class="divide-y divide-line2">
+        <li class="flex gap-4 px-6 py-4">
+          <span class="mt-0.5 flex-none w-5 h-5 rounded-md bg-pass text-white text-[12px] flex items-center justify-center font-bold">&#10003;</span>
+          <div>
+            <div class="font-semibold text-ink text-[14px]">Trend</div>
+            <div class="text-[13.5px] leading-relaxed">Price <span class="fig">$325.13</span> is above both the 50-day (<span class="fig">$312.76</span>) and 200-day (<span class="fig">$282.63</span>) averages.</div>
+          </div>
+        </li>
+        <li class="flex gap-4 px-6 py-4">
+          <span class="mt-0.5 flex-none w-5 h-5 rounded-md bg-pass text-white text-[12px] flex items-center justify-center font-bold">&#10003;</span>
+          <div>
+            <div class="font-semibold text-ink text-[14px]">Momentum</div>
+            <div class="text-[13.5px] leading-relaxed">MACD above its signal (<span class="fig">1.21</span> vs <span class="fig">&minus;0.30</span>), RSI <span class="fig">61.1</span> &mdash; inside the 40&ndash;75 band, not stretched.</div>
+          </div>
+        </li>
+        <li class="flex gap-4 px-6 py-4">
+          <span class="mt-0.5 flex-none w-5 h-5 rounded-md bg-pass text-white text-[12px] flex items-center justify-center font-bold">&#10003;</span>
+          <div>
+            <div class="font-semibold text-ink text-[14px]">Relative strength</div>
+            <div class="text-[13.5px] leading-relaxed">Returned <span class="fig">+42.1%</span> against the S&amp;P 500&rsquo;s <span class="fig">+20.3%</span> over the same dates.</div>
+          </div>
+        </li>
+        <li class="flex gap-4 px-6 py-4">
+          <span class="mt-0.5 flex-none w-5 h-5 rounded-md bg-pass text-white text-[12px] flex items-center justify-center font-bold">&#10003;</span>
+          <div>
+            <div class="font-semibold text-ink text-[14px]">Quality</div>
+            <div class="text-[13.5px] leading-relaxed">Return on equity <span class="fig">+148.8%</span>, far above the 15% bar.</div>
+          </div>
+        </li>
+        <li class="flex gap-4 px-6 py-4 bg-[#FDF6F5]">
+          <span class="mt-0.5 flex-none w-5 h-5 rounded-md border-[1.5px] border-fail text-fail text-[12px] flex items-center justify-center font-bold">&times;</span>
+          <div>
+            <div class="font-semibold text-ink text-[14px]">Revisions</div>
+            <div class="text-[13.5px] leading-relaxed">Next-year consensus EPS <span class="fig">$9.53</span> against <span class="fig">$9.65</span> ninety days earlier &mdash; a cut of <span class="fig">1.2%</span>.</div>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <div class="card rounded-xl bg-white border border-line border-l-[3px] border-l-brand p-6">
+      <div class="font-mono text-[10px] tracking-[0.14em] uppercase text-brand mb-3">How we read that</div>
+      <p class="text-[15px] leading-relaxed mb-3">
+        Four of five is a constructive picture, and every price-based lens agrees: the trend is intact,
+        momentum is participating, and the stock has beaten the market comfortably. On the business,
+        returns on capital are exceptional.
+      </p>
+      <p class="text-[15px] leading-relaxed mb-3">
+        The one that does not confirm is the interesting one. Analysts have been <i>cutting</i> next-year
+        earnings while the price rose <span class="fig">42%</span>. That is not a reason to sell, and the
+        note still carried a constructive rating. It is a reason to know precisely what you are relying
+        on: the case rests on price and profitability, and <b class="text-ink">not</b> on expectations
+        improving &mdash; because they have not been.
+      </p>
+      <p class="text-[15px] leading-relaxed">
+        So the note says what to watch: <b class="text-ink">estimates turning back up</b>. That is the
+        whole idea. The checklist is not there to produce a score. It is there to make the shape of a
+        view explicit, and to name the thing that would change it before anyone has to argue about it.
+      </p>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="mb-12">
+    <h2 class="font-serif text-[26px] font-semibold text-ink mb-5">Rules that keep it honest</h2>
+    <div class="space-y-4">
+      <div class="flex gap-4">
+        <span class="font-mono text-[11px] text-brand mt-1 flex-none w-6">01</span>
+        <p class="text-[15px] leading-relaxed"><b class="text-ink">A gap is stated, never guessed.</b> If a criterion cannot be evaluated &mdash; a security too new to have a 200-day average, no consensus estimate at any lookback &mdash; it is reported as not confirmed with the reason given. It never counts toward or against the score.</p>
+      </div>
+      <div class="flex gap-4">
+        <span class="font-mono text-[11px] text-brand mt-1 flex-none w-6">02</span>
+        <p class="text-[15px] leading-relaxed"><b class="text-ink">&ldquo;Does not apply&rdquo; is different from &ldquo;not available&rdquo;.</b> A fund has no return on equity and no earnings consensus. Saying the data was unavailable would invite someone to retry for something that does not exist, so those two boxes say plainly that they do not apply.</p>
+      </div>
+      <div class="flex gap-4">
+        <span class="font-mono text-[11px] text-brand mt-1 flex-none w-6">03</span>
+        <p class="text-[15px] leading-relaxed"><b class="text-ink">Direction, where magnitude is undefined.</b> Revisions judge which way an estimate moved, so a loss-making company whose forecast narrows still confirms it. An earlier rule required a positive base and silently excluded every loss-maker &mdash; growth names and turnarounds among them.</p>
+      </div>
+      <div class="flex gap-4">
+        <span class="font-mono text-[11px] text-brand mt-1 flex-none w-6">04</span>
+        <p class="text-[15px] leading-relaxed"><b class="text-ink">Changing it is a versioned decision.</b> Adding, removing or re-thresholding a criterion bumps the policy version and is recorded with the measurement that justified it. This document describes version&nbsp;2.1.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <footer class="border-t border-line2 pt-6 mt-14">
+    <p class="text-[12.5px] leading-relaxed text-muted">
+      The checklist is supplementary evidence and not a recommendation. Ratings, levels and scenarios in
+      our notes are evidence-based assessments, not guarantees, and investing involves risk including
+      possible loss of principal. Internal use only &mdash; not for client distribution.
+    </p>
+    <div class="mt-4 flex items-center justify-between font-mono text-[10.5px] text-ink/40">
+      <span>Technical Analyst Agent</span>
+      <span>Policy 2.1 &middot; 1 September 2026</span>
+    </div>
+  </footer>
+
+</div>
+
+</body>
+</html>
