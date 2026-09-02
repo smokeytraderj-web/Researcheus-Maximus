@@ -285,3 +285,29 @@ class MethodologyDocumentTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FigurePrecisionTests(unittest.TestCase):
+    """A stated comparison has to show the figures that decided it."""
+
+    def test_macd_above_its_signal_is_never_printed_as_two_equal_numbers(self):
+        # Observed on a real NVDA report: "MACD is above its signal (2.67 vs
+        # 2.67)" -- true, but self-contradicting on the page.
+        detail = _base(macd=2.6749, macd_signal=2.6712).criteria[1].detail
+        self.assertIn("above its signal", detail)
+        self.assertNotIn("(2.67 vs 2.67)", detail)
+        self.assertIn("2.675 vs 2.671", detail)
+
+    def test_precision_stays_at_two_places_when_that_already_distinguishes(self):
+        detail = _base(macd=12.0, macd_signal=8.0).criteria[1].detail
+        self.assertIn("12.00 vs 8.00", detail)
+
+    def test_precision_stops_rather_than_running_on_forever(self):
+        # Values equal to four places are equal for this purpose. The report
+        # shows them as equal and simply does not claim one is above the other.
+        from core.conviction_checklist import _distinguishable
+        self.assertEqual(_distinguishable(2.670001, 2.670000), ("2.6700", "2.6700"))
+        detail = _base(macd=2.670001, macd_signal=2.670000, rsi14=58.0).criteria[1].detail
+        # It may not offer two identical numbers as proof one exceeds the other.
+        self.assertNotIn("(2.6700 vs 2.6700)", detail)
+        self.assertIn("by less than a rounding error", detail)

@@ -535,15 +535,50 @@ def _trend(price: float, sma50: float, sma200: float | None) -> ConvictionCriter
     )
 
 
+def _distinguishable(first: float, second: float, places: int = 2, limit: int = 4) -> tuple[str, str]:
+    """Format two figures with enough precision to show that they differ.
+
+    "MACD is above its signal (2.67 vs 2.67)" is a sentence that contradicts
+    itself in front of the reader. The two values genuinely do differ -- just not
+    at two decimal places -- so the fix is precision, not softer wording: a
+    report that states a comparison must show the figures that decided it. Stops
+    at four places; two values equal that far apart are equal for this purpose,
+    and the criterion fails in that case anyway.
+    """
+    while places < limit and f"{first:.{places}f}" == f"{second:.{places}f}":
+        places += 1
+    return f"{first:.{places}f}", f"{second:.{places}f}"
+
+
+def _macd_reading(macd: float, macd_signal: float) -> str:
+    """How the MACD comparison is stated, so it never contradicts itself.
+
+    Two values that print identically cannot be offered as evidence that one is
+    above the other. Where four decimal places still tie, the honest statement
+    is the size of the gap, not a pair of matching numbers.
+    """
+    macd_text, signal_text = _distinguishable(macd, macd_signal)
+    if macd_text != signal_text:
+        return f"{macd_text} vs {signal_text}"
+    return f"both {macd_text} to four decimal places"
+
+
 def _momentum(rsi14: float, macd: float, macd_signal: float) -> ConvictionCriterion:
     macd_bullish = macd > macd_signal
     rsi_healthy = _RSI_FLOOR <= rsi14 <= _RSI_CEILING
     passed = macd_bullish and rsi_healthy
+    macd_text, signal_text = _distinguishable(macd, macd_signal)
+    reading = _macd_reading(macd, macd_signal)
+    lead = (
+        "MACD is above its signal"
+        if macd_text != signal_text
+        else "MACD is above its signal by less than a rounding error"
+    )
     detail = (
-        f"MACD is above its signal ({macd:.2f} vs {macd_signal:.2f}) and RSI is {rsi14:.1f}, "
+        f"{lead} ({reading}) and RSI is {rsi14:.1f}, "
         f"inside the {_RSI_FLOOR:.0f}-{_RSI_CEILING:.0f} constructive range."
         if passed
-        else f"MACD {macd:.2f} vs signal {macd_signal:.2f}; RSI {rsi14:.1f} "
+        else f"MACD {reading}; RSI {rsi14:.1f} "
         f"({'below' if rsi14 < _RSI_FLOOR else 'above' if rsi14 > _RSI_CEILING else 'inside'} the "
         f"{_RSI_FLOOR:.0f}-{_RSI_CEILING:.0f} range) -- momentum does not confirm both conditions."
     )

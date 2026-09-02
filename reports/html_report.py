@@ -99,6 +99,14 @@ _DYNAMIC_CSS = r"""
    rather than two competing treatments of the same kind of information. The two
    strips share a single 2px rule: the second drops its own top border and sits
    flush under the first. */
+/* Sections on the Technical page need more air between them than the template's
+   36px. The page carries four short, self-contained sections in a row -- the
+   read, the reasoning, the data, the plan -- and at the default spacing they ran
+   together into one column with rules in it, so the eye could not tell where one
+   finished and the next began. Screen only: print separates them by page. */
+.tech-report section{margin-top:60px}
+.tech-report section:first-of-type{margin-top:36px}
+.tech-report .sec-head{padding-bottom:10px;margin-bottom:22px}
 .plan-line{margin-top:20px}
 .tl-n{font-size:12.5px;margin-top:3px}
 .plan-line + .topline{margin-top:0;border-top:0}
@@ -338,6 +346,10 @@ _DYNAMIC_CSS = r"""
 .tech-report .cc-detail{font-size:9px}
 .tech-report .cc-explain{font-size:8px}
 .tech-report #call{break-inside:auto;margin-top:14px}
+/* The screen's 60px between sections is generous on paper, where each section
+   already opens its own page or sits under its own rule. */
+.tech-report section{margin-top:22px}
+.tech-report section:first-of-type{margin-top:14px}
 /* Deep Technical prints one major section per page. Each is a distinct piece of
    the argument -- the read, the plan, one chart, the fundamentals, the sources --
    and running two of them together made it ambiguous where one ended and the
