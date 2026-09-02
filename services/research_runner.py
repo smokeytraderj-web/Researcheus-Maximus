@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import re
 import shutil
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ from core.session import ResearchSession
 from reports.call_log import append_call
 from reports.pdf_report import build_research_pdf
 from reports.html_report import build_research_html
+from research import house_views
 from research.demo_provider import DemoResearchProvider
 
 
@@ -64,6 +66,19 @@ def _verify_html(path: Path) -> None:
         raise RuntimeError("The interactive report failed structural validation.")
 
 
+def _with_house_views(result: ResearchResult) -> ResearchResult:
+    """Attach any stored third-party house views for the resolved security.
+
+    Done here rather than inside a provider so both the live and demo paths pick
+    them up, and so the store is read once the ticker is actually resolved --
+    house views are keyed to the confirmed security, never to what was typed.
+    """
+    views = house_views.for_ticker(result.identity.ticker)
+    if not views:
+        return result
+    return dataclasses.replace(result, house_views=views)
+
+
 class ResearchRunner:
     def __init__(self, provider=None, session_root: Path | None = None):
         self.provider = provider or DemoResearchProvider()
@@ -74,6 +89,7 @@ class ResearchRunner:
         session = ResearchSession.create(self.session_root)
         try:
             result = self.provider.run(request, session.working)
+            result = _with_house_views(result)
             preview = session.preview / "research.pdf"
             interactive = session.preview / "research.html"
             build_research_pdf(result, request, preview)

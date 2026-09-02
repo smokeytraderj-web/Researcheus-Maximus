@@ -12,10 +12,12 @@ Run locally:
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import os
 import threading
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -35,7 +37,9 @@ from backend.jobs import (
     purge_incomplete,
     registry,
 )
+from core.models import HouseView
 from core.request_builder import build_request
+from research import house_views
 from services.research_runner import ResearchRunner
 from services.technical_runner import TechnicalRunner
 
@@ -318,6 +322,53 @@ def submit_feedback(body: FeedbackIn) -> dict:
 def list_feedback() -> dict:
     """Everything recorded, for review. Counts plus the entries themselves."""
     return {"summary": feedback_store.summarise(REPORTS_ROOT), "entries": feedback_store.read_all(REPORTS_ROOT)}
+
+
+class HouseViewIn(BaseModel):
+    """A research house's published view, entered by an entitled reader.
+
+    No credential is accepted here and none is needed: the reader reads the
+    portal in their own session under their own entitlement and records the
+    figures. See research/house_views.py.
+    """
+
+    house: str = Field(min_length=1, max_length=80)
+    ticker: str = Field(min_length=1, max_length=16)
+    equity_rating: str = Field(default="", max_length=40)
+    price_target: float | None = None
+    currency: str = Field(default="USD", max_length=8)
+    target_horizon: str = Field(default="", max_length=32)
+    credit_rating: str = Field(default="", max_length=40)
+    credit_rating_scale: str = Field(default="", max_length=60)
+    analyst: str = Field(default="", max_length=80)
+    published: str = Field(default="", max_length=32)
+    document: str = Field(default="", max_length=300)
+    locator: str = Field(default="", max_length=500)
+
+
+@app.post("/api/house-views")
+def save_house_view(body: HouseViewIn) -> dict:
+    """Record a house's current view of a security, superseding any earlier one."""
+    view = HouseView(
+        **body.model_dump(),
+        retrieved_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    )
+    try:
+        house_views.save(view)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"saved": True, "house": view.house, "ticker": view.ticker.upper()}
+
+
+@app.get("/api/house-views")
+def list_house_views(ticker: str = "") -> dict:
+    views = house_views.for_ticker(ticker) if ticker else house_views.all_views()
+    return {"views": [dataclasses.asdict(view) for view in views]}
+
+
+@app.delete("/api/house-views")
+def delete_house_view(house: str, ticker: str) -> dict:
+    return {"removed": house_views.remove(house, ticker)}
 
 
 @app.get("/api/health")

@@ -101,6 +101,68 @@ class SourceRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class HouseView:
+    """A named research house's published view on a security.
+
+    Third-party commentary, carried as attributed data rather than reproduced
+    analysis: a rating, a target, a credit view and the date they were
+    published, with the document they came from.
+
+    The house's rating is kept verbatim and is never mapped into this app's own
+    seven-label scale. An Overweight from J.P. Morgan is not this app's Buy --
+    the scales have different definitions and different horizons -- and
+    collapsing them would let another firm's call be read as ours. It is shown
+    beside the Lead rating as evidence, exactly as the source hierarchy places
+    analyst commentary: an input, never the conclusion.
+    """
+
+    house: str
+    ticker: str
+    equity_rating: str = ""
+    price_target: float | None = None
+    currency: str = "USD"
+    target_horizon: str = ""
+    credit_rating: str = ""
+    credit_rating_scale: str = ""
+    analyst: str = ""
+    published: str = ""
+    document: str = ""
+    locator: str = ""
+    retrieved_at: str = ""
+    profile: tuple[tuple[str, str], ...] = ()
+    notes: tuple[str, ...] = ()
+
+    def validate(self) -> None:
+        if not self.house.strip():
+            raise ValueError("A house view must name the house that published it.")
+        if not self.ticker.strip():
+            raise ValueError("A house view must name the security it covers.")
+        if not (self.equity_rating.strip() or self.credit_rating.strip()
+                or self.price_target is not None):
+            raise ValueError(
+                "A house view must carry a rating, a credit rating or a price target; "
+                "an empty citation is not evidence."
+            )
+        if self.price_target is not None and self.price_target <= 0:
+            raise ValueError("A price target must be greater than zero.")
+        # An undated rating cannot be weighed: the reader has no way to tell a
+        # view published yesterday from one published two years ago.
+        if not self.published.strip():
+            raise ValueError("A house view must carry the date it was published.")
+
+    def age_days(self, as_of: str) -> int | None:
+        """Days between publication and the analysis date, or None if unparseable."""
+        import datetime as _dt
+
+        try:
+            published = _dt.date.fromisoformat(self.published.strip()[:10])
+            current = _dt.date.fromisoformat(as_of.strip()[:10])
+        except (ValueError, AttributeError):
+            return None
+        return (current - published).days
+
+
+@dataclass(frozen=True, slots=True)
 class SpecialistFinding:
     rating: Rating
     summary: str
@@ -219,6 +281,7 @@ class ResearchResult:
     technical_plan: TechnicalActionPlan | None = None
     overview_chart: ChartRecord | None = None
     conviction_checklist: ConvictionChecklist | None = None
+    house_views: tuple[HouseView, ...] = ()
 
     def validate(self) -> None:
         if self.current_price <= 0:

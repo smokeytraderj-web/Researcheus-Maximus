@@ -25,6 +25,7 @@ from core.conviction_checklist import (
     checklist_watch,
 )
 from core.models import ChartRecord, Rating, ResearchRequest, ResearchResult
+from research import house_views
 
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -121,6 +122,19 @@ _DYNAMIC_CSS = r"""
 .plan-line .tl-v{font-size:19px}
 /* An entry zone is two prices and a dash -- it wrapped mid-range at strip size. */
 .plan-line .tl-v.range{font-size:16.5px}
+.hv-list{display:grid;gap:14px}
+.hv{border:1px solid var(--line);border-radius:8px;padding:14px 16px;background:#fff}
+.hv.stale{border-left:3px solid var(--gold)}
+.hv-top{display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin-bottom:10px}
+.hv-house{font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;color:var(--ink)}
+.hv-age{font-size:11.5px;color:var(--muted)}
+.hv-figs{display:flex;flex-wrap:wrap;gap:0 34px;margin:0}
+.hv-figs dt{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.hv-figs dd{margin:3px 0 0;font-size:16px;font-weight:600;color:var(--ink)}
+.hv-h{font-size:11px;font-weight:400;color:var(--muted)}
+.hv-doc{margin-top:10px;font-size:11.5px;color:var(--muted)}
+.hv-stale{margin-top:9px;font-size:11.5px;color:#8A6D1F}
+.hv-note{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:12px}
 .action p{font-size:12.5px;line-height:1.5;color:var(--body);margin:0}
 .why-block{margin-top:20px;padding:20px 22px;border-left:3px solid var(--gold);background:var(--panel);border-radius:0 4px 4px 0}
 .why-block .why-k{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-bottom:9px}
@@ -764,6 +778,51 @@ def _topline(result: ResearchResult) -> str:
 </div>"""
 
 
+def _house_views_html(result: ResearchResult) -> str:
+    """Third-party house views, attributed and dated.
+
+    Shown as evidence beside our own conclusion, never folded into it. Each row
+    keeps the house's own rating wording and states how old the view is, because
+    a price target with no date beside it reads as current however old it is.
+    """
+    views = getattr(result, "house_views", ())
+    if not views:
+        return ""
+    rows = []
+    for view in views:
+        age, stale = house_views.freshness(view, result.as_of)
+        figures = []
+        if view.equity_rating:
+            figures.append(f'<dt>Equity rating</dt><dd>{escape(view.equity_rating)}</dd>')
+        if view.price_target is not None:
+            horizon = f' <span class="hv-h">{escape(view.target_horizon)}</span>' if view.target_horizon else ""
+            figures.append(
+                f'<dt>Price target</dt><dd class="num">{_money(view.price_target)}{horizon}</dd>'
+            )
+        if view.credit_rating:
+            scale = f' <span class="hv-h">{escape(view.credit_rating_scale)}</span>' if view.credit_rating_scale else ""
+            figures.append(f'<dt>Credit rating</dt><dd>{escape(view.credit_rating)}{scale}</dd>')
+        attribution = escape(view.analyst) + " · " if view.analyst else ""
+        rows.append(
+            f'<div class="hv{" stale" if stale else ""}">'
+            f'<div class="hv-top"><span class="hv-house">{escape(view.house)}</span>'
+            f'<span class="hv-age">{attribution}{escape(age)}</span></div>'
+            f'<dl class="hv-figs">{"".join(figures)}</dl>'
+            + (f'<div class="hv-doc">{escape(view.document)}</div>' if view.document else "")
+            + (f'<div class="hv-stale">Published more than {house_views.STALE_AFTER_DAYS} days ago; '
+               "confirm it still stands before relying on it.</div>" if stale else "")
+            + "</div>"
+        )
+    return (
+        '<section id="houses"><div class="sec-head"><h2>Research house views</h2>'
+        f'<span class="verdict v-neu">{len(views)} cited</span></div>'
+        f'<div class="hv-list">{"".join(rows)}</div>'
+        '<p class="hv-note">Published views of third-party research houses, shown as evidence. '
+        "Each house uses its own rating scale, which is not this report's; the rating above is "
+        "this firm's own conclusion.</p></section>"
+    )
+
+
 def _plan_line(plan, entry_mid: float) -> str:
     """The plan's four figures, in the metrics strip's own language.
 
@@ -939,6 +998,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
   <div class="sec-head"><h2>Essential data</h2></div>
   {data_html}
 </section>
+{_house_views_html(result)}
 <section id="risks">
   <div class="sec-head"><h2>Risks and decision triggers</h2></div>
   <div class="grid3">
@@ -1227,6 +1287,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 <div class="page-view" id="page3" hidden>
 {page2_strip}
 <section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p><details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*result.fundamental.signals, *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div></section>
+{_house_views_html(result)}
 <section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div><p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
 </div>
 </main></div>
