@@ -122,6 +122,17 @@ _DYNAMIC_CSS = r"""
 .plan-line .tl-v{font-size:19px}
 /* An entry zone is two prices and a dash -- it wrapped mid-range at strip size. */
 .plan-line .tl-v.range{font-size:16.5px}
+.hz-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:2px solid var(--ink);border-bottom:1px solid var(--line)}
+.hz{padding:13px 20px;border-left:1px solid var(--line-2)}
+.hz:first-child{border-left:0;padding-left:0}
+.hz-k{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.hz-v{font-family:'Source Serif 4',serif;font-size:26px;font-weight:700;line-height:1.1;margin-top:6px}
+.hz-v.v-bull{color:var(--bull)}.hz-v.v-bear{color:var(--bear)}.hz-v.v-neu{color:var(--neutral)}
+.hz-w{font-size:11px;color:var(--muted);margin-top:6px;font-family:'IBM Plex Mono',monospace}
+.hz-n{font-size:12px;color:var(--body);margin-top:8px;line-height:1.45}
+.hz-note{font-size:12.5px;color:var(--body);line-height:1.6;margin-top:14px;max-width:70ch}
+.hz-agree{font-size:12.5px;color:var(--body);line-height:1.6;margin:16px 0 0}
+.hz-agree b{color:var(--ink)}
 .house-line{margin-top:0}
 .hv-profiles{display:grid;grid-template-columns:repeat(2,1fr);gap:0 34px;margin-top:18px}
 .hv-list{display:grid;gap:14px}
@@ -430,6 +441,10 @@ _DYNAMIC_CSS = r"""
 .general-brief .cc-detail{font-size:9px}
 .general-brief .cc-explain{font-size:8px}
 .general-brief .reason-list{margin-top:12px!important}
+/* When a genuine horizon split pushes the brief to a fourth page, the break
+   lands between whole blocks rather than through the middle of the reason
+   list, which otherwise opened page two on a stranded half-row. */
+.general-brief .reason-list{break-inside:avoid}
 .general-brief .reason-row{padding:6px 0}
 .general-brief .reason-copy{font-size:11.5px;line-height:1.45}
 .general-brief .pos-cell{padding:9px 14px}
@@ -447,6 +462,17 @@ _DYNAMIC_CSS = r"""
 .general-brief .dl-h{margin-bottom:4px}
 .general-brief .metric-group{margin-bottom:11px}
 .general-brief .risk-list li,.general-brief .trigger-list li{font-size:11px;margin-bottom:2px;padding-top:2px;padding-bottom:2px}
+/* The brief is a pinned three pages. The screen block -- a section head, three
+   tall cells and an explanatory line -- costs most of a fourth, so print keeps
+   the three conclusions and drops the furniture around them. */
+.general-brief #horizons{margin-top:10px;break-inside:avoid}
+.general-brief #horizons .sec-head{display:none}
+.general-brief .hz-note{display:none}
+.general-brief .hz-grid{border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.general-brief .hz{padding:5px 12px}
+.general-brief .hz-k{font-size:8px}
+.general-brief .hz-v{font-size:14px;margin-top:2px}
+.general-brief .hz-w{font-size:8px;margin-top:2px}
 .general-brief #sources{margin-top:11px}
 .general-brief #sources .sec-head{break-after:avoid}
 .general-brief .sources{font-size:10px}
@@ -791,6 +817,62 @@ def _topline(result: ResearchResult) -> str:
 </div>"""
 
 
+def _masthead_subline(result: ResearchResult) -> str:
+    """What the masthead says beneath the rating.
+
+    Normally the horizon. For an All Horizons request where the three conclusions
+    differ, the split itself -- so the single rating above it is read as the
+    summary it is, and not as the whole answer.
+    """
+    views = getattr(result, "horizon_views", ())
+    if views and len({view.rating.value for view in views}) > 1:
+        return " · ".join(
+            f"{view.horizon.value.replace(' Term', '')} {view.rating.value}" for view in views
+        )
+    return f"{result.horizon.value} view"
+
+
+def _horizon_views_html(result: ResearchResult) -> str:
+    """The three horizon conclusions, stated separately.
+
+    Shown for an All Horizons request, directly under the masthead, because the
+    disagreement between them is the answer to that request. Blended into one
+    rating it disappears -- and the case where it disappears is the case a
+    reader most needs: a business the fundamental work rates well while the
+    chart is falling.
+    """
+    views = getattr(result, "horizon_views", ())
+    if not views:
+        return ""
+    ratings = {view.rating.value for view in views}
+    # Agreement needs one line, not three columns of the same word. The brief is
+    # a pinned three pages, and a block that says nothing new costs one of them.
+    if len(ratings) == 1:
+        return (
+            '<p class="hz-agree">Short, medium and long term all read '
+            f'<b>{escape(views[0].rating.value)}</b> — the horizons agree, so the rating above '
+            "holds across all three.</p>"
+        )
+    # Only the weighting differs between the three, so the per-horizon rationale
+    # said the same two ratings three times. What changes is stated once beneath.
+    cells = "".join(
+        f'<div class="hz"><div class="hz-k">{escape(view.horizon.value)}</div>'
+        f'<div class="hz-v {_tone(view.rating)[0]}">{escape(view.rating.value)}</div>'
+        f'<div class="hz-w">{view.technical_weight}% technical · '
+        f'{view.fundamental_weight}% fundamental</div></div>'
+        for view in views
+    )
+    technical = views[0].rating  # any horizon reports the same component ratings
+    return (
+        '<section id="horizons"><div class="sec-head"><h2>By horizon</h2>'
+        '<span class="verdict v-neu">The horizons disagree</span></div>'
+        f'<div class="hz-grid">{cells}</div>'
+        '<p class="hz-note">Each horizon weighs the same two workstreams differently, so a name can '
+        "be one thing to hold for a year and another to trade this month. A single blended rating "
+        "would hide that.</p></section>"
+    )
+
+
 def _house_strip(result: ResearchResult) -> str:
     """Each house's call, in the same strip language as the plan and the market.
 
@@ -1029,8 +1111,9 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
   <div class="rail-tools"><button class="btn" id="deckBtn">Export slides</button><button class="btn" onclick="window.print()">Print / save PDF</button></div>
 </nav>
 <main class="page general-brief">
-{_masthead(result, 'General Research', f'{result.horizon.value} view')}
+{_masthead(result, 'General Research', _masthead_subline(result))}
 {_conviction_checklist_html(result.conviction_checklist)}
+{_horizon_views_html(result)}
 <section id="answer">
   <p class="question-line" style="margin-top:20px"><span>Your question</span>{escape(question)}</p>
   <div class="why-block">

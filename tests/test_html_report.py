@@ -287,3 +287,54 @@ class SlideDeckTests(unittest.TestCase):
         deck = html[html.index('class="deck"'):]
         self.assertIn("Firm compliance review is required", deck)
         self.assertIn("Internal use only", deck)
+
+
+class HorizonSplitReportTests(unittest.TestCase):
+    """All Horizons is the default when a request does not name one, so this is
+    most reports. The spec forbids collapsing conflicting horizon conclusions
+    into one vague statement."""
+
+    def _render(self, technical, fundamental):
+        import dataclasses
+        from core.horizons import horizon_views
+        from reports.html_report import build_research_html
+        with tempfile.TemporaryDirectory() as tmp:
+            request = build_request("AXON", "general")
+            result = DemoResearchProvider().run(request, Path(tmp))
+            result = dataclasses.replace(
+                result, horizon_views=horizon_views(technical, fundamental)
+            )
+            target = Path(tmp) / "report.html"
+            build_research_html(result, request, target)
+            return target.read_text(encoding="utf-8")
+
+    def test_a_split_shows_all_three_conclusions(self):
+        html = self._render(Rating.SELL, Rating.BUY)
+        self.assertIn('id="horizons"', html)
+        for expected in ("Short Term", "Medium Term", "Long Term",
+                         "The horizons disagree"):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, html)
+
+    def test_a_split_is_named_in_the_masthead_rather_than_hidden_under_one_word(self):
+        html = self._render(Rating.SELL, Rating.BUY)
+        self.assertIn("Short Reduce · Medium Hold · Long Add", html)
+        # The rating is still stated once; the subline qualifies it.
+        self.assertEqual(html.count('class="rating-word'), 1)
+
+    def test_agreement_costs_one_line_not_a_section(self):
+        # The brief is a pinned three pages; three columns of the same word
+        # would spend one of them saying nothing.
+        html = self._render(Rating.BUY, Rating.BUY)
+        self.assertIn("hz-agree", html)
+        self.assertNotIn('id="horizons"', html)
+        self.assertIn("the horizons agree", html)
+
+    def test_agreement_leaves_the_masthead_subline_alone(self):
+        html = self._render(Rating.BUY, Rating.BUY)
+        self.assertIn("All Horizons view", html)
+
+    def test_print_keeps_the_three_conclusions_and_drops_the_furniture(self):
+        html = self._render(Rating.SELL, Rating.BUY)
+        self.assertIn(".general-brief #horizons .sec-head{display:none}", html)
+        self.assertIn(".general-brief .hz-note{display:none}", html)

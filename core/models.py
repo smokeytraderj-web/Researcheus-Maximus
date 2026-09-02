@@ -101,6 +101,25 @@ class SourceRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class HorizonView:
+    """One horizon's conclusion, with the weighting that produced it.
+
+    An All Horizons request asks three questions, not one. Answering it with a
+    single blended rating hides the case that makes the question worth asking --
+    a strong business in a falling chart, where the near-term answer and the
+    long-term answer genuinely differ. The spec is explicit: produce distinct
+    conclusions for Short, Medium and Long Term, and do not collapse conflicting
+    horizon conclusions into one vague statement.
+    """
+
+    horizon: Horizon
+    rating: Rating
+    technical_weight: int
+    fundamental_weight: int
+    rationale: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class HouseNote:
     """A research note a house has published, as a citation plus a summary.
 
@@ -338,6 +357,7 @@ class ResearchResult:
     overview_chart: ChartRecord | None = None
     conviction_checklist: ConvictionChecklist | None = None
     house_views: tuple[HouseView, ...] = ()
+    horizon_views: tuple[HorizonView, ...] = ()
 
     def validate(self) -> None:
         if self.current_price <= 0:

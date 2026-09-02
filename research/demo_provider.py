@@ -14,7 +14,9 @@ import pandas as pd
 
 from core.conviction_checklist import evaluate_conviction_checklist
 from core.research_prompt import parse_portfolio_exposure
+from core.horizons import horizon_views
 from core.models import (
+    Horizon,
     ComparisonAssessment,
     ChartRecord,
     Confidence,
@@ -363,6 +365,13 @@ class DemoResearchProvider:
             ),
             sentiment="Neutral to constructive in synthetic demo data; no public posts were retrieved.",
             lead_rating=Rating.ADD,
+            # The demo exercises the same All Horizons path the live provider
+            # does, so the workflow it validates is the real one.
+            horizon_views=(
+                horizon_views(technical.rating, Rating.HOLD)
+                if request.horizon is Horizon.ALL and not request.deep_analysis
+                else ()
+            ),
             confidence=Confidence.LOW,
             executive_summary=(
                 f"Direct answer: the synthetic workflow rates {company} Add, but demo evidence cannot support a real buy or sell decision. "

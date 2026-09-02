@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from core.models import Horizon, Rating, ResearchRequest
+from core.horizons import horizon_split_summary, horizon_views
 from research.live_provider import (
     LiveResearchProvider,
     _combine_ratings,
@@ -173,14 +174,19 @@ class HistoryFallbackTests(unittest.TestCase):
         self.assertEqual(lead, Rating.REDUCE)
         self.assertEqual((technical_weight, fundamental_weight), (70, 30))
 
-    def test_main_all_horizons_rating_is_technically_led(self):
+    def test_all_horizons_weighs_the_two_workstreams_evenly(self):
+        # It used to be 70/30 technical. A request spanning every horizon has no
+        # reason to privilege the near-term lens, and the single figure it
+        # produces is only a summary of the three stated separately.
         lead, technical_weight, fundamental_weight = _combine_ratings(
             Rating.BUY,
             Rating.REDUCE,
             Horizon.ALL,
         )
-        self.assertEqual((technical_weight, fundamental_weight), (70, 30))
-        self.assertEqual(lead, Rating.ADD)
+        self.assertEqual((technical_weight, fundamental_weight), (50, 50))
+        # Buy chart against Reduce fundamentals now settles at Hold rather than
+        # the Add the technical-heavy blend produced.
+        self.assertEqual(lead, Rating.HOLD)
 
     def test_buy_question_gets_a_direct_conditional_answer(self):
         answer = _direct_decision_answer(
@@ -387,3 +393,42 @@ class SectorBenchmarkSelectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HorizonSplitTests(unittest.TestCase):
+    """An All Horizons request asks three questions. The spec forbids collapsing
+    conflicting horizon conclusions into one vague statement, and All Horizons is
+    the default when a request does not name one -- so this is most reports."""
+
+    BULL_CHART_WEAK_BUSINESS = (Rating.BUY, Rating.REDUCE)
+    # A strong business in a falling chart: the case the blend used to hide.
+    WEAK_CHART_STRONG_BUSINESS = (Rating.SELL, Rating.BUY)
+
+    def test_three_horizons_are_produced_each_with_its_own_weighting(self):
+        views = horizon_views(*self.WEAK_CHART_STRONG_BUSINESS)
+        self.assertEqual([v.horizon for v in views], [Horizon.SHORT, Horizon.MEDIUM, Horizon.LONG])
+        self.assertEqual([(v.technical_weight, v.fundamental_weight) for v in views],
+                         [(80, 20), (50, 50), (20, 80)])
+
+    def test_a_split_verdict_is_stated_rather_than_averaged_away(self):
+        views = horizon_views(*self.WEAK_CHART_STRONG_BUSINESS)
+        self.assertEqual([v.rating for v in views], [Rating.REDUCE, Rating.HOLD, Rating.ADD])
+
+    def test_the_split_line_names_every_horizon_when_they_disagree(self):
+        line = horizon_split_summary(horizon_views(*self.WEAK_CHART_STRONG_BUSINESS))
+        self.assertIn("disagree", line)
+        for expected in ("Short Reduce", "Medium Hold", "Long Add"):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, line)
+
+    def test_agreement_is_said_plainly_rather_than_dressed_as_a_conflict(self):
+        line = horizon_split_summary(horizon_views(Rating.BUY, Rating.BUY))
+        self.assertNotIn("disagree", line)
+        self.assertIn("all read Buy", line)
+
+    def test_every_horizon_carries_why_it_reached_its_rating(self):
+        for view in horizon_views(*self.BULL_CHART_WEAK_BUSINESS):
+            with self.subTest(horizon=view.horizon):
+                self.assertTrue(view.rationale.strip())
+                self.assertIn("technical", view.rationale)
+                self.assertIn("fundamental", view.rationale)

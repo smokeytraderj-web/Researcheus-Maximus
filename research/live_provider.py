@@ -8,7 +8,8 @@ from pathlib import Path
 from urllib.parse import quote
 
 from core.assessments import assessment_interpretation, fundamental_outlook, technical_setup
-from core.models import ChartRecord, Confidence, Horizon, PortfolioFitAssessment, Rating, ResearchRequest, ResearchResult, SecurityIdentity, SourceRecord, TechnicalActionPlan
+from core.horizons import _combine_ratings, horizon_split_summary, horizon_views
+from core.models import ChartRecord, Confidence, Horizon, HorizonView, PortfolioFitAssessment, Rating, ResearchRequest, ResearchResult, SecurityIdentity, SourceRecord, TechnicalActionPlan
 from core.conviction_checklist import _REVISION_LOOKBACK_DAYS, evaluate_conviction_checklist
 from research.events import build_event_context, event_metrics, event_signals
 from research.options import options_insight
@@ -111,30 +112,6 @@ def _comparison_benchmark(primary_info: dict, secondary_info: dict) -> tuple[str
     if primary_sector and primary_sector == secondary_sector and primary_sector in _SECTOR_BENCHMARKS:
         return _SECTOR_BENCHMARKS[primary_sector]
     return "SPY", "SPDR S&P 500 ETF Trust (broad-market benchmark)"
-
-
-def _combine_ratings(
-    technical: Rating,
-    fundamental: Rating,
-    horizon: Horizon,
-    deep_analysis: bool = False,
-) -> tuple[Rating, int, int]:
-    """Return one horizon-weighted lead rating and transparent component weights."""
-    if deep_analysis:
-        technical_weight, fundamental_weight = (70, 30)
-    else:
-        technical_weight, fundamental_weight = {
-            Horizon.SHORT: (80, 20),
-            Horizon.MEDIUM: (50, 50),
-            Horizon.LONG: (20, 80),
-            Horizon.ALL: (70, 30),
-        }[horizon]
-    ratings = list(Rating)
-    weighted_index = (
-        ratings.index(technical) * technical_weight + ratings.index(fundamental) * fundamental_weight
-    ) / 100
-    index = int(weighted_index + 0.5)
-    return ratings[max(0, min(len(ratings) - 1, index))], technical_weight, fundamental_weight
 
 
 def _compound_subquestion_answers(request: ResearchRequest, plan: "TechnicalActionPlan | None") -> str:
@@ -1603,6 +1580,13 @@ class LiveResearchProvider:
             request.horizon,
             request.deep_analysis,
         )
+        # An All Horizons request asks three questions; answer all three rather
+        # than blending them into one number that hides the disagreement.
+        horizons = (
+            horizon_views(technical.rating, synthesis.fundamental.rating)
+            if request.horizon is Horizon.ALL and not request.deep_analysis
+            else ()
+        )
         technical_plan = technical_action_plan(snapshot, technical.rating, quote_type)
         limitations = list(synthesis.limitations)
         limitations.extend(ycharts_errors)
@@ -2093,6 +2077,7 @@ class LiveResearchProvider:
             fundamental=synthesis.fundamental,
             sentiment=synthesis.sentiment,
             lead_rating=lead,
+            horizon_views=horizons,
             confidence=confidence,
             executive_summary=executive,
             key_metrics=key_metrics,
