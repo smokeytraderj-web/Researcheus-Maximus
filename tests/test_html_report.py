@@ -1,7 +1,12 @@
 import unittest
 
 from core.models import Rating
-from reports.html_report import _stance
+import tempfile
+from pathlib import Path
+
+from core.request_builder import build_request
+from reports.html_report import _stance, build_research_html
+from research.demo_provider import DemoResearchProvider
 
 
 class SpecialistStanceTests(unittest.TestCase):
@@ -28,3 +33,41 @@ class SpecialistStanceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReadingOrderTests(unittest.TestCase):
+    """The checklist is the first evidence a reader meets, and the reasoning
+    follows it. The metrics strip is reference detail and sits after both -- it
+    previously separated the boxes from the answer they explain, and on the
+    Technical report it also pushed the checklist off printed page one."""
+
+    MARKERS = (
+        ("rating", 'class="verdict-hero"'),
+        ("checklist", 'class="cc-card"'),
+        ("why", 'class="why-block"'),
+        ("strip", 'class="topline"'),
+    )
+
+    def _order(self, html: str) -> list[str]:
+        found = []
+        for name, marker in self.MARKERS:
+            index = html.find(marker)
+            self.assertGreaterEqual(index, 0, f"{name} missing from the report")
+            found.append((index, name))
+        return [name for _, name in sorted(found)]
+
+    def _render(self, mode: str) -> str:
+        with tempfile.TemporaryDirectory() as tmp:
+            request = build_request("AXON price structure and momentum", mode)
+            result = DemoResearchProvider().run(request, Path(tmp))
+            target = Path(tmp) / "report.html"
+            build_research_html(result, request, target)
+            return target.read_text(encoding="utf-8")
+
+    def test_general_brief_reads_rating_checklist_why_then_strip(self):
+        self.assertEqual(self._order(self._render("general")),
+                         ["rating", "checklist", "why", "strip"])
+
+    def test_technical_report_uses_the_same_order(self):
+        self.assertEqual(self._order(self._render("deep")),
+                         ["rating", "checklist", "why", "strip"])

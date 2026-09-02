@@ -152,7 +152,24 @@ _DYNAMIC_CSS = r"""
 .scn-chip span{font-size:12.5px;letter-spacing:0;text-transform:none;color:var(--ink);font-weight:600}
 .scn-chip:hover{border-color:var(--ink);color:var(--ink)}
 .scn-chip[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);box-shadow:0 0 0 2px rgba(22,35,63,.10)}
-.scn-slider{margin-top:18px}
+/* The plan as a picture: risk below the stop, the entry band, reward above the
+   first target, with the tested price pinned on it. Reading "above the entry
+   zone" used to require holding four levels in your head to know how far above. */
+.scn-track{position:relative;height:60px;margin-top:20px}
+.scn-bands{position:absolute;left:0;right:0;top:16px;height:14px;border-radius:7px;overflow:hidden;background:#E8ECF1}
+.scn-band{position:absolute;top:0;height:100%}
+.scn-band.risk{background:rgba(163,75,75,.30)}
+.scn-band.entry{background:rgba(191,160,84,.42)}
+.scn-band.reward{background:rgba(63,125,98,.28)}
+.scn-marks{position:absolute;left:0;right:0;top:34px;height:24px}
+.scn-mark{position:absolute;transform:translateX(-50%);text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);white-space:nowrap}
+.scn-mark:before{content:"";display:block;width:1px;height:6px;background:var(--line);margin:0 auto 3px}
+.scn-now{position:absolute;top:12px;height:22px;width:1px;background:var(--muted)}
+.scn-now:after{content:"today";position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-family:'IBM Plex Mono',monospace;font-size:8.5px;color:var(--muted)}
+/* The pin is the one thing that moves, so it is the only saturated mark. */
+.scn-pin{position:absolute;top:9px;width:2px;height:28px;background:var(--ink);border-radius:1px;transition:left .12s ease}
+.scn-pin:after{content:"";position:absolute;top:-5px;left:50%;transform:translateX(-50%);width:9px;height:9px;border-radius:50%;background:var(--ink)}
+.scn-slider{margin-top:6px}
 .scn-slider input[type=range]{width:100%;display:block}
 .scn-ticks{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);margin-top:5px}
 .scn .zone{margin-top:14px;padding:13px 15px;border:1px solid var(--line);border-left:3px solid var(--ink);
@@ -768,15 +785,15 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
   <div class="vh-word {tone_class}">{escape(result.lead_rating.value)}</div>
 </div>
 {_conviction_checklist_html(result.conviction_checklist)}
-{_topline(result)}
 <section id="answer">
-  <p class="question-line" style="margin-top:24px"><span>Your question</span>{escape(question)}</p>
+  <p class="question-line" style="margin-top:20px"><span>Your question</span>{escape(question)}</p>
   <div class="why-block">
     <div class="why-k">Why</div>
     {f'<p class="why-checks">{escape(checks_narrative)}</p>' if checks_narrative else ''}
     <p>{escape(qualitative_summary)}</p>
   </div>
   <div class="reason-list" style="margin-top:20px">{reason_html}</div>
+  {_topline(result)}
   {demo}
 </section>
 <section id="action">
@@ -969,6 +986,16 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
     <div><div class="scn-k">Test price</div><div class="scn-price num" id="sPrice">{_money(result.current_price)}</div><div class="scn-delta" id="sDelta">At today\'s price</div></div>
     <div class="scn-chips" role="group" aria-label="Jump to a planned level">{chips}</div>
   </div>
+  <div class="scn-track" aria-hidden="true">
+    <div class="scn-bands">
+      <div class="scn-band risk" id="bandRisk"></div>
+      <div class="scn-band entry" id="bandEntry"></div>
+      <div class="scn-band reward" id="bandReward"></div>
+    </div>
+    <div class="scn-marks" id="scnMarks"></div>
+    <div class="scn-now" id="scnNow"></div>
+    <div class="scn-pin" id="scnPin"></div>
+  </div>
   <div class="scn-slider"><input type="range" id="slider" min="{slider_min:.2f}" max="{slider_max:.2f}" step="0.01" value="{result.current_price:.2f}" aria-label="Test a future price"><div class="scn-ticks"><span>{_money(slider_min)}</span><span>{_money(slider_max)}</span></div></div>
   <div class="zone" id="zone" aria-live="polite"></div>
   <div class="scn-out">
@@ -991,7 +1018,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </nav>
 <main class="page tech-report">
 <div class="page-view" id="page1">
-{_masthead(result, 'Technical Research')}{_topline(result)}
+{_masthead(result, 'Technical Research')}
 <section id="call">
   <div class="verdict-hero">
     <div class="vh-cap">The call</div>
@@ -1009,7 +1036,8 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
     <div class="why-k">Why this call</div>
     {f'<p class="why-checks">{escape(checks_narrative)}</p>' if checks_narrative else ''}
     <p>{escape(condense_reasoning(result.technical.summary))}</p>
-  </div>{demo}
+  </div>
+  {_topline(result)}{demo}
 </section>
 <section id="plan"><div class="sec-head"><h2>Action plan</h2><span class="verdict v-neu">{escape(plan.stance)}</span></div>
   <div class="ladder-wrap"><div class="ladder" id="ladder"></div><div class="rr"><div class="rr-k">Reward to risk</div><div class="rr-big num">{plan.reward_risk:.2f}×</div><div class="rr-note">Entry midpoint {_money(entry_mid)} to first target {_money(plan.first_target)}, measured against a {_money(plan.stop_level)} stop.</div><div class="rrbar"><div class="up" style="flex:{max(plan.reward_risk, 0.01):.2f}"></div><div class="dn" style="flex:1"></div></div><div class="rrleg"><span>+{_money(max(0, plan.first_target-entry_mid))} upside</span><span>−{_money(max(0, entry_mid-plan.stop_level))} risk</span></div></div></div>
@@ -1170,6 +1198,34 @@ function renderLadder(containerId,testPrice,height){
 // target" and print the wrong action. The slider still drives this variable when
 // dragged; it just no longer defines it.
 var testPrice=null;
+// The plan drawn to scale. Everything is positioned as a percentage of the
+// slider's own range, so the picture and the control always agree.
+function scenarioPct(value){
+  var lo=PLAN.min, hi=PLAN.max;
+  return Math.max(0, Math.min(100, (value-lo)/(hi-lo)*100));
+}
+var scenarioMarksDrawn=false;
+function drawScenarioTrack(p){
+  var track=document.getElementById('scnPin'); if(!track) return;
+  var risk=document.getElementById('bandRisk'), entry=document.getElementById('bandEntry'),
+      reward=document.getElementById('bandReward');
+  risk.style.left='0%';   risk.style.width=scenarioPct(PLAN.stop)+'%';
+  entry.style.left=scenarioPct(PLAN.entryLow)+'%';
+  entry.style.width=Math.max(0.8,scenarioPct(PLAN.entryHigh)-scenarioPct(PLAN.entryLow))+'%';
+  reward.style.left=scenarioPct(PLAN.target1)+'%';
+  reward.style.width=Math.max(0,100-scenarioPct(PLAN.target1))+'%';
+  if(!scenarioMarksDrawn){
+    var marks=document.getElementById('scnMarks');
+    [['Stop',PLAN.stop],['Entry',PLAN.entryMid],['T1',PLAN.target1],['T2',PLAN.target2]].forEach(function(m){
+      var el=document.createElement('div'); el.className='scn-mark';
+      el.style.left=scenarioPct(m[1])+'%'; el.textContent=m[0];
+      marks.appendChild(el);
+    });
+    document.getElementById('scnNow').style.left=scenarioPct(PLAN.current)+'%';
+    scenarioMarksDrawn=true;
+  }
+  track.style.left=scenarioPct(p)+'%';
+}
 function updateScenario(){
   var slider=document.getElementById('slider');if(!slider)return;
   if(testPrice===null)testPrice=Number(slider.value);
@@ -1179,6 +1235,7 @@ function updateScenario(){
   document.getElementById('sPrice').textContent=money(p);document.getElementById('sDelta').textContent=Math.abs(chg)<.0001?"At today's price":pct(chg)+' from today';
   document.getElementById('oChg').textContent=pct(chg);document.getElementById('oEntry').textContent=pct(entry);document.getElementById('oStop').textContent=dist===0?money(0)+' — at the stop':money(Math.abs(dist))+' '+(dist>0?'above':'below');document.getElementById('oPnl').textContent=chg===0?money(0):(chg>0?'+':'−')+money(Math.abs(chg*100000));
   var z=document.getElementById('zone');if(p<=PLAN.stop)z.innerHTML='<b>Invalidated.</b> Price is below the planned stop; the setup no longer qualifies.';else if(p<PLAN.entryLow)z.innerHTML='<b>Below the entry zone.</b> Wait for price to reclaim structure before considering an order.';else if(p<=PLAN.entryHigh)z.innerHTML='<b>Inside the entry zone.</b> Act only if the stated confirmation is present.';else if(p<PLAN.target1)z.innerHTML='<b>Above the entry zone.</b> Avoid chasing; reassess reward to risk.';else if(p<PLAN.target2)z.innerHTML='<b>First target reached.</b> Review risk, sizing and whether to trail the stop.';else z.innerHTML='<b>Second target reached.</b> Re-underwrite rather than assuming further upside.';
+  drawScenarioTrack(p);
   // The chip matching the tested price reads as selected, so the preset levels
   // stay meaningful after the slider has been dragged off one of them.
   document.querySelectorAll('.scn-chip').forEach(function(chip){

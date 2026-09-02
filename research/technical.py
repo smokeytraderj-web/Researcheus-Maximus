@@ -14,6 +14,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 from matplotlib.patches import Rectangle
 import numpy as np
 import pandas as pd
@@ -1874,71 +1875,81 @@ def render_estimate_revision_chart(
     ticker: str,
     destination: Path,
 ) -> Path:
-    """How the consensus next-year EPS estimate has moved over the last 90 days.
+    """How the consensus next-year EPS estimate has moved over the window.
 
-    The Conviction Checklist's Revisions criterion had no picture behind it: the
-    reader was given a pass or fail and two numbers, with no way to see whether
-    the move was a steady re-rating or a single lurch. Every other criterion has
-    a chart; this closes that gap.
+    Drawn against where the estimate *started*, because the question is not what
+    analysts think -- the checklist already prints that number -- but whether
+    they have been marking the business up or down, and by how much. The shaded
+    gap between the line and that baseline is the revision itself.
 
     ``trend`` maps days-ago to the estimate that stood then (0 is current).
-    Points with no estimate are simply absent -- this feed writes those as 0.0,
-    and plotting them would draw a cliff to zero that never happened.
+    Absent points are simply not present: this feed writes them as 0.0, and
+    plotting that would draw a fall to zero that never happened.
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
     points = sorted(((int(k), float(v)) for k, v in trend.items() if v), reverse=True)
-    figure, ax = plt.subplots(figsize=(9.6, 3.5), dpi=190)
+    figure, ax = plt.subplots(figsize=(9.6, 3.6), dpi=190)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_color("#D8DDE6")
+    ax.spines["left"].set_visible(False)
     ax.spines["bottom"].set_color("#D8DDE6")
-    ax.tick_params(colors=MUTED, labelsize=7.4)
-    ax.grid(axis="y", color="#EDF0F3", linewidth=0.8, zorder=1)
+    ax.tick_params(colors=MUTED, labelsize=7.6, length=0)
+    ax.grid(axis="y", color="#F0F3F7", linewidth=0.9, zorder=1)
     ax.set_axisbelow(True)
+
     if len(points) < 2:
         ax.text(0.5, 0.5, "Not enough estimate history to chart", transform=ax.transAxes,
                 ha="center", va="center", fontsize=9, color=MUTED, style="italic")
         ax.set_xticks([]); ax.set_yticks([])
-    else:
-        xs = [-days for days, _ in points]
-        ys = [value for _, value in points]
-        rising = ys[-1] > ys[0]
-        colour = GREEN if rising else RED
-        ax.plot(xs, ys, color=colour, linewidth=1.9, marker="o", markersize=4.5, zorder=4)
-        ax.fill_between(xs, ys, min(ys) - (max(ys) - min(ys) or 1) * 0.35,
-                        color=colour, alpha=0.08, zorder=2)
-        # Say what happened, on the chart, rather than leaving the reader to
-        # infer direction from the slope.
-        move = ys[-1] - ys[0]
-        headline = (
-            f"Raised ${abs(move):,.2f}" if move > 0
-            else f"Cut ${abs(move):,.2f}" if move < 0
-            else "Unchanged"
-        )
-        ax.annotate(
-            f"{headline} over {abs(xs[0])} days",
-            xy=(xs[-1], ys[-1]), xytext=(-8, 14 if rising else -20),
-            textcoords="offset points", ha="right",
-            fontsize=8.2, fontweight="bold", color=colour,
-        )
-        def _signed(value: float) -> str:
-            return f"-${abs(value):,.2f}" if value < 0 else f"${value:,.2f}"
+        ax.set_title(f"{ticker} | Next-year earnings estimate", fontsize=10.5,
+                     color=NAVY, fontweight="bold", loc="left", pad=9)
+        figure.savefig(destination, dpi=190, bbox_inches="tight", facecolor="white")
+        plt.close(figure)
+        return destination
 
-        for x, y in ((xs[0], ys[0]), (xs[-1], ys[-1])):
-            ax.annotate(_signed(y), xy=(x, y), xytext=(0, -14 if rising else 10),
-                        textcoords="offset points", ha="center", fontsize=7.4,
-                        color=NAVY, fontweight="bold")
-        ax.set_xlabel("Days ago", fontsize=7.6, color=MUTED)
-        ax.set_ylabel("Consensus EPS (next FY)", fontsize=7.6, color=MUTED)
-        ax.set_xticks(xs)
-        ax.set_xticklabels([f"{abs(x)}" if x else "now" for x in xs], fontsize=7.4)
-        ax.margins(x=0.08, y=0.30)
-    span_days = max((int(k) for k, v in trend.items() if v), default=0)
-    ax.set_title(
-        f"{ticker} | Next-year earnings estimate"
-        + (f", last {span_days} days" if span_days else ""),
-        fontsize=10.5, color=NAVY, fontweight="bold", loc="left", pad=9,
-    )
+    xs = [-days for days, _ in points]
+    ys = [value for _, value in points]
+    start_value, end_value = ys[0], ys[-1]
+    move = end_value - start_value
+    raised = move > 0
+    colour = GREEN if raised else RED if move < 0 else MUTED
+
+    # The baseline is where analysts stood at the start of the window; the gap to
+    # the line is the revision, which is what the reader is being asked to judge.
+    ax.axhline(start_value, color=MUTED, linestyle=(0, (4, 3)), linewidth=1.0, zorder=3)
+    ax.fill_between(xs, ys, start_value, color=colour, alpha=0.16, zorder=2)
+    ax.plot(xs, ys, color=colour, linewidth=2.1, zorder=4,
+            marker="o", markersize=4.2, markerfacecolor="white",
+            markeredgecolor=colour, markeredgewidth=1.6)
+    ax.plot([xs[-1]], [ys[-1]], marker="o", markersize=7.5, color=colour, zorder=5)
+
+    def signed(value: float) -> str:
+        return f"-${abs(value):,.2f}" if value < 0 else f"${value:,.2f}"
+
+    span = abs(xs[0])
+    if move == 0:
+        headline = f"Unchanged over {span} days"
+    else:
+        verb = "Raised" if raised else "Cut"
+        pct = f" ({move / abs(start_value):+.1%})" if start_value else ""
+        headline = f"{verb} {signed(abs(move))}{pct} over {span} days"
+    ax.set_title(f"{ticker} | Next-year earnings estimate", fontsize=10.5,
+                 color=NAVY, fontweight="bold", loc="left", pad=22)
+    # The read sits under the title, where it is seen before the geometry.
+    ax.text(0, 1.045, headline, transform=ax.transAxes, fontsize=9.4,
+            fontweight="bold", color=colour, va="bottom")
+
+    ax.annotate(f"{signed(start_value)} then", xy=(xs[0], start_value),
+                xytext=(4, -15 if raised else 9), textcoords="offset points",
+                ha="left", fontsize=7.8, color=MUTED)
+    ax.annotate(f"{signed(end_value)} now", xy=(xs[-1], end_value),
+                xytext=(-4, 11 if raised else -17), textcoords="offset points",
+                ha="right", fontsize=8.2, fontweight="bold", color=colour)
+
+    ax.set_xticks(xs)
+    ax.set_xticklabels([f"{abs(x)}d ago" if x else "now" for x in xs], fontsize=7.6)
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _pos: signed(value)))
+    ax.margins(x=0.07, y=0.34)
     figure.savefig(destination, dpi=190, bbox_inches="tight", facecolor="white")
     plt.close(figure)
     return destination
