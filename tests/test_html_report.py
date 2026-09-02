@@ -39,10 +39,13 @@ class ReadingOrderTests(unittest.TestCase):
     """The checklist is the first evidence a reader meets, and the reasoning
     follows it. The metrics strip is reference detail and sits after both -- it
     previously separated the boxes from the answer they explain, and on the
-    Technical report it also pushed the checklist off printed page one."""
+    Technical report it also pushed the checklist off printed page one.
+
+    The rating is stated once, in the masthead. It used to appear there and
+    again in a centred block below, at the same size, reading as two verdicts."""
 
     MARKERS = (
-        ("rating", 'class="verdict-hero"'),
+        ("rating", 'class="rating"'),
         ("checklist", 'class="cc-card"'),
         ("why", 'class="why-block"'),
         ("strip", 'class="topline"'),
@@ -71,3 +74,10 @@ class ReadingOrderTests(unittest.TestCase):
     def test_technical_report_uses_the_same_order(self):
         self.assertEqual(self._order(self._render("deep")),
                          ["rating", "checklist", "why", "strip"])
+
+    def test_the_rating_is_stated_once_per_report(self):
+        for mode in ("general", "deep"):
+            with self.subTest(mode=mode):
+                html = self._render(mode)
+                self.assertNotIn('class="verdict-hero"', html)
+                self.assertEqual(html.count('class="rating-word'), 1)

@@ -76,12 +76,7 @@ _DYNAMIC_CSS = r"""
 .stance-chip.challenges{background:#F6E9E9;color:var(--bear)}
 .stance-chip.partial{background:var(--panel);color:var(--neutral)}
 .stance-chip.watch{background:#FDF6E7;color:#8A6D2F}
-.verdict-hero{text-align:center;padding:18px 0 15px;border-bottom:1px solid var(--line)}
-.verdict-hero .vh-cap{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.13em;font-weight:600;margin-bottom:7px}
 /* The tone classes carry a fill for inline chips; the hero wants the colour only. */
-.verdict-hero .vh-word{font-family:'Source Serif 4',Georgia,serif;font-size:34px;line-height:1;font-weight:600;margin-bottom:0;background:none!important;padding:0}
-.verdict-hero .vh-sub{font-size:12px;color:var(--muted)}
-.verdict-hero .vh-sub b{color:var(--ink)}
 /* Confidence sits with the sources rather than under the rating: it qualifies
    the evidence, and under the rating it read as a second verdict competing with
    the one above it. */
@@ -247,7 +242,6 @@ _DYNAMIC_CSS = r"""
 .chart-empty{min-height:0;padding:14px;font-style:italic}
 .stance-chip,.pos-bar,.why-block,.ev-note,.demo-note{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .pos-bar,.metric-group,.why-block,.ev-note{break-inside:avoid}
-.verdict-hero{padding:14px 0 12px;break-inside:avoid}.verdict-hero .vh-word{font-size:34px}
 .pos-bar{margin-bottom:14px}.metric-group{margin-bottom:14px}
 /* Hold the approved three-page General Research brief: (1) answer and reasoning,
    (2) action plan with its chart, (3) data, risks, sources.  The base template's
@@ -282,8 +276,6 @@ _DYNAMIC_CSS = r"""
 .general-brief .topline{margin-top:10px}
 .general-brief .tl{padding:8px 12px}
 .general-brief .tl-v{font-size:14px}
-.general-brief .verdict-hero{padding:11px 0 9px}
-.general-brief .verdict-hero .vh-word{font-size:29px;margin-bottom:0}
 .general-brief .question-line{font-size:14.5px;margin-bottom:11px}
 .general-brief .answer-card{padding:11px 14px}
 .general-brief .answer{font-size:14px;line-height:1.45}
@@ -312,9 +304,6 @@ _DYNAMIC_CSS = r"""
 .tech-report .cc-detail{font-size:9px}
 .tech-report .cc-explain{font-size:8px}
 .tech-report #call{break-inside:auto;margin-top:14px}
-.tech-report .verdict-hero{padding:10px 0 8px}
-.tech-report .verdict-hero .vh-word{font-size:26px}
-.tech-report .verdict-hero,.tech-report #call .pos-bar{break-after:avoid}
 .general-brief .cc-col-top{gap:6px;margin-bottom:7px}
 .general-brief .cc-box{width:14px;height:14px;border-radius:4px;font-size:10px}
 .general-brief .cc-label{font-size:9.5px}
@@ -644,9 +633,15 @@ def _document(title: str, css_reference: str, body: str, script: str = "", extra
 </html>"""
 
 
-def _masthead(result: ResearchResult, document_type: str) -> str:
-    setup = technical_setup(result.technical.rating)
-    outlook = fundamental_outlook(result.fundamental.rating)
+def _masthead(result: ResearchResult, document_type: str, subline: str = "") -> str:
+    """The report header, and the only place the rating is stated.
+
+    It used to be given twice at the same size -- here, and again in a centred
+    block a few centimetres below -- which made the top of the page read as two
+    competing verdicts. The subline is the caller's, because the old one
+    ("Bullish setup - Positive fundamentals") repeated the metrics strip word
+    for word.
+    """
     tone_class, _ = _tone(result.lead_rating)
     return f"""
 <div class="mast">
@@ -661,7 +656,7 @@ def _masthead(result: ResearchResult, document_type: str) -> str:
   <div class="rating">
     <div class="rating-cap">Overall view</div>
     <div class="rating-word {tone_class}">{escape(result.lead_rating.value)}</div>
-    <div class="rating-sub">{escape(setup)} setup · {escape(outlook)} fundamentals</div>
+    {f'<div class="rating-sub">{escape(subline)}</div>' if subline else ''}
   </div>
 </div>"""
 
@@ -779,11 +774,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
   <div class="rail-tools"><button class="btn" onclick="window.print()">Print / save PDF</button></div>
 </nav>
 <main class="page general-brief">
-{_masthead(result, 'General Research')}
-<div class="verdict-hero">
-  <div class="vh-cap">Our recommendation</div>
-  <div class="vh-word {tone_class}">{escape(result.lead_rating.value)}</div>
-</div>
+{_masthead(result, 'General Research', f'{result.horizon.value} view')}
 {_conviction_checklist_html(result.conviction_checklist)}
 <section id="answer">
   <p class="question-line" style="margin-top:20px"><span>Your question</span>{escape(question)}</p>
@@ -1018,14 +1009,9 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </nav>
 <main class="page tech-report">
 <div class="page-view" id="page1">
-{_masthead(result, 'Technical Research')}
+{_masthead(result, 'Technical Research', f'Confidence {result.confidence.value} · {plan.stance}')}
 <section id="call">
-  <div class="verdict-hero">
-    <div class="vh-cap">The call</div>
-    <div class="vh-word {tone_class}">{escape(result.lead_rating.value)}</div>
-    <div class="vh-sub">Confidence <b>{escape(result.confidence.value)}</b> &nbsp;·&nbsp; {escape(plan.stance)}</div>
-  </div>
-  <div class="pos-bar" style="margin-top:20px">
+  <div class="pos-bar" style="margin-top:4px">
     <div class="pos-cell"><div class="pos-k">Entry</div><div class="pos-v">{_money(plan.entry_low)} – {_money(plan.entry_high)}</div></div>
     <div class="pos-cell"><div class="pos-k">Stop</div><div class="pos-v bear">{_money(plan.stop_level)}</div></div>
     <div class="pos-cell"><div class="pos-k">First target</div><div class="pos-v bull">{_money(plan.first_target)}</div></div>
