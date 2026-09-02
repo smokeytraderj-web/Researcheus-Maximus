@@ -213,6 +213,7 @@ def volume_profile_insight(profile: VolumeProfile, price: float) -> str:
 
 NAVY = "#1B2A4A"
 GOLD = "#BFA054"
+GOLD_DARK = "#8A6F31"
 BLUE = "#5378A5"
 MUTED = "#7A8491"
 GREEN = "#3F7D62"
@@ -1047,29 +1048,60 @@ def render_chart(
             plan.entry_high,
             color=GOLD,
             alpha=0.12,
-            label=f"Entry ${plan.entry_low:,.2f}-${plan.entry_high:,.2f}",
+            label="_nolegend_",
         )
         ax.axhline(
             reference_level,
             color=MUTED,
             linestyle="-.",
             linewidth=0.9,
-            label=f"Structure ${reference_level:,.2f}",
+            label="_nolegend_",
         )
         ax.axhline(
             plan.stop_level,
             color=RED,
             linestyle="--",
             linewidth=1.0,
-            label=f"Stop ${plan.stop_level:,.2f}",
+            label="_nolegend_",
         )
         ax.axhline(
             plan.first_target,
             color=GREEN,
             linestyle=":",
             linewidth=1.1,
-            label=f"Target 1 ${plan.first_target:,.2f}",
+            label="_nolegend_",
         )
+        # Name each level on the line itself, at the right edge. Colour alone put
+        # the burden on the reader to match a thin dashed line back to a six-entry
+        # legend before they could say what a level was; with the label on the
+        # line the chart answers "what is that?" where the question is asked.
+        edge_labels = [
+            (plan.first_target, f"Target ${plan.first_target:,.0f}", GREEN),
+            ((plan.entry_low + plan.entry_high) / 2, f"Entry ${plan.entry_low:,.0f}\u2013{plan.entry_high:,.0f}", GOLD_DARK),
+            (plan.stop_level, f"Stop ${plan.stop_level:,.0f}", RED),
+            (float(close.iloc[-1]), f"Now ${float(close.iloc[-1]):,.0f}", NAVY),
+        ]
+        # Nudge labels apart when levels sit close enough to overprint.
+        span = float(max(high.max() - low.min(), 1e-6))
+        placed: list[float] = []
+        for level, text, colour in sorted(edge_labels, key=lambda item: -item[0]):
+            y = level
+            while any(abs(y - taken) < span * 0.045 for taken in placed):
+                y -= span * 0.045
+            placed.append(y)
+            ax.annotate(
+                text,
+                xy=(1.0, level),
+                xytext=(6, 0),
+                xycoords=ax.get_yaxis_transform(),
+                textcoords="offset points",
+                va="center",
+                ha="left",
+                fontsize=7.4,
+                fontweight="bold",
+                color=colour,
+                annotation_clip=False,
+            )
 
     arrow_style = dict(arrowstyle="->", color=NAVY, linewidth=0.85, shrinkA=2, shrinkB=2)
     latest_date = frame.index[-1]
@@ -1141,7 +1173,7 @@ def render_chart(
     ax.spines["left"].set_color("#D8DDE6")
     ax.spines["bottom"].set_color("#D8DDE6")
     ax.tick_params(colors=MUTED, labelsize=7.6)
-    ax.legend(ncol=3, fontsize=7.1, frameon=False, loc="upper left")
+    ax.legend(ncol=2, fontsize=7.4, frameon=False, loc="upper left")
     ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=5, maxticks=8))
     ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(ax.xaxis.get_major_locator()))
     ax.margins(x=0.018)
@@ -1211,7 +1243,7 @@ def render_stop_loss_evidence_chart(
         plan.entry_high,
         color=GOLD,
         alpha=0.16,
-        label=f"Entry zone ${plan.entry_low:,.2f}-${plan.entry_high:,.2f}",
+        label=f"Entry zone ${plan.entry_low:,.2f}\u2013{plan.entry_high:,.2f}",
     )
     price_ax.axhspan(
         plan.stop_level,
@@ -1834,4 +1866,79 @@ def render_risk_chart(history: pd.DataFrame, ticker: str, destination: Path) -> 
     fig.tight_layout()
     fig.savefig(destination, dpi=170, bbox_inches="tight")
     plt.close(fig)
+    return destination
+
+
+def render_estimate_revision_chart(
+    trend: dict[str, float],
+    ticker: str,
+    destination: Path,
+) -> Path:
+    """How the consensus next-year EPS estimate has moved over the last 90 days.
+
+    The Conviction Checklist's Revisions criterion had no picture behind it: the
+    reader was given a pass or fail and two numbers, with no way to see whether
+    the move was a steady re-rating or a single lurch. Every other criterion has
+    a chart; this closes that gap.
+
+    ``trend`` maps days-ago to the estimate that stood then (0 is current).
+    Points with no estimate are simply absent -- this feed writes those as 0.0,
+    and plotting them would draw a cliff to zero that never happened.
+    """
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    points = sorted(((int(k), float(v)) for k, v in trend.items() if v), reverse=True)
+    figure, ax = plt.subplots(figsize=(9.6, 3.5), dpi=190)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#D8DDE6")
+    ax.spines["bottom"].set_color("#D8DDE6")
+    ax.tick_params(colors=MUTED, labelsize=7.4)
+    ax.grid(axis="y", color="#EDF0F3", linewidth=0.8, zorder=1)
+    ax.set_axisbelow(True)
+    if len(points) < 2:
+        ax.text(0.5, 0.5, "Not enough estimate history to chart", transform=ax.transAxes,
+                ha="center", va="center", fontsize=9, color=MUTED, style="italic")
+        ax.set_xticks([]); ax.set_yticks([])
+    else:
+        xs = [-days for days, _ in points]
+        ys = [value for _, value in points]
+        rising = ys[-1] > ys[0]
+        colour = GREEN if rising else RED
+        ax.plot(xs, ys, color=colour, linewidth=1.9, marker="o", markersize=4.5, zorder=4)
+        ax.fill_between(xs, ys, min(ys) - (max(ys) - min(ys) or 1) * 0.35,
+                        color=colour, alpha=0.08, zorder=2)
+        # Say what happened, on the chart, rather than leaving the reader to
+        # infer direction from the slope.
+        move = ys[-1] - ys[0]
+        headline = (
+            f"Raised ${abs(move):,.2f}" if move > 0
+            else f"Cut ${abs(move):,.2f}" if move < 0
+            else "Unchanged"
+        )
+        ax.annotate(
+            f"{headline} over {abs(xs[0])} days",
+            xy=(xs[-1], ys[-1]), xytext=(-8, 14 if rising else -20),
+            textcoords="offset points", ha="right",
+            fontsize=8.2, fontweight="bold", color=colour,
+        )
+        def _signed(value: float) -> str:
+            return f"-${abs(value):,.2f}" if value < 0 else f"${value:,.2f}"
+
+        for x, y in ((xs[0], ys[0]), (xs[-1], ys[-1])):
+            ax.annotate(_signed(y), xy=(x, y), xytext=(0, -14 if rising else 10),
+                        textcoords="offset points", ha="center", fontsize=7.4,
+                        color=NAVY, fontweight="bold")
+        ax.set_xlabel("Days ago", fontsize=7.6, color=MUTED)
+        ax.set_ylabel("Consensus EPS (next FY)", fontsize=7.6, color=MUTED)
+        ax.set_xticks(xs)
+        ax.set_xticklabels([f"{abs(x)}" if x else "now" for x in xs], fontsize=7.4)
+        ax.margins(x=0.08, y=0.30)
+    span_days = max((int(k) for k, v in trend.items() if v), default=0)
+    ax.set_title(
+        f"{ticker} | Next-year earnings estimate"
+        + (f", last {span_days} days" if span_days else ""),
+        fontsize=10.5, color=NAVY, fontweight="bold", loc="left", pad=9,
+    )
+    figure.savefig(destination, dpi=190, bbox_inches="tight", facecolor="white")
+    plt.close(figure)
     return destination

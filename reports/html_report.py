@@ -876,6 +876,18 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
     volume_chart = _chart_by_title(result, "volume by price")
     if volume_chart is not None:
         charts += (("Volume by price", "evidenceVolume", volume_chart, _volume_chart_legend(result)),)
+    # Evidence for the checklist's Revisions criterion. Appears only when the
+    # estimate history exists -- never as an empty panel to keep a tab count.
+    revision_chart = _chart_by_title(result, "estimate revisions")
+    if revision_chart is not None:
+        charts += (
+            (
+                "Estimate revisions",
+                "evidenceRevisions",
+                revision_chart,
+                (("var(--bull)", "Estimates raised"), ("var(--bear)", "Estimates cut")),
+            ),
+        )
     options_chart = _chart_by_title(result, "options and volatility")
     if options_chart is not None:
         charts += (
@@ -890,6 +902,11 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
                 ),
             ),
         )
+    # The count is derived, not written down: tabs appear only when their
+    # evidence was produced, so a hardcoded "six views" goes stale the moment a
+    # security has no volume profile or no estimate history.
+    _words = {2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six", 7: "Seven", 8: "Eight"}
+    chart_count_label = f"{_words.get(len(charts), len(charts))} views, one panel"
     tabs = "".join(
         f'<button class="evidence-tab" role="tab" aria-selected="{str(index == 0).lower()}" aria-controls="{panel_id}" id="{panel_id}Tab">{escape(label)}</button>'
         for index, (label, panel_id, _chart, _legend) in enumerate(charts)
@@ -1003,7 +1020,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </div>
 <div class="page-view" id="page2" hidden>
 {page2_strip}
-<section id="charts"><div class="sec-head"><h2>Charts</h2><span class="verdict v-neu">Six views, one panel</span></div><div class="evidence-tabs" role="tablist">{tabs}{tv_tab}{scenario_tab}</div>{panels}{tv_panel}{scenario_panel}</section>
+<section id="charts"><div class="sec-head"><h2>Charts</h2><span class="verdict v-neu">{chart_count_label}</span></div><div class="evidence-tabs" role="tablist">{tabs}{tv_tab}{scenario_tab}</div>{panels}{tv_panel}{scenario_panel}</section>
 </div>
 <div class="page-view" id="page3" hidden>
 {page2_strip}

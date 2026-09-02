@@ -30,6 +30,7 @@ from research.technical import (
     render_fibonacci_chart,
     render_options_chart,
     render_volume_profile_chart,
+    render_estimate_revision_chart,
     render_momentum_chart,
     render_relative_performance_chart,
     render_risk_chart,
@@ -848,6 +849,65 @@ def _return_on_equity(ticker, info) -> float | None:
             return None
         return float(net_income) / equity
     return None
+
+
+def _revision_chart_insight(series: dict[str, float]) -> str:
+    """What the estimate line means, not a restatement of its endpoints."""
+    points = sorted(((int(k), v) for k, v in series.items()), reverse=True)
+    first, last = points[0][1], points[-1][1]
+    span = points[0][0]
+    move = last - first
+    if move > 0:
+        return (
+            f"Analysts have raised next-year consensus over the past {span} days, from "
+            f"{_signed_money(first)} to {_signed_money(last)}. Rising estimates are the "
+            "direction that historically precedes price, so this supports the constructive case."
+        )
+    if move < 0:
+        return (
+            f"Analysts have cut next-year consensus over the past {span} days, from "
+            f"{_signed_money(first)} to {_signed_money(last)}. Falling estimates argue against "
+            "adding on strength until the trend in forecasts turns."
+        )
+    return f"Next-year consensus is unchanged over the past {span} days at {_signed_money(last)}."
+
+
+def _signed_money(value: float) -> str:
+    return f"-${abs(value):,.2f}" if value < 0 else f"${value:,.2f}"
+
+
+def _eps_trend_series(ticker) -> dict[str, float]:
+    """The whole next-year estimate series, keyed by days ago, for charting.
+
+    The Revisions criterion reports two numbers; the chart needs the shape
+    between them, which is what shows whether a cut was a steady re-rating or a
+    single lurch after one print. Absent estimates (written as 0.0 by this feed)
+    are omitted rather than plotted as a fall to zero.
+    """
+    try:
+        trend = ticker.eps_trend
+    except Exception:  # noqa: BLE001
+        return {}
+    if trend is None or getattr(trend, "empty", True):
+        return {}
+    for period in ("+1y", "0y"):
+        if period not in trend.index:
+            continue
+        row = trend.loc[period]
+        series: dict[str, float] = {}
+        for days, column in ((0, "current"), (7, "7daysAgo"), (30, "30daysAgo"),
+                             (60, "60daysAgo"), (90, "90daysAgo")):
+            if column not in row.index:
+                continue
+            try:
+                value = float(row[column])
+            except (TypeError, ValueError):
+                continue
+            if value == value and value != 0.0:  # not NaN, not the null sentinel
+                series[str(days)] = value
+        if len(series) >= 2:
+            return series
+    return {}
 
 
 def _eps_revision(ticker) -> tuple[float | None, float | None, int]:
@@ -1740,6 +1800,21 @@ class LiveResearchProvider:
                             "Relative Performance",
                             str(relative_path),
                             relative_insight or "Normalized performance comparison across common trading dates.",
+                        )
+                    )
+                # The Revisions criterion was the only checklist box with no
+                # picture behind it: a pass/fail and two numbers, with no way to
+                # see whether the move was a steady re-rating or one lurch.
+                revision_series = _eps_trend_series(ticker)
+                if revision_series:
+                    revision_path = render_estimate_revision_chart(
+                        revision_series, symbol, workspace / "estimate-revision-chart.png"
+                    )
+                    chartbook.append(
+                        ChartRecord(
+                            "Estimate revisions",
+                            str(revision_path),
+                            _revision_chart_insight(revision_series),
                         )
                     )
                 if "risk" in request.requested_charts:
