@@ -133,9 +133,20 @@ class ConvictionChecklist:
         return self.total_count > 0 and self.passed_count == self.total_count
 
 
-# How each criterion reads in prose, confirmed and not, for the narrative below.
-# Phrased as findings rather than labels, so the paragraph reads like an analyst
-# wrote it instead of a checklist being recited back.
+# What would have to change for a failing criterion to confirm. Naming it is the
+# difference between "the dissent would need to change" -- true of any dissent,
+# and so worth nothing -- and telling the reader what to watch.
+_WOULD_CHANGE = {
+    "trend": "price reclaiming both long-run averages",
+    "momentum": "momentum confirming rather than fading",
+    "relative_strength": "the stock beginning to outpace the market",
+    "quality": "returns on shareholder capital improving",
+    "revisions": "estimates turning back up",
+}
+
+# How each criterion reads in prose, confirmed and not. Phrased as findings
+# rather than labels, so the paragraph reads like an analyst wrote it instead of
+# a checklist being recited back.
 _NARRATIVE_PHRASES = {
     "trend": (
         "price is holding above both its 50-day and 200-day averages",
@@ -181,6 +192,7 @@ def checklist_narrative(checklist: "ConvictionChecklist", *, rating: str = "") -
     if checklist is None or not checklist.criteria:
         return ""
     confirmed, failed, unknown, inapplicable = [], [], [], []
+    failed_keys: list[str] = []
     for item in checklist.criteria:
         phrases = _NARRATIVE_PHRASES.get(item.key)
         if not phrases:
@@ -189,6 +201,7 @@ def checklist_narrative(checklist: "ConvictionChecklist", *, rating: str = "") -
             confirmed.append(phrases[0])
         elif item.passed is False:
             failed.append(phrases[1])
+            failed_keys.append(item.key)
         # "Does not apply" and "could not be retrieved" are different findings,
         # and telling a reader a fund's earnings data was unavailable would
         # invite them to retry for something that does not exist.
@@ -225,9 +238,10 @@ def checklist_narrative(checklist: "ConvictionChecklist", *, rating: str = "") -
         if not failed and confirmed:
             sentences.append(f"Nothing in the checklist argues against the {rating} view.")
         elif failed and confirmed:
+            watch = _join([_WOULD_CHANGE[key] for key in failed_keys if key in _WOULD_CHANGE])
             sentences.append(
-                f"The {rating} view rests on the balance of these, not on agreement: "
-                f"{'the dissent is' if len(failed) == 1 else 'the dissents are'} what would need to change first."
+                f"The {rating} view rests on the balance of these rather than on agreement"
+                + (f"; watch for {watch}." if watch else ".")
             )
         elif failed and not confirmed:
             sentences.append(f"The checklist offers no support for a constructive view here, which the {rating} rating reflects.")

@@ -113,6 +113,27 @@ class ConvictionChecklistTests(unittest.TestCase):
         detail = _base(revision_window_days=30).criteria[4].detail
         self.assertIn("30 days ago", detail)
 
+    def test_narrative_names_what_would_change_the_view(self):
+        # "The dissent is what would need to change" is true of any dissent and
+        # so tells the reader nothing. Name the thing to watch.
+        from core.conviction_checklist import checklist_narrative
+        text = checklist_narrative(_base(eps_estimate_now=8.0, eps_estimate_prior=8.6), rating="Buy")
+        self.assertIn("watch for estimates turning back up", text)
+        self.assertNotIn("what would need to change first", text)
+
+    def test_narrative_reports_the_balance_and_both_sides(self):
+        from core.conviction_checklist import checklist_narrative
+        text = checklist_narrative(_base(eps_estimate_now=8.0, eps_estimate_prior=8.6), rating="Buy")
+        self.assertIn("4 of the 5 checks confirm", text)
+        self.assertIn("In favour:", text)
+        self.assertIn("Against:", text)
+
+    def test_narrative_for_a_fund_says_inapplicable_not_unavailable(self):
+        from core.conviction_checklist import checklist_narrative
+        text = checklist_narrative(_base(is_fund=True), rating="Hold")
+        self.assertIn("do not apply to a fund", text)
+        self.assertNotIn("could not be judged", text)
+
     def test_a_fund_reports_the_two_company_criteria_as_inapplicable(self):
         # A fund has no return on equity and no earnings consensus. Saying "not
         # available" would read as a retrieval failure that a retry might fix.

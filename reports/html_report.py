@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from html import escape
 from pathlib import Path
 
-from core.assessments import fundamental_outlook, strip_conclusion_prefix, technical_setup
+from core.assessments import condense_reasoning, fundamental_outlook, strip_conclusion_prefix, technical_setup
 from core.conviction_checklist import checklist_narrative
 from core.models import ChartRecord, Rating, ResearchRequest, ResearchResult
 
@@ -738,7 +738,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
     )
     triggers = "".join(f"<li>{escape(item)}</li>" for item in trigger_items)
     demo = '<div class="demo-note">Demonstration mode uses synthetic evidence and is not a client investment recommendation.</div>' if result.demo_mode else ""
-    qualitative_summary = strip_conclusion_prefix(result.executive_summary) or answer
+    qualitative_summary = condense_reasoning(result.executive_summary) or answer
     # Deterministic reading of the five boxes, so the prose beneath them can
     # never drift from the score above them.
     checks_narrative = checklist_narrative(result.conviction_checklist, rating=result.lead_rating.value)
@@ -773,8 +773,8 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
   <p class="question-line" style="margin-top:24px"><span>Your question</span>{escape(question)}</p>
   <div class="why-block">
     <div class="why-k">Why</div>
-    <p>{escape(qualitative_summary)}</p>
     {f'<p class="why-checks">{escape(checks_narrative)}</p>' if checks_narrative else ''}
+    <p>{escape(qualitative_summary)}</p>
   </div>
   <div class="reason-list" style="margin-top:20px">{reason_html}</div>
   {demo}
@@ -1008,7 +1008,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
   <div class="why-block">
     <div class="why-k">Why this call</div>
     {f'<p class="why-checks">{escape(checks_narrative)}</p>' if checks_narrative else ''}
-    <p>{escape(strip_conclusion_prefix(result.technical.summary))}</p>
+    <p>{escape(condense_reasoning(result.technical.summary))}</p>
   </div>{demo}
 </section>
 <section id="plan"><div class="sec-head"><h2>Action plan</h2><span class="verdict v-neu">{escape(plan.stance)}</span></div>
