@@ -245,6 +245,18 @@ _DYNAMIC_CSS = r"""
 @media print{.chart-image{max-height:178mm}.btn,.rail-tools{display:none!important}.reason-row{break-inside:avoid}.page-view[hidden]{display:block!important}.page-view:not(:last-child){break-after:page}
 /* The @page margin supplies the printed gutter; the screen one would double it. */
 .shell{padding-left:0;padding-right:0}
+/* A printed Letter page is ~816px wide, which trips the approved template's
+   900px mobile breakpoint -- so print was silently laying both reports out as a
+   phone: a stacked masthead, half-width metric strips, and a Conviction
+   Checklist in two columns with an orphan fifth card, where the spec requires
+   one column per criterion. Restore the intended desktop grids for print. These
+   are shared because both reports were affected; the .general-brief copies below
+   predate the fix and only ever covered that report. */
+.head{flex-direction:row}
+.rating{text-align:right}
+.topline{grid-template-columns:repeat(4,1fr)}
+.cc-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+.grid3{grid-template-columns:repeat(3,1fr)}
 /* The stance chips, position bar and callout panels carry meaning through
    colour, so keep their fills in print instead of letting them wash out. */
 .ch-cross,.ch-dot,.ch-readout,.chart-hint{display:none!important}
@@ -328,6 +340,45 @@ _DYNAMIC_CSS = r"""
 .tech-report .cc-detail{font-size:9px}
 .tech-report .cc-explain{font-size:8px}
 .tech-report #call{break-inside:auto;margin-top:14px}
+/* Deep Technical prints one major section per page. Each is a distinct piece of
+   the argument -- the read, the plan, one chart, the fundamentals, the sources --
+   and running two of them together made it ambiguous where one ended and the
+   next began. Sections too thin to hold a page alone are paired with the section
+   they belong to rather than given a near-empty page, which the spec forbids:
+   the checklist keeps its reasoning, the data strip keeps the plan it describes. */
+/* The read and Why share page one, because neither fills a page alone and the
+   two are one thought: the checklist and the reasoning that reads it. Given a
+   page each they came out roughly half empty, which looks unfinished rather than
+   clean. That pairing is the *absence* of a rule, not break-before:avoid -- avoid
+   welds a section to what precedes it, which made the masthead, checklist and
+   reasoning one unbreakable block that no longer fit, stranding the masthead
+   alone on page one.
+
+   Only the plan is pinned to a page start. Pinning the data strip instead gives
+   the same result on a long report but forces the strip off page one even when
+   it would have fitted, so the rule that guarantees the plan opens cleanly is
+   the one to keep. */
+.tech-report #plan{break-before:page}
+/* Not #fundamentals: it already opens a page-view, so a break before it only
+   orphans the running strip above it onto a page of its own. */
+.tech-report #sources{break-before:page}
+/* One chart per page -- but not the first, which belongs with the Charts heading
+   rather than leaving it stranded on a page of its own. */
+.tech-report .evidence-panel + .evidence-panel{break-before:page}
+/* The tabs are a screen control. Print expands every panel, so they navigate
+   nothing and only cost space at the head of the charts page. */
+.tech-report .evidence-tabs{display:none!important}
+/* Likewise the tester's slider and preset chips. Its chart, action zone and
+   outcome figures are static conclusions and stay. */
+.tech-report .scn-chips,.tech-report .scn-slider{display:none!important}
+/* The checklist card cannot split (.cc-card is break-inside:avoid), so any size
+   that stops it fitting under the masthead does not shrink page one -- it moves
+   the whole card to page two and leaves the masthead alone on a page. Sizes here
+   are held at what fits beneath the masthead alongside the reasoning. */
+/* The ladder and the plan cards are single figures; splitting one across a page
+   boundary produces a page that opens on "2.00x" with no heading above it. */
+.tech-report .ladder-wrap,.tech-report .plan,.tech-report .rr{break-inside:avoid}
+.tech-report #plan .sec-head{break-after:avoid}
 .general-brief .cc-col-top{gap:6px;margin-bottom:7px}
 .general-brief .cc-box{width:14px;height:14px;border-radius:4px;font-size:10px}
 .general-brief .cc-label{font-size:9.5px}
@@ -1436,110 +1487,108 @@ _DECK_CSS = """
 body.deck-on .page,body.deck-on .rail{display:none!important}
 body.deck-on .deck{display:block}
 body.deck-on{background:#0A1223}
-/* Navy is the firm's base colour and the deck is presented on its own, away from
-   the white report page -- so the slide carries the navy and the evidence sits on
-   it in white. The report's other rules hold: Source Serif display, IBM Plex
-   body and figures, one gold rule, restrained signal colour. Charts are white
-   images, so each keeps its own white card rather than being knocked out. */
-.slide{position:relative;width:1160px;max-width:96vw;aspect-ratio:16/9;margin:26px auto;
-  background:#16233F;color:#C9D4E6;
-  border:1px solid #24334F;padding:60px 68px 48px;box-sizing:border-box;overflow:hidden;
-  display:flex;flex-direction:column;box-shadow:0 14px 38px -20px rgba(0,0,0,.7)}
-.slide:before{content:"";position:absolute;left:68px;right:68px;top:0;height:3px;background:#C9A961}
-.s-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;
-  text-transform:uppercase;color:#8FA3C4;margin-bottom:16px}
-.s-h1{font-family:'Source Serif 4',Georgia,serif;font-size:56px;line-height:1.06;font-weight:600;margin:0;color:#FFFFFF;letter-spacing:-.012em}
-.s-h2{font-family:'Source Serif 4',Georgia,serif;font-size:34px;line-height:1.16;font-weight:600;margin:0 0 26px;color:#FFFFFF}
-.s-h3{font-family:'Source Serif 4',Georgia,serif;font-size:26px;line-height:1.2;font-weight:600;margin:0 0 14px;color:#FFFFFF}
-.s-sub{font-family:'IBM Plex Mono',monospace;font-size:14px;color:#8FA3C4;margin-top:16px;letter-spacing:.02em}
-.s-body{font-size:17px;line-height:1.62;color:#C9D4E6;margin:0}
-.s-body + .s-body{margin-top:14px}
+/* Navy is the firm's base colour and the deck is shown on its own, away from the
+   white report page. Structure comes from hairline rules and alignment rather
+   than from filled, rounded cards -- the same restraint the report page uses,
+   at slide scale. Charts are white images and keep their own white field. */
+.slide{position:relative;width:1160px;max-width:96vw;aspect-ratio:16/9;margin:24px auto;
+  background:#16233F;color:#C4CFE2;padding:52px 64px 38px;box-sizing:border-box;
+  overflow:hidden;display:flex;flex-direction:column}
+/* A short gold mark, not a banner rule across the head of every slide. */
+.slide:before{content:"";position:absolute;left:64px;top:0;width:52px;height:2px;background:#C9A961}
+.s-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.22em;
+  text-transform:uppercase;color:#8296B8;margin-bottom:16px}
+.s-h1{font-family:'Source Serif 4',Georgia,serif;font-size:54px;line-height:1.05;
+  font-weight:600;margin:0;color:#FFFFFF;letter-spacing:-.014em}
+.s-h2{font-family:'Source Serif 4',Georgia,serif;font-size:32px;line-height:1.18;
+  font-weight:600;margin:0 0 24px;color:#FFFFFF}
+.s-h3{font-family:'Source Serif 4',Georgia,serif;font-size:23px;line-height:1.22;
+  font-weight:600;margin:0 0 14px;color:#FFFFFF}
+.s-sub{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#8296B8;
+  margin-top:14px;letter-spacing:.05em}
+.s-body{font-size:16px;line-height:1.6;color:#C4CFE2;margin:0}
 .s-mid{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center}
-.s-foot{margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;
-  font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#7C8DAB;
-  padding-top:20px;border-top:1px solid #253451}
-.s-rating{font-family:'Source Serif 4',Georgia,serif;font-size:64px;font-weight:700;line-height:1}
-/* Signal colours lifted for a dark ground -- the report's #1F7A52 and #B4453E
-   are unreadable on navy. Same meanings, same restraint. */
-.s-rating.up{color:#5FCF95}.s-rating.down{color:#F2938A}.s-rating.flat{color:#E2C179}
-/* Checklist on a slide: the criterion and a three-word reading, no detail
-   sentence. The report is where the figures behind each one are set out. */
-.s-checks{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:34px}
-.s-check{background:rgba(255,255,255,.05);border:1px solid #2C3C5C;
-  border-radius:10px;padding:22px 16px;text-align:center}
-.s-mark{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
-  justify-content:center;font-size:17px;font-weight:700;margin:0 auto 14px}
-.s-mark.pass{background:#3F9E6F;color:#fff}
-.s-mark.fail{background:transparent;border:1.5px solid #F2938A;color:#F2938A}
-.s-mark.unconfirmed{background:transparent;border:1.5px solid #4A5C7C;color:#8FA3C4}
-.s-check-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em;
-  text-transform:uppercase;color:#8FA3C4;margin-bottom:9px}
-.s-check-read{font-size:16px;line-height:1.32;font-weight:600;color:#FFFFFF}
-.s-scoreline{display:flex;align-items:baseline;gap:12px}
-.s-score{font-family:'Source Serif 4',Georgia,serif;font-size:82px;font-weight:700;color:#FFFFFF;line-height:.9}
-.s-scoreof{font-family:'Source Serif 4',Georgia,serif;font-size:34px;color:#7C8DAB}
-.s-scorecap{font-size:18px;color:#8FA3C4;margin-left:6px}
-/* Points, not paragraphs. */
-.s-points{list-style:none;margin:14px 0 0;padding:0}
-.s-points li{font-size:20px;line-height:1.42;color:#DCE4F0;padding-left:26px;position:relative;margin-bottom:16px}
-.s-points li:before{content:"";position:absolute;left:0;top:10px;width:9px;height:9px;
-  border-radius:50%;background:#5FCF95}
-.s-points.against li:before{background:#F2938A}
-.s-points.neutral li{font-size:17px;margin-bottom:13px}
-.s-points.neutral li:before{background:#C9A961;width:7px;height:7px;top:9px}
-.s-lead{font-family:'Source Serif 4',Georgia,serif;font-size:36px;line-height:1.26;
-  color:#FFFFFF;font-weight:600;margin:0}
-.s-figs{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#2C3C5C;
-  border:1px solid #2C3C5C;border-radius:10px;overflow:hidden;margin-top:8px}
-.s-fig{background:#1B2942;padding:20px 18px}
-.s-fig-k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em;
-  text-transform:uppercase;color:#8FA3C4}
-/* 22px, not 25: the entry cell carries a full price range and wrapped
-   mid-range at the larger size. */
-.s-fig-v{font-size:22px;font-weight:600;color:#FFFFFF;margin-top:8px;
-  font-family:'IBM Plex Mono',monospace;letter-spacing:-.01em}
-.s-fig-v.down{color:#F2938A}.s-fig-v.up{color:#5FCF95}
-.s-chart{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
-  background:#fff;border-radius:10px;padding:12px;margin-top:4px}
+.s-foot{margin-top:auto;display:flex;justify-content:space-between;align-items:baseline;
+  font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:#6E80A0;padding-top:16px;border-top:1px solid #2A3959}
+.s-foot .s-num{color:#8296B8}
+/* Facts under the company name on the opening slide: the rating dominates, the
+   two figures that qualify it sit beside it. */
+.s-facts{display:flex;gap:56px;align-items:flex-start;margin-top:30px;
+  padding-top:22px;border-top:1px solid #33436A}
+.s-rating{font-family:'Source Serif 4',Georgia,serif;font-size:52px;font-weight:600;
+  line-height:1;margin-top:8px}
+/* Signal colours lifted for a dark ground; the report's #1F7A52 and #B4453E are
+   unreadable on navy. Same meanings, same restraint. */
+.s-rating.up{color:#5FCF95}.s-rating.down{color:#EE9188}.s-rating.flat{color:#DFBE76}
+/* One divided-column strip, used for the checklist and for the plan's figures, so
+   the deck states every set of parallel facts the same way -- and the same way
+   the report's own metrics strip does. */
+.s-strip{display:grid;border-top:1px solid #33436A;border-bottom:1px solid #33436A}
+.s-strip.five{grid-template-columns:repeat(5,minmax(0,1fr))}
+.s-strip.four{grid-template-columns:repeat(4,minmax(0,1fr))}
+.s-cell{padding:20px 22px 22px;border-left:1px solid #2A3959;min-width:0}
+.s-cell:first-child{border-left:0;padding-left:0}
+.s-cell-k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:#8296B8}
+.s-cell-v{margin-top:10px;font-size:17px;line-height:1.34;color:#FFFFFF;font-weight:500}
+.s-cell-v.num{font-family:'IBM Plex Mono',monospace;font-size:20px;letter-spacing:-.012em}
+.s-cell-v.up{color:#5FCF95}.s-cell-v.down{color:#EE9188}
+.s-cell-n{margin-top:7px;font-size:12px;line-height:1.4;color:#7386A6}
+/* A glyph in the signal colour, not a filled badge -- a mark should read as a
+   mark, not as a button. */
+.s-mark{display:block;font-size:15px;font-weight:700;line-height:1;margin-bottom:13px}
+.s-mark.pass{color:#5FCF95}.s-mark.fail{color:#EE9188}.s-mark.unconfirmed{color:#6E80A0}
+.s-scoreline{display:flex;align-items:baseline;gap:10px;margin-bottom:26px}
+.s-score{font-family:'Source Serif 4',Georgia,serif;font-size:64px;font-weight:600;
+  color:#FFFFFF;line-height:.92}
+.s-scoreof{font-family:'Source Serif 4',Georgia,serif;font-size:28px;color:#8296B8}
+.s-scorecap{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:#8296B8;margin-left:8px}
+/* Findings as ruled lines rather than bulleted dots: a set of parallel readings
+   is a small table, and rules line them up where dots only decorate them. */
+.s-points{list-style:none;margin:0;padding:0}
+.s-points li{font-size:17px;line-height:1.45;color:#DCE4F0;padding:12px 0;
+  border-top:1px solid #2A3959}
+.s-points li:first-child{border-top:0;padding-top:2px}
+.s-points.tight li{font-size:15.5px;line-height:1.5;padding:10px 0}
+.s-col-k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.18em;
+  text-transform:uppercase;color:#8296B8;padding-bottom:10px;
+  border-bottom:1px solid #33436A;margin-bottom:6px}
+.s-col.supports .s-col-k{border-bottom-color:#3F7F5E}
+.s-col.against .s-col-k{border-bottom-color:#8E504A}
+.s-lead{font-family:'Source Serif 4',Georgia,serif;font-size:34px;line-height:1.26;
+  color:#FFFFFF;font-weight:600;margin:0;max-width:24ch}
+.s-chart{background:#FFFFFF;display:flex;align-items:center;justify-content:center;
+  padding:14px;min-height:0;min-width:0}
 .s-chart img{max-width:100%;max-height:100%;object-fit:contain}
-/* A chart and its reading side by side: the picture leads, the words say what it
-   means. Charts on their own leave a room guessing; words on their own are the
-   report. */
-.s-evidence{display:grid;grid-template-columns:1.5fr 1fr;gap:34px;flex:1;min-height:0;align-items:stretch}
-.s-evidence .s-chart{margin-top:0;height:100%}
+/* Chart and its reading side by side: the picture leads, the words say what it
+   means. A chart with nothing said about it leaves the room to guess. */
+.s-evidence{display:grid;grid-template-columns:1.55fr 1fr;gap:38px;flex:1;
+  min-height:0;align-items:stretch}
 .s-read{display:flex;flex-direction:column;justify-content:center;min-width:0}
-/* A section divider: one line, so the run of chart slides reads as a chapter
-   rather than as five slides that happen to follow each other. */
-.s-divider{border-top:1px solid #2C3C5C;margin-top:22px;padding-top:18px;
-  font-family:'IBM Plex Mono',monospace;font-size:13px;color:#8FA3C4;letter-spacing:.04em}
-.s-list{margin:0;padding-left:20px;font-size:16px;line-height:1.62;color:#C9D4E6}
-.s-list li{margin-bottom:9px}
-.s-two{display:grid;grid-template-columns:1fr 1fr;gap:44px;flex:1;min-height:0}
-.s-disc{font-size:11.5px;line-height:1.6;color:#8FA3C4}
+.s-two{display:grid;grid-template-columns:1fr 1fr;gap:52px}
+.s-disc{font-size:12px;line-height:1.65;color:#8FA0BE;max-width:78ch}
+.s-disc b{color:#FFFFFF;font-weight:600}
 @media print{
   body.deck-on{background:#16233F}
-  .slide{margin:0;border:0;box-shadow:none;width:100%;max-width:none;
-    aspect-ratio:auto;height:100vh;break-after:page;break-inside:avoid;
+  .slide{margin:0;width:100%;max-width:none;aspect-ratio:auto;height:100vh;
+    break-after:page;break-inside:avoid;
     -webkit-print-color-adjust:exact;print-color-adjust:exact}
   .slide:last-child{break-after:auto}
 }
 """
 
 
-def _deck_slide(eyebrow: str, body: str, result: ResearchResult) -> str:
+def _deck_slide(eyebrow: str, body: str, result: ResearchResult, number: int, total: int) -> str:
+    """One slide: a running label, the idea, and a running foot with its number."""
     return (
         f'<section class="slide"><div class="s-eyebrow">{escape(eyebrow)}</div>'
         f'<div class="s-mid">{body}</div>'
         f'<div class="s-foot"><span>Gottfried &amp; Somberg Wealth Management</span>'
-        f'<span>{escape(result.identity.ticker)} · {escape(_date_only(result.as_of))}</span></div></section>'
+        f'<span>{escape(result.identity.ticker)} &middot; {escape(_date_only(result.as_of))}'
+        f'<span class="s-num"> &middot; {number:02d}/{total:02d}</span></span></div></section>'
     )
-
-
-_COUNT_WORDS = {2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six", 7: "Seven", 8: "Eight"}
-
-
-def _word_count_label(count: int) -> str:
-    return f"{_COUNT_WORDS.get(count, count)} views of the same question"
 
 
 def _slide_points(chart: ChartRecord, limit: int = 3, budget: int = 58) -> tuple[str, ...]:
@@ -1581,137 +1630,160 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
     Deliberately not the report reproduced at report density. A slide is read
     from across a room in seconds, so each one carries a single idea in as few
     words as will hold it: the criteria as three-word readings rather than their
-    full sentences, the reasoning as a handful of clauses rather than two
-    paragraphs. The report remains the place the evidence is set out in full.
+    full sentences, the findings as ruled lines rather than paragraphs. The
+    report remains the place the evidence is set out in full.
+
+    Slide labels name what is on the slide and nothing more. An earlier version
+    editorialised -- "Our recommendation", "Why we say Add", "Four views of the
+    same question" -- which reads as a pitch rather than as research.
     """
     tone_class = _tone(result.lead_rating)[0]
     tone = "up" if tone_class == "v-bull" else "down" if tone_class == "v-bear" else "flat"
     checklist = result.conviction_checklist
     rows = checklist_headlines(checklist) if checklist is not None else ()
-    slides = []
+    slides: list[tuple[str, str]] = []
 
-    # 1. The call, and nothing else.
-    slides.append(_deck_slide(
-        f"{result.horizon.value} view",
+    # 1. The security and the call, with the two figures that qualify it.
+    slides.append((
+        result.horizon.value,
         f'<h1 class="s-h1">{escape(result.identity.company_name)}</h1>'
-        f'<div class="s-sub">{escape(result.identity.ticker)} · {_money(result.current_price)} · '
-        f'{escape(_date_only(result.as_of))}</div>'
-        f'<div style="margin-top:30px"><div class="s-eyebrow" style="margin-bottom:6px">Our recommendation</div>'
-        f'<div class="s-rating {tone}">{escape(result.lead_rating.value)}</div></div>',
-        result,
+        f'<div class="s-sub">{escape(result.identity.ticker)} &middot; '
+        f'{escape(result.identity.exchange)} &middot; {escape(result.identity.currency)}</div>'
+        f'<div class="s-facts">'
+        f'<div><div class="s-cell-k">Rating</div>'
+        f'<div class="s-rating {tone}">{escape(result.lead_rating.value)}</div></div>'
+        f'<div><div class="s-cell-k">Confidence</div>'
+        f'<div class="s-cell-v">{escape(result.confidence.value)}</div></div>'
+        f'<div><div class="s-cell-k">Last price</div>'
+        f'<div class="s-cell-v num">{_money(result.current_price)}</div></div>'
+        f'</div>',
     ))
 
     # 2. The score, at a glance. Names and readings only -- the report carries
     #    the figures behind each one.
     if rows:
         cells = "".join(
-            f'<div class="s-check"><span class="s-mark {status}">'
+            f'<div class="s-cell"><span class="s-mark {status}">'
             f'{"&#10003;" if status == "pass" else "&ndash;" if status == "unconfirmed" else "&times;"}</span>'
-            f'<div class="s-check-label">{escape(label)}</div>'
-            f'<div class="s-check-read">{escape(reading)}</div></div>'
+            f'<div class="s-cell-k">{escape(label)}</div>'
+            f'<div class="s-cell-v">{escape(reading)}</div></div>'
             for label, reading, status in rows
         )
-        judged = len(rows) - sum(1 for _, _, st in rows if st == "unconfirmed")
-        slides.append(_deck_slide(
-            "The evidence",
+        judged = len(rows) - sum(1 for _, _, status in rows if status == "unconfirmed")
+        slides.append((
+            "Conviction Checklist",
             f'<div class="s-scoreline"><span class="s-score">{checklist.passed_count}</span>'
             f'<span class="s-scoreof">of {judged}</span>'
-            f'<span class="s-scorecap">checks confirm</span></div>'
-            f'<div class="s-checks">{cells}</div>',
-            result,
+            f'<span class="s-scorecap">confirm</span></div>'
+            f'<div class="s-strip five">{cells}</div>',
         ))
 
-    # 3. Why, as clauses rather than paragraphs.
+    # 3. Where the evidence agrees, and where it does not.
     if rows:
-        good = [r for _, r, st in rows if st == "pass"]
-        bad = [r for _, r, st in rows if st == "fail"]
+        good = [reading for _label, reading, status in rows if status == "pass"]
+        bad = [reading for _label, reading, status in rows if status == "fail"]
         # The Technical report's "question" is usually the raw ticker, which made
-        # this slide's heading read "AXON". A heading has to say something: fall
-        # back to the call itself when there is no real question to answer.
+        # this slide's heading read "AXON". Fall back to the call itself when
+        # there is no real question on the table.
         asked = question.strip()
-        heading = asked if len(asked.split()) >= 4 else f"Why we say {result.lead_rating.value}"
-        body = f'<h2 class="s-h2">{escape(heading)}</h2>'
-        body += '<div class="s-two" style="gap:44px;margin-top:16px">'
-        body += ('<div><div class="s-eyebrow">In favour</div><ul class="s-points">'
-                 + "".join(f"<li>{escape(item)}</li>" for item in good[:4])
-                 + "</ul></div>") if good else "<div></div>"
-        body += ('<div><div class="s-eyebrow">Against</div><ul class="s-points against">'
-                 + "".join(f"<li>{escape(item)}</li>" for item in bad[:4])
-                 + "</ul></div>") if bad else '<div><div class="s-eyebrow">Against</div><p class="s-body">Nothing in the checklist argues against this view.</p></div>'
-        body += "</div>"
-        slides.append(_deck_slide("The answer", body, result))
+        heading = asked if len(asked.split()) >= 4 else f"The case for {result.lead_rating.value}"
+        supports = (
+            '<ul class="s-points">' + "".join(f"<li>{escape(item)}</li>" for item in good[:4]) + "</ul>"
+            if good else '<p class="s-body">No check confirms.</p>'
+        )
+        against = (
+            '<ul class="s-points">' + "".join(f"<li>{escape(item)}</li>" for item in bad[:4]) + "</ul>"
+            if bad else '<p class="s-body">No check argues against this view.</p>'
+        )
+        slides.append((
+            "The case",
+            f'<h2 class="s-h2">{escape(heading)}</h2><div class="s-two">'
+            f'<div class="s-col supports"><div class="s-col-k">Supports</div>{supports}</div>'
+            f'<div class="s-col against"><div class="s-col-k">Against</div>{against}</div>'
+            f'</div>',
+        ))
 
-    # 4. The plan, as four figures.
+    # 4. The plan, as four figures in the same strip the checklist uses.
     plan = result.technical_plan
     if plan is not None:
-        slides.append(_deck_slide(
-            "What we would do",
+        entry_mid = (plan.entry_low + plan.entry_high) / 2
+        upside = (plan.first_target / entry_mid - 1.0) if entry_mid else 0.0
+        slides.append((
+            "Position",
             f'<h2 class="s-h2">{escape(plan.stance)}</h2>'
-            f'<div class="s-figs">'
-            f'<div class="s-fig"><div class="s-fig-k">Entry</div><div class="s-fig-v">{_money(plan.entry_low)}&ndash;{_money(plan.entry_high)}</div></div>'
-            f'<div class="s-fig"><div class="s-fig-k">Stop</div><div class="s-fig-v down">{_money(plan.stop_level)}</div></div>'
-            f'<div class="s-fig"><div class="s-fig-k">First target</div><div class="s-fig-v up">{_money(plan.first_target)}</div></div>'
-            f'<div class="s-fig"><div class="s-fig-k">Reward / risk</div><div class="s-fig-v">{plan.reward_risk:.2f}&times;</div></div>'
+            f'<div class="s-strip four">'
+            f'<div class="s-cell"><div class="s-cell-k">Entry</div>'
+            f'<div class="s-cell-v num">{_money(plan.entry_low)}&ndash;{_money(plan.entry_high)}</div>'
+            f'<div class="s-cell-n">Midpoint {_money(entry_mid)}</div></div>'
+            f'<div class="s-cell"><div class="s-cell-k">Stop</div>'
+            f'<div class="s-cell-v num down">{_money(plan.stop_level)}</div>'
+            f'<div class="s-cell-n">{plan.stop_pct:.1%} below the midpoint</div></div>'
+            f'<div class="s-cell"><div class="s-cell-k">First target</div>'
+            f'<div class="s-cell-v num up">{_money(plan.first_target)}</div>'
+            f'<div class="s-cell-n">{upside:.1%} above the midpoint</div></div>'
+            f'<div class="s-cell"><div class="s-cell-k">Reward / risk</div>'
+            f'<div class="s-cell-v num">{plan.reward_risk:.2f}&times;</div>'
+            f'<div class="s-cell-n">Upside per unit of risk</div></div>'
             f'</div>',
-            result,
         ))
 
-    # 5. The evidence, chart by chart, each with what it says. A chart shown
-    #    without its reading leaves the room to guess; this is the part of the
-    #    deck that has to carry the argument when the report is not in the room.
-    drawn = [
-        (label, chart, _image_data_url(chart.path))
-        for label, chart in charts
-        if chart is not None and _image_data_url(chart.path)
-    ]
-    if len(drawn) > 1:
-        slides.append(_deck_slide(
-            "The charts",
-            f'<h2 class="s-h2" style="margin-bottom:0">{_word_count_label(len(drawn))}</h2>'
-            f'<div class="s-divider">{escape(" · ".join(label for label, _c, _i in drawn))}</div>',
-            result,
-        ))
-    for label, chart, image in drawn:
+    # 5. The evidence, chart by chart, each with what it says. This is the part
+    #    that has to carry the argument when the report is not in the room.
+    for label, chart in charts:
+        if chart is None:
+            continue
+        image = _image_data_url(chart.path)
+        if not image:
+            continue
         points = _slide_points(chart)
-        reading = (
-            '<ul class="s-points neutral">'
-            + "".join(f"<li>{escape(point)}</li>" for point in points)
-            + "</ul>"
-        ) if points else '<p class="s-body">The chart is the evidence; the report sets out the figures behind it.</p>'
-        slides.append(_deck_slide(
-            label,
-            f'<div class="s-evidence"><div class="s-chart">'
-            f'<img src="{image}" alt="{escape(chart.title)}"></div>'
-            f'<div class="s-read"><h3 class="s-h3">{escape(chart.title)}</h3>{reading}</div></div>',
-            result,
-        ))
+        picture = f'<div class="s-chart"><img src="{image}" alt="{escape(chart.title)}"></div>'
+        if points:
+            body = (
+                f'<div class="s-evidence">{picture}<div class="s-read">'
+                f'<h3 class="s-h3">{escape(chart.title)}</h3>'
+                '<ul class="s-points tight">'
+                + "".join(f"<li>{escape(point)}</li>" for point in points)
+                + "</ul></div></div>"
+            )
+        else:
+            # Nothing to say about it: give the chart the whole slide rather than
+            # filling a column with a sentence about the report.
+            body = f'<h3 class="s-h3">{escape(chart.title)}</h3>{picture}'
+        slides.append((label, body))
 
-    # 6. What we are watching. One idea: the thing that would change the view.
+    # 6. The one thing that would change the view.
     watch = checklist_watch(checklist) if checklist is not None else ""
     risk = result.risks[0] if result.risks else ""
     if watch or risk:
-        body = ""
-        if watch:
-            body += f'<p class="s-lead">{escape(watch[:1].upper() + watch[1:])}.</p>'
-        else:
-            body += '<p class="s-lead">Nothing in the checklist currently argues against this view.</p>'
+        body = (
+            f'<p class="s-lead">{escape(watch[:1].upper() + watch[1:])}.</p>'
+            if watch
+            else '<p class="s-lead">No check currently argues against this view.</p>'
+        )
         if risk:
-            body += f'<div class="s-eyebrow" style="margin-top:36px">Principal risk</div><p class="s-body">{escape(risk)}</p>'
-        slides.append(_deck_slide("What would change this", body, result))
+            body += (
+                '<div class="s-col-k" style="margin-top:34px;max-width:30ch">Principal risk</div>'
+                f'<p class="s-body" style="max-width:64ch">{escape(risk)}</p>'
+            )
+        slides.append(("What would change the view", body))
 
     # 7. Disclosure. A deck leaves the room without its report.
-    slides.append(_deck_slide(
+    slides.append((
         "Disclosure",
-        '<p class="s-disc">This material is informational and reflects conditions as of the stated '
-        'time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may '
-        'change without notice. Investing involves risk, including possible loss of principal. '
-        'Firm compliance review is required before client distribution. Internal use only.</p>'
-        f'<p class="s-disc" style="margin-top:16px">Confidence in this view: '
-        f'<b style="color:#14213D">{escape(result.confidence.value)}</b>. '
-        f'Full evidence and sources are set out in the accompanying report.</p>',
-        result,
+        f'<p class="s-disc">Confidence in this view: <b>{escape(result.confidence.value)}</b>. '
+        'Evidence, sources and the full reasoning are set out in the accompanying report.</p>'
+        '<p class="s-disc" style="margin-top:18px">This material is informational and reflects '
+        'conditions as of the stated time. Sources are believed reliable but are not guaranteed. '
+        'Opinions and scenarios may change without notice. Investing involves risk, including '
+        'possible loss of principal. Firm compliance review is required before client '
+        'distribution. Internal use only.</p>',
     ))
-    return f'<div class="deck">{"".join(slides)}</div>'
+
+    total = len(slides)
+    return '<div class="deck">' + "".join(
+        _deck_slide(eyebrow, body, result, index, total)
+        for index, (eyebrow, body) in enumerate(slides, 1)
+    ) + "</div>"
 
 
 def _deck_script() -> str:

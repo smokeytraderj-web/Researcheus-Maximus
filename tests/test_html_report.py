@@ -83,6 +83,63 @@ class ReadingOrderTests(unittest.TestCase):
                 self.assertEqual(html.count('class="rating-word'), 1)
 
 
+class PrintLayoutTests(unittest.TestCase):
+    """What print does is invisible in the HTML, so these pin the rules that a
+    rendered PDF proved were needed."""
+
+    def _render(self, mode: str) -> str:
+        with tempfile.TemporaryDirectory() as tmp:
+            request = build_request("AXON price structure and momentum", mode)
+            result = DemoResearchProvider().run(request, Path(tmp))
+            target = Path(tmp) / "report.html"
+            build_research_html(result, request, target)
+            return target.read_text(encoding="utf-8")
+
+    def test_print_restores_the_desktop_grids_over_the_mobile_breakpoint(self):
+        # A printed Letter page is ~816px, which trips the approved template's
+        # 900px mobile breakpoint. Both reports were silently printing as a
+        # phone: a stacked masthead, half-width strips, and the Conviction
+        # Checklist in two columns with an orphan fifth card -- against the
+        # spec's "one column per criterion".
+        html = self._render("deep")
+        print_css = html[html.index("@media print{.chart-image"):]
+        self.assertIn(".cc-grid{grid-template-columns:repeat(5,minmax(0,1fr))}", print_css)
+        self.assertIn(".topline{grid-template-columns:repeat(4,1fr)}", print_css)
+        self.assertIn(".head{flex-direction:row}", print_css)
+
+    def test_technical_print_starts_each_major_section_on_its_own_page(self):
+        html = self._render("deep")
+        for rule in (
+            ".tech-report #plan{break-before:page}",
+            ".tech-report #sources{break-before:page}",
+            ".tech-report .evidence-panel + .evidence-panel{break-before:page}",
+        ):
+            with self.subTest(rule=rule):
+                self.assertIn(rule, html)
+
+    def test_no_page_break_is_pinned_before_the_fundamentals_running_strip(self):
+        # #fundamentals already opens a page-view; a break before it only strands
+        # the running strip above it on a page of its own.
+        self.assertNotIn(".tech-report #fundamentals{break-before:page}", self._render("deep"))
+
+    def test_the_scenario_controls_do_not_print_but_its_conclusions_do(self):
+        html = self._render("deep")
+        self.assertIn(".tech-report .scn-chips,.tech-report .scn-slider{display:none!important}", html)
+        # The graph, the action zone and the outcome figures are static
+        # conclusions and must survive into print.
+        for kept in ("scn-graph", 'id="zone"', "scn-out"):
+            with self.subTest(kept=kept):
+                self.assertIn(kept, html)
+
+    def test_the_general_brief_keeps_its_approved_three_page_form(self):
+        # Section-per-page was applied to the Technical report only; the General
+        # brief's three-page contract is pinned in CLAUDE.md.
+        html = self._render("general")
+        for rule in (".general-brief #plan{break-before:page}", ".general-brief #sources{break-before:page}"):
+            with self.subTest(rule=rule):
+                self.assertNotIn(rule, html)
+
+
 class SlideDeckTests(unittest.TestCase):
     """The deck is an export of the same report, not a second version of it."""
 
@@ -140,8 +197,33 @@ class SlideDeckTests(unittest.TestCase):
         deck = html[html.index('class="deck"'):]
         # The report says "Price $325.13 is above both the 50-day ... averages."
         # The slide says "Above the 50 and 200-day".
-        self.assertIn("s-check-read", deck)
-        self.assertNotIn("is above both the 50-day", deck[deck.index("s-checks"):deck.index("s-checks") + 3000])
+        strip = deck.index('class="s-strip five"')
+        self.assertIn("Above the 50 and 200-day", deck[strip:strip + 3000])
+        self.assertNotIn("is above both the 50-day", deck[strip:strip + 3000])
+
+    def test_slides_are_numbered_and_carry_the_running_foot(self):
+        # A deck is presented away from the report; a reader needs to know where
+        # they are in it and whose it is.
+        deck = self._render("deep")
+        self.assertIn('class="s-num"', deck)
+        self.assertIn("01/", deck)
+
+    def test_slide_labels_name_the_slide_rather_than_selling_it(self):
+        # "Our recommendation" / "Why we say Add" / "Four views of the same
+        # question" read as a pitch. A research deck labels what is on the page.
+        for mode in ("general", "deep"):
+            with self.subTest(mode=mode):
+                deck = self._render(mode)
+                deck = deck[deck.index('class="deck"'):]
+                for corny in ("Our recommendation", "Why we say", "views of the same question"):
+                    self.assertNotIn(corny, deck)
+
+    def test_the_deck_never_prints_navy_type_on_the_navy_slide(self):
+        # The disclosure slide hardcoded the report's navy for its emphasis,
+        # which was invisible once the slide went back to a navy ground.
+        deck = self._render("general")
+        deck = deck[deck.index('class="deck"'):]
+        self.assertNotIn("#14213D", deck)
 
     def test_the_deck_carries_its_own_disclosure(self):
         # A deck leaves the room without the report attached to it.

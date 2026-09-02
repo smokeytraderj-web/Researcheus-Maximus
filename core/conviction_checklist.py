@@ -178,7 +178,9 @@ _SLIDE_PHRASES = {
     "momentum": ("Momentum participating", "Momentum not confirming"),
     # Not "Behind the S&P 500": a stock ahead by less than the margin misses the
     # criterion while still being ahead, and the slide must not say otherwise.
-    "relative_strength": ("Ahead of the S&P 500", "Not clearly ahead of the S&P 500"),
+    # "No clear lead" keeps that true in half the width, which matters in a
+    # five-column strip where the longer phrase ran to four lines.
+    "relative_strength": ("Ahead of the S&P 500", "No clear lead on the S&P 500"),
     "quality": ("Strong return on capital", "Thin return on capital"),
     "revisions": ("Estimates rising", "Estimates falling"),
 }
