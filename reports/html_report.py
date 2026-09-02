@@ -107,9 +107,16 @@ _DYNAMIC_CSS = r"""
 .tech-report section{margin-top:60px}
 .tech-report section:first-of-type{margin-top:36px}
 .tech-report .sec-head{padding-bottom:10px;margin-bottom:22px}
-.plan-line{margin-top:20px}
+/* The plan's levels and the market figures share a visual language but are not
+   the same kind of thing: one is a proposed course of action, the other is where
+   things stand. Run together as one eight-cell block they read as a single
+   table, so each keeps its own label and its own rule. */
+.data-group + .data-group{margin-top:26px}
+.data-k{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+  font-weight:600;margin-bottom:7px}
+.plan-line{margin-top:0}
 .tl-n{font-size:12.5px;margin-top:3px}
-.plan-line + .topline{margin-top:0;border-top:0}
+.data-group .topline{margin-top:0}
 .plan-line .tl-v{font-size:19px}
 /* An entry zone is two prices and a dash -- it wrapped mid-range at strip size. */
 .plan-line .tl-v.range{font-size:16.5px}
@@ -1196,8 +1203,14 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </section>
 <section id="numbers">
   <div class="sec-head"><h2>The data</h2></div>
-  {_plan_line(plan, entry_mid)}
-  {_topline(result)}{demo}
+  <div class="data-group">
+    <div class="data-k">Plan levels</div>
+    {_plan_line(plan, entry_mid)}
+  </div>
+  <div class="data-group">
+    <div class="data-k">Market and consensus</div>
+    {_topline(result)}
+  </div>{demo}
 </section>
 <section id="plan"><div class="sec-head"><h2>Action plan</h2><span class="verdict v-neu">{escape(plan.stance)}</span></div>
   <div class="ladder-wrap"><div class="ladder" id="ladder"></div><div class="rr"><div class="rr-k">Reward to risk</div><div class="rr-big num">{plan.reward_risk:.2f}×</div><div class="rr-note">Entry midpoint {_money(entry_mid)} to first target {_money(plan.first_target)}, measured against a {_money(plan.stop_level)} stop.</div><div class="rrbar"><div class="up" style="flex:{max(plan.reward_risk, 0.01):.2f}"></div><div class="dn" style="flex:1"></div></div><div class="rrleg"><span>+{_money(max(0, plan.first_target-entry_mid))} upside</span><span>−{_money(max(0, entry_mid-plan.stop_level))} risk</span></div></div></div>
@@ -1428,107 +1441,125 @@ _DECK_CSS = """
 .deck{display:none}
 body.deck-on .page,body.deck-on .rail{display:none!important}
 body.deck-on .deck{display:block}
-body.deck-on{background:#E9ECF1}
-/* The deck follows the firm's approved client-deck template: navy covers for the
-   title and contents, white pages for the evidence, a gold rule beneath every
-   page title, navy table headers, and serif throughout -- Garamond for display,
-   a transitional serif for text. The report keeps its own system; this is the
-   deck's, and it is the one the firm already presents to clients.
+body.deck-on{background:#0A1223}
+/* Navy is the deck's ground throughout. The structural language is the firm's
+   approved client deck (Bloom portfolio review): a gold rule under every page
+   title, Garamond for display against a transitional serif for text, italic
+   meta, a running foot. Charts are white images and keep their own white field.
 
    Every size is in em against the slide's own font-size, and that font-size
-   tracks the slide's width. A slide is a fixed canvas: if the type does not
-   scale with it, a narrower window keeps 18px rows inside a shorter page and the
-   content runs out through the footer. Type is set larger than the reference
-   proportionally -- these are read in a room, and legibility was worth the room
-   it costs. */
+   tracks the slide's width -- a slide is a fixed canvas, and type fixed in px
+   inside a scaling box runs out through the footer on a narrower screen. */
 .slide{position:relative;width:1160px;max-width:96vw;aspect-ratio:16/9;margin:24px auto;
-  background:#FFFFFF;color:#22303F;padding:2.55em 3.2em 2.2em;box-sizing:border-box;
+  background:#16233F;color:#C9D4E6;padding:2.55em 3.2em 2.2em;box-sizing:border-box;
   overflow:hidden;display:flex;flex-direction:column;
   font-family:'Source Serif 4',Georgia,'Times New Roman',serif;
   font-size:min(18px,1.49vw);line-height:1.45}
 .slide.cover{background:linear-gradient(135deg,#1F3055 0%,#182741 46%,#0D172B 100%);
-  color:#DCE3EE;padding:2.9em 3.7em 2.2em}
+  padding:2.9em 3.7em 2.2em;justify-content:center}
 .s-head{display:flex;align-items:baseline;justify-content:space-between;gap:1.6em}
 .s-title{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:2.22em;line-height:1.1;
-  font-weight:700;margin:0;color:#16233F;letter-spacing:-.004em}
-.s-when{font-style:italic;font-size:.89em;color:#5A6B80;white-space:nowrap}
+  font-weight:700;margin:0;color:#FFFFFF;letter-spacing:-.004em}
+.s-when{font-style:italic;font-size:.89em;color:#8FA3C4;white-space:nowrap}
 /* The gold rule under the page title is the template's signature. */
-.s-rule{height:2px;background:#BF9B4F;margin:.78em 0 1.45em}
+.s-rule{height:2px;background:#BFA054;margin:.78em 0 1.55em}
 .s-mid{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-start}
 .s-foot{margin-top:auto;display:flex;justify-content:space-between;align-items:baseline;
-  font-size:.67em;color:#7A879A;padding-top:.8em}
-.slide.cover .s-foot{color:#8B9BB6}
-.s-note{font-style:italic;font-size:.78em;line-height:1.55;color:#5A6B80;margin:1em 0 0}
+  font-size:.67em;color:#6E80A0;padding-top:.8em}
+.s-note{font-style:italic;font-size:.78em;line-height:1.55;color:#8FA3C4;margin:1em 0 0}
 
-/* --- Covers ------------------------------------------------------------- */
-.s-mono{text-align:center;margin-bottom:1.7em}
-.s-ring{display:inline-flex;align-items:center;justify-content:center;width:6.55em;height:6.55em;
-  border:1.5px solid #C9A961;border-radius:50%}
-.s-ring i{display:flex;align-items:center;justify-content:center;width:5.45em;height:5.45em;
-  border:1px solid #C9A961;border-radius:50%;font-style:normal;
-  font-family:'EB Garamond',Garamond,Georgia,serif;font-size:2.22em;color:#C9A961;
-  letter-spacing:.06em;line-height:1}
-.s-firm{margin-top:.72em;font-family:'EB Garamond',Garamond,Georgia,serif;font-size:.7em;
-  letter-spacing:.24em;text-transform:uppercase;color:#C9A961}
+/* --- Cover: the firm's monogram, to the template's own geometry ---------- */
+/* Outer ring 11.25% of slide width, inner 9.15%, "GS" at 2.92%, gold #BFA054 --
+   measured off the approved deck rather than approximated by eye. */
+.s-mono{text-align:center;margin-bottom:1.8em}
+/* Sizing and type are kept on separate elements deliberately. Putting the "GS"
+   font-size on the inner ring made its own em 1.88x the slide's, so a ring
+   declared at 5.9em rendered at 11.09 -- larger than the 7.26em ring meant to
+   contain it, and both came out as ellipses. */
+.s-ring{display:inline-flex;align-items:center;justify-content:center;flex:none;
+  width:7.26em;height:7.26em;border:.083em solid #BFA054;border-radius:50%}
+.s-ring i{display:flex;align-items:center;justify-content:center;flex:none;
+  width:5.9em;height:5.9em;border:.05em solid #BFA054;border-radius:50%;font-style:normal}
+.s-ring b{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:1.88em;font-weight:700;
+  color:#BFA054;letter-spacing:.1em;text-indent:.1em;line-height:1}
+.s-firm{margin-top:.85em;font-size:.61em;letter-spacing:.34em;text-transform:uppercase;
+  color:#BFA054}
 .s-cover-name{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:3.22em;line-height:1.08;
   font-weight:700;color:#FFFFFF;margin:0}
-.s-cover-sub{font-size:1.28em;color:#C6D0E0;margin-top:.45em}
-.s-cover-rule{width:8.3em;height:2px;background:#BF9B4F;margin-top:1.2em}
-.s-eyebrow{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:.72em;letter-spacing:.2em;
-  text-transform:uppercase;color:#C9A961;margin-bottom:.6em}
-.s-cover-h{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:2.44em;font-weight:700;
-  color:#FFFFFF;margin:0 0 1em}
-.s-contents{list-style:none;margin:0;padding:0}
-.s-contents li{display:flex;align-items:baseline;gap:1.45em;padding:.5em 0;font-size:1.06em;
-  color:#E4EAF3}
-.s-contents .n{font-family:'EB Garamond',Garamond,Georgia,serif;color:#C9A961;font-size:.95em;
-  min-width:1.7em}
-.s-contents .p{margin-left:auto;color:#9DAEC8;font-size:.8em}
+.s-cover-sub{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:1.42em;color:#C6D0E0;
+  margin-top:.3em}
+.s-cover-rule{width:8.3em;height:2px;background:#BFA054;margin-top:1.2em}
+.s-cover-disc{font-style:italic;font-size:.6em;line-height:1.6;color:#7C8DAB;margin-top:1.5em;
+  max-width:74ch}
 
-/* --- Table: the template's workhorse ------------------------------------ */
-.s-table{width:100%;border-collapse:collapse;font-size:1em}
-.s-table th{background:#16233F;color:#FFFFFF;font-weight:600;text-align:left;
-  padding:.72em .89em;font-size:.94em}
-.s-table th.r,.s-table td.r{text-align:right}
-.s-table td{padding:.72em .89em;border-bottom:1px solid #E4E8EE;color:#22303F}
-.s-table tbody tr:nth-child(even){background:#F6F8FA}
-.s-table .m{font-weight:600}
-.s-table .up{color:#1F7A52}.s-table .down{color:#B4453E}
-.s-mark{font-weight:700;font-size:1.06em}
-.s-mark.pass{color:#1F7A52}.s-mark.fail{color:#B4453E}.s-mark.unconfirmed{color:#8A97AB}
+/* --- The call ------------------------------------------------------------ */
+.s-ask{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:1.5em;line-height:1.34;
+  color:#DCE4F0;margin:0 0 .7em;max-width:34ch}
+.s-rating{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:5.2em;font-weight:700;
+  line-height:.96;margin:0}
+.s-rating.up{color:#5FCF95}.s-rating.down{color:#EE9188}.s-rating.flat{color:#E2C179}
+.s-stance{font-style:italic;font-size:1.06em;color:#9DAEC8;margin:.5em 0 0}
+.s-callgrid{display:grid;grid-template-columns:1.25fr 1fr;gap:2.6em;flex:1;min-height:0;
+  align-items:center}
+/* --- One divided strip, used wherever parallel figures are stated -------- */
+.s-strip{display:grid;border-top:1px solid #33436A;border-bottom:1px solid #33436A}
+.s-strip.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.s-strip.four{grid-template-columns:repeat(4,minmax(0,1fr))}
+.s-cell{padding:.9em 1.1em 1em;border-left:1px solid #2A3959;min-width:0}
+.s-cell:first-child{border-left:0;padding-left:0}
+.s-strip.two .s-cell:nth-child(odd){border-left:0;padding-left:0}
+.s-strip.two .s-cell:nth-child(-n+2){border-top:0}
+.s-strip.two .s-cell:nth-child(n+3){border-top:1px solid #2A3959}
+.s-k{font-size:.68em;letter-spacing:.17em;text-transform:uppercase;color:#8296B8}
+.s-v{margin-top:.42em;font-family:'EB Garamond',Garamond,Georgia,serif;font-size:1.72em;
+  font-weight:600;color:#FFFFFF;line-height:1.1}
+.s-v.up{color:#5FCF95}.s-v.down{color:#EE9188}
+.s-n{margin-top:.3em;font-size:.72em;line-height:1.4;color:#7C8DAB}
 
-/* --- The call ----------------------------------------------------------- */
-.s-verdict{display:flex;gap:3.5em;align-items:flex-start;margin-bottom:1.45em;flex-wrap:wrap}
-.s-k{font-size:.72em;letter-spacing:.16em;text-transform:uppercase;color:#7A879A;
-  margin-bottom:.45em}
-.s-rating{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:3.44em;font-weight:700;
-  line-height:1}
-.s-rating.up{color:#1F7A52}.s-rating.down{color:#B4453E}.s-rating.flat{color:#8A6D1F}
-.s-figure{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:2.22em;font-weight:600;
-  color:#16233F;line-height:1.1}
-.s-lead{font-size:1.44em;line-height:1.45;color:#22303F;margin:0;max-width:40ch}
+/* --- Why: the reasoning, condensed -------------------------------------- */
+.s-why p{font-size:1.16em;line-height:1.55;color:#DCE4F0;margin:0}
+.s-why p + p{margin-top:.85em}
+.s-why .lead{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:1.5em;line-height:1.35;
+  color:#FFFFFF}
+
+/* --- Conviction Checklist: the website's five cards --------------------- */
+.s-checks{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.85em;margin-top:.2em}
+.s-check{background:rgba(255,255,255,.045);border:1px solid #2E3E5D;border-radius:.55em;
+  padding:1.05em 1em 1.15em;display:flex;flex-direction:column}
+.s-check-top{display:flex;align-items:center;gap:.5em;margin-bottom:.6em}
+.s-box{flex:none;width:1.35em;height:1.35em;border-radius:.28em;display:flex;align-items:center;
+  justify-content:center;font-size:.85em;font-weight:700}
+.s-box.pass{background:#3F9E6F;color:#fff}
+.s-box.fail{background:transparent;border:1.5px solid #4A5C7C;color:transparent}
+.s-box.unconfirmed{background:transparent;border:1.5px solid #4A5C7C;color:#8296B8;font-size:.7em}
+.s-check-label{font-size:.95em;font-weight:600;color:#FFFFFF;line-height:1.2}
+.s-check-detail{font-size:.72em;line-height:1.5;color:#AEBCD2}
+.s-score{display:flex;align-items:baseline;gap:.55em;margin-bottom:.9em}
+.s-score b{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:2em;font-weight:700;
+  color:#FFFFFF;line-height:1}
+.s-score span{font-size:.75em;letter-spacing:.14em;text-transform:uppercase;color:#8296B8}
 
 /* --- Two columns of findings -------------------------------------------- */
 .s-two{display:grid;grid-template-columns:1fr 1fr;gap:2.55em}
-.s-col-k{font-size:.72em;letter-spacing:.18em;text-transform:uppercase;color:#7A879A;
-  padding-bottom:.5em;border-bottom:1.5px solid #E4E8EE;margin-bottom:.12em}
-.s-col.supports .s-col-k{border-bottom-color:#1F7A52}
-.s-col.against .s-col-k{border-bottom-color:#B4453E}
+.s-col-k{font-size:.7em;letter-spacing:.18em;text-transform:uppercase;color:#8296B8;
+  padding-bottom:.5em;border-bottom:1.5px solid #33436A;margin-bottom:.12em}
+.s-col.supports .s-col-k{border-bottom-color:#3F9E6F}
+.s-col.against .s-col-k{border-bottom-color:#8E504A}
 .s-points{list-style:none;margin:0;padding:0}
-.s-points li{font-size:1.06em;line-height:1.45;color:#22303F;padding:.72em 0;
-  border-bottom:1px solid #EFF2F6}
+.s-points li{font-size:1.02em;line-height:1.45;color:#DCE4F0;padding:.68em 0;
+  border-bottom:1px solid #253451}
+.s-lead{font-size:1.4em;line-height:1.42;color:#FFFFFF;margin:0;max-width:36ch}
 
 /* --- Chart pages -------------------------------------------------------- */
 .s-evidence{display:grid;grid-template-columns:1.6fr 1fr;gap:2em;flex:1;min-height:0;
   align-items:stretch}
-.s-chart{display:flex;align-items:center;justify-content:center;min-height:0;min-width:0}
+.s-chart{display:flex;align-items:center;justify-content:center;min-height:0;min-width:0;
+  background:#FFFFFF;border-radius:.3em;padding:.7em}
 .s-chart img{max-width:100%;max-height:100%;object-fit:contain}
 .s-read{display:flex;flex-direction:column;justify-content:center;min-width:0}
-.s-read .s-points li{font-size:.94em;padding:.61em 0}
-.s-disc{font-size:.83em;line-height:1.6;color:#3E4759;max-width:88ch}
-.s-disc b{color:#16233F;font-weight:600}
+.s-read .s-points li{font-size:.92em;padding:.58em 0}
 @media print{
-  body.deck-on{background:#fff}
+  body.deck-on{background:#16233F}
   .slide{margin:0;width:100%;max-width:none;aspect-ratio:auto;height:100vh;
     font-size:min(18px,1.55vw);break-after:page;break-inside:avoid;
     -webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -1537,9 +1568,20 @@ body.deck-on{background:#E9ECF1}
 """
 
 
-def _deck_page(title: str, meta: str, body: str, result: ResearchResult,
-               number: int, total: int, note: str = "") -> str:
-    """A white evidence page: title, gold rule, content, running foot."""
+_FIRM = "Gottfried &amp; Somberg Wealth Management"
+
+# A deck leaves the room without its report, so the disclosure travels on the
+# cover rather than on a slide of its own.
+_DECK_DISCLOSURE = (
+    "Informational only, and reflecting conditions as of the date shown. Sources are believed "
+    "reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing "
+    "involves risk, including possible loss of principal. Firm compliance review is required "
+    "before client distribution. Internal use only."
+)
+
+
+def _deck_page(title: str, meta: str, body: str, number: int, total: int, note: str = "") -> str:
+    """An evidence page: title, gold rule, content, running foot."""
     return (
         f'<section class="slide">'
         f'<div class="s-head"><h2 class="s-title">{escape(title)}</h2>'
@@ -1550,18 +1592,6 @@ def _deck_page(title: str, meta: str, body: str, result: ResearchResult,
         + f'<div class="s-foot"><span>{_FIRM}</span>'
         f'<span>Page {number} of {total}</span></div></section>'
     )
-
-
-def _deck_cover(body: str, number: int, total: int) -> str:
-    """A navy cover: the title page and the contents page."""
-    return (
-        f'<section class="slide cover"><div class="s-mid">{body}</div>'
-        f'<div class="s-foot"><span>{_FIRM}</span>'
-        f'<span>Page {number} of {total}</span></div></section>'
-    )
-
-
-_FIRM = "Gottfried &amp; Somberg Wealth Management"
 
 
 def _slide_points(chart: ChartRecord, limit: int = 3, budget: int = 58) -> tuple[str, ...]:
@@ -1595,115 +1625,125 @@ def _insight_bullets(insight: str) -> tuple[str, ...]:
     return tuple(part.strip() for part in re.split(r"(?<=[.!?])\s+", insight.strip()) if part.strip())
 
 
+def _condense(paragraph: str, words: int) -> str:
+    """Trim a paragraph to a slide's worth of it, on a sentence boundary."""
+    sentences = _insight_bullets(paragraph)
+    kept: list[str] = []
+    used = 0
+    for sentence in sentences:
+        length = len(sentence.split())
+        if kept and used + length > words:
+            break
+        kept.append(sentence)
+        used += length
+    return " ".join(kept)
+
+
 def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
                checks_narrative: str, reasoning: str,
                charts: Sequence[tuple[str, ChartRecord | None]]) -> str:
     """The report as a short deck, on the firm's approved client-deck template.
 
     Deliberately not the report reproduced at report density. A slide is read
-    from across a room in seconds, so each page carries one idea: the criteria as
-    three-word readings rather than their full sentences, the findings as table
-    rows rather than paragraphs. The report remains where the evidence is set out
-    in full.
+    from across a room in seconds, so each page carries one idea and the report
+    remains where the evidence is set out in full.
     """
     tone_class = _tone(result.lead_rating)[0]
     tone = "up" if tone_class == "v-bull" else "down" if tone_class == "v-bear" else "flat"
     checklist = result.conviction_checklist
-    rows = checklist_headlines(checklist) if checklist is not None else ()
     when = _date_only(result.as_of)
     meta = f"{result.identity.ticker} · {when}"
     document = "Technical Research" if request.deep_analysis else "General Research"
-
-    # Pages are collected as builders so the contents list and the running "Page
-    # n of N" can both be written once the deck's length is actually known.
+    plan = result.technical_plan
     pages: list[tuple[str, str, str, str]] = []  # (title, meta, body, note)
 
-    if rows:
-        judged = len(rows) - sum(1 for _, _, status in rows if status == "unconfirmed")
-        body = (
-            f'<div class="s-verdict">'
-            f'<div><div class="s-k">Rating</div>'
-            f'<div class="s-rating {tone}">{escape(result.lead_rating.value)}</div></div>'
-            f'<div><div class="s-k">Confidence</div>'
-            f'<div class="s-figure">{escape(result.confidence.value)}</div></div>'
-            f'<div><div class="s-k">Conviction</div>'
-            f'<div class="s-figure">{checklist.passed_count} of {judged}</div></div>'
-            f'<div><div class="s-k">Last price</div>'
-            f'<div class="s-figure">{_money(result.current_price)}</div></div>'
-            f'</div>'
-        )
-    else:
-        body = (
-            f'<div class="s-verdict"><div><div class="s-k">Rating</div>'
-            f'<div class="s-rating {tone}">{escape(result.lead_rating.value)}</div></div>'
-            f'<div><div class="s-k">Confidence</div>'
-            f'<div class="s-figure">{escape(result.confidence.value)}</div></div>'
-            f'<div><div class="s-k">Last price</div>'
-            f'<div class="s-figure">{_money(result.current_price)}</div></div></div>'
-        )
-    body += f'<p class="s-lead">{escape(question)}</p>'
-    pages.append(("The call", meta, body, ""))
+    # 1. Why -- the reasoning, condensed. The report's two-movement narrative
+    #    leads; the analyst prose that follows it in the report is a third
+    #    paragraph there and does not fit a slide.
+    paragraphs = checklist_paragraphs(checklist, rating=result.lead_rating.value) if checklist else ()
+    if paragraphs:
+        body = '<div class="s-why">'
+        body += f'<p class="lead">{escape(_condense(paragraphs[0], 44))}</p>'
+        for part in paragraphs[1:]:
+            body += f"<p>{escape(_condense(part, 62))}</p>"
+        body += "</div>"
+        pages.append(("Why", meta, body, ""))
 
-    # The checklist as the template's table: criterion, reading, mark.
-    if rows:
-        table_rows = "".join(
-            f'<tr><td class="m">{escape(label)}</td><td>{escape(reading)}</td>'
-            f'<td class="r"><span class="s-mark {status}">'
-            f'{"&#10003;" if status == "pass" else "&ndash;" if status == "unconfirmed" else "&times;"}'
-            f"</span></td></tr>"
-            for label, reading, status in rows
+    # 2. The call. The rating carries the page; the figures that qualify it sit
+    #    beside it rather than under it, so neither competes for the eye.
+    judged = (checklist.total_count - checklist.unconfirmed_count) if checklist else 0
+    cells = [
+        ("Confidence", escape(result.confidence.value), "", ""),
+        ("Last price", _money(result.current_price), "", f"As of {escape(when)}"),
+    ]
+    if checklist:
+        cells.insert(1, ("Conviction", f"{checklist.passed_count} of {judged}", "",
+                         "Deterministic checks confirmed"))
+    street = _find_metric(result, "analyst mean target", default="")
+    if street and street != "—":
+        cells.append(("Street target", escape(street), "",
+                      escape(_find_metric(result, "target implied upside", default=""))))
+    strip = "".join(
+        f'<div class="s-cell"><div class="s-k">{label}</div>'
+        f'<div class="s-v {klass}">{value}</div>'
+        + (f'<div class="s-n">{note}</div>' if note else "")
+        + "</div>"
+        for label, value, klass, note in cells
+    )
+    stance = f'<p class="s-stance">{escape(plan.stance)}</p>' if plan is not None else ""
+    pages.append((
+        "The call", meta,
+        f'<div class="s-callgrid"><div>'
+        f'<p class="s-ask">{escape(question)}</p>'
+        f'<p class="s-rating {tone}">{escape(result.lead_rating.value)}</p>{stance}</div>'
+        f'<div class="s-strip two">{strip}</div></div>',
+        "",
+    ))
+
+    # 3. The checklist, in the same five cards the report page carries.
+    if checklist is not None and checklist.criteria:
+        icons = {"pass": "&#10003;", "fail": "", "unconfirmed": "?"}
+        cards = "".join(
+            f'<div class="s-check"><div class="s-check-top">'
+            f'<span class="s-box {item.status}">{icons[item.status]}</span>'
+            f'<span class="s-check-label">{escape(item.label)}</span></div>'
+            f'<div class="s-check-detail">{escape(item.detail)}</div></div>'
+            for item in checklist.criteria
         )
         pages.append((
             "Conviction Checklist", meta,
-            '<table class="s-table"><thead><tr><th>Criterion</th><th>Reading</th>'
-            '<th class="r">Confirms</th></tr></thead>'
-            f"<tbody>{table_rows}</tbody></table>",
+            f'<div class="s-score"><b>{checklist.passed_count}/{checklist.total_count}</b>'
+            f"<span>criteria confirmed</span></div>"
+            f'<div class="s-checks">{cards}</div>',
             "Five independent, deterministic criteria. Supplementary evidence, not a rating.",
         ))
 
-    # Where the evidence agrees, and where it does not.
-    if rows:
-        good = [reading for _label, reading, status in rows if status == "pass"]
-        bad = [reading for _label, reading, status in rows if status == "fail"]
-        supports = (
-            '<ul class="s-points">' + "".join(f"<li>{escape(item)}</li>" for item in good) + "</ul>"
-            if good else '<p class="s-lead" style="font-size:1.06em">No check confirms.</p>'
-        )
-        against = (
-            '<ul class="s-points">' + "".join(f"<li>{escape(item)}</li>" for item in bad) + "</ul>"
-            if bad else '<p class="s-lead" style="font-size:1.06em">No check argues against this view.</p>'
-        )
-        pages.append((
-            "The case", meta,
-            f'<div class="s-two">'
-            f'<div class="s-col supports"><div class="s-col-k">Supports</div>{supports}</div>'
-            f'<div class="s-col against"><div class="s-col-k">Against</div>{against}</div></div>',
-            "",
-        ))
-
-    # The plan, as the template's table.
-    plan = result.technical_plan
+    # 4. The action plan, on its own page and separate from the market figures.
     if plan is not None:
         entry_mid = (plan.entry_low + plan.entry_high) / 2
         upside = (plan.first_target / entry_mid - 1.0) if entry_mid else 0.0
         pages.append((
-            "Position", meta,
-            '<table class="s-table"><thead><tr><th>Level</th><th class="r">Price</th>'
-            '<th>Basis</th></tr></thead><tbody>'
-            f'<tr><td class="m">Entry zone</td><td class="r">{_money(plan.entry_low)}&ndash;{_money(plan.entry_high)}</td>'
-            f'<td>Midpoint {_money(entry_mid)}</td></tr>'
-            f'<tr><td class="m">Stop</td><td class="r down">{_money(plan.stop_level)}</td>'
-            f'<td>{plan.stop_pct:.1%} below the midpoint</td></tr>'
-            f'<tr><td class="m">First target</td><td class="r up">{_money(plan.first_target)}</td>'
-            f'<td>{upside:.1%} above the midpoint</td></tr>'
-            f'<tr><td class="m">Reward / risk</td><td class="r">{plan.reward_risk:.2f}&times;</td>'
-            f'<td>Upside per unit of risk</td></tr>'
-            "</tbody></table>",
-            escape(plan.stance),
+            "Action plan", meta,
+            '<div class="s-strip four">'
+            f'<div class="s-cell"><div class="s-k">Entry zone</div>'
+            f'<div class="s-v">{_money(plan.entry_low)}&ndash;{_money(plan.entry_high)}</div>'
+            f'<div class="s-n">Midpoint {_money(entry_mid)}</div></div>'
+            f'<div class="s-cell"><div class="s-k">Stop</div>'
+            f'<div class="s-v down">{_money(plan.stop_level)}</div>'
+            f'<div class="s-n">{plan.stop_pct:.1%} below the midpoint</div></div>'
+            f'<div class="s-cell"><div class="s-k">First target</div>'
+            f'<div class="s-v up">{_money(plan.first_target)}</div>'
+            f'<div class="s-n">{upside:.1%} above the midpoint</div></div>'
+            f'<div class="s-cell"><div class="s-k">Reward / risk</div>'
+            f'<div class="s-v">{plan.reward_risk:.2f}&times;</div>'
+            f'<div class="s-n">Upside per unit of risk</div></div>'
+            "</div>"
+            f'<p class="s-lead" style="margin-top:1.4em">{escape(plan.confirmation)}</p>',
+            escape(plan.invalidation),
         ))
 
-    # The evidence, chart by chart, each with what it says.
-    for label, chart in charts:
+    # 5. The evidence, chart by chart, each with what it says.
+    for _label, chart in charts:
         if chart is None:
             continue
         image = _image_data_url(chart.path)
@@ -1711,17 +1751,14 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
             continue
         points = _slide_points(chart)
         picture = f'<div class="s-chart"><img src="{image}" alt="{escape(chart.title)}"></div>'
-        if points:
-            body = (
-                f'<div class="s-evidence">{picture}<div class="s-read"><ul class="s-points">'
-                + "".join(f"<li>{escape(point)}</li>" for point in points)
-                + "</ul></div></div>"
-            )
-        else:
-            body = picture
+        body = (
+            f'<div class="s-evidence">{picture}<div class="s-read"><ul class="s-points">'
+            + "".join(f"<li>{escape(point)}</li>" for point in points)
+            + "</ul></div></div>"
+        ) if points else picture
         pages.append((chart.title, meta, body, ""))
 
-    # The one thing that would change the view.
+    # 6. The one thing that would change the view.
     watch = checklist_watch(checklist) if checklist is not None else ""
     risk = result.risks[0] if result.risks else ""
     if watch or risk:
@@ -1733,52 +1770,27 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
         if risk:
             body += (
                 '<div class="s-col-k" style="margin-top:1.9em;max-width:26ch">Principal risk</div>'
-                f'<p class="s-lead" style="font-size:1.06em;max-width:66ch;margin-top:.8em">{escape(risk)}</p>'
+                f'<p class="s-points" style="font-size:1.02em;max-width:64ch;margin-top:.8em">'
+                f"{escape(risk)}</p>"
             )
         pages.append(("What would change the view", meta, body, ""))
 
-    pages.append((
-        "Disclosure", meta,
-        f'<p class="s-disc">Confidence in this view: <b>{escape(result.confidence.value)}</b>. '
-        'Evidence, sources and the full reasoning are set out in the accompanying report.</p>'
-        '<p class="s-disc" style="margin-top:.9em">This material is informational and reflects '
-        'conditions as of the stated time. Sources are believed reliable but are not guaranteed. '
-        'Opinions and scenarios may change without notice. Investing involves risk, including '
-        'possible loss of principal. Firm compliance review is required before client '
-        'distribution. Internal use only.</p>',
-        "",
-    ))
-
-    # Two covers precede the evidence pages, so the contents can list them by the
-    # page number they will actually carry.
-    total = len(pages) + 2
-    contents = "".join(
-        f'<li><span class="n">{index:02d}</span><span>{escape(title)}</span>'
-        f'<span class="p">Page {index + 2}</span></li>'
-        for index, (title, _meta, _body, _note) in enumerate(pages, 1)
+    total = len(pages) + 1
+    cover = (
+        '<section class="slide cover"><div class="s-mid" style="flex:none">'
+        '<div class="s-mono"><span class="s-ring"><i><b>GS</b></i></span>'
+        f'<div class="s-firm">{_FIRM}</div></div>'
+        f'<h1 class="s-cover-name">{escape(result.identity.company_name)}</h1>'
+        f'<div class="s-cover-sub">{escape(document)} &middot; {escape(result.identity.ticker)} '
+        f'&middot; {escape(when)}</div>'
+        '<div class="s-cover-rule"></div>'
+        f'<p class="s-cover-disc">{_DECK_DISCLOSURE}</p></div>'
+        f'<div class="s-foot"><span>{_FIRM}</span><span>Page 1 of {total}</span></div></section>'
     )
-    slides = [
-        _deck_cover(
-            '<div class="s-mono"><span class="s-ring"><i>GS</i></span>'
-            f'<div class="s-firm">{_FIRM}</div></div>'
-            f'<h1 class="s-cover-name">{escape(result.identity.company_name)}</h1>'
-            f'<div class="s-cover-sub">{escape(document)} &middot; {escape(result.identity.ticker)} '
-            f'&middot; {escape(when)}</div>'
-            '<div class="s-cover-rule"></div>',
-            1, total,
-        ),
-        _deck_cover(
-            f'<div class="s-eyebrow">{escape(document)} overview</div>'
-            '<h2 class="s-cover-h">Contents</h2>'
-            f'<ul class="s-contents">{contents}</ul>',
-            2, total,
-        ),
-    ]
-    slides += [
-        _deck_page(title, page_meta, body, result, index, total, note)
-        for index, (title, page_meta, body, note) in enumerate(pages, 3)
-    ]
-    return '<div class="deck">' + "".join(slides) + "</div>"
+    return '<div class="deck">' + cover + "".join(
+        _deck_page(title, page_meta, body, index, total, note)
+        for index, (title, page_meta, body, note) in enumerate(pages, 2)
+    ) + "</div>"
 
 
 def _deck_script() -> str:

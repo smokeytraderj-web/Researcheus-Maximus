@@ -197,9 +197,15 @@ class SlideDeckTests(unittest.TestCase):
         deck = html[html.index('class="deck"'):]
         # The report says "Price $325.13 is above both the 50-day ... averages."
         # The slide says "Above the 50 and 200-day".
-        table = deck.index('<th>Criterion</th>')
-        self.assertIn("Above the 50 and 200-day", deck[table:table + 3000])
-        self.assertNotIn("is above both the 50-day", deck[table:table + 3000])
+        # The checklist on a slide is the report's own five cards, so it carries
+        # the same criterion detail. What it must not carry is the report's
+        # surrounding apparatus -- tooltips, info controls, print captions.
+        checks = deck.index('class="s-checks"')
+        panel = deck[checks:checks + 4000]
+        self.assertIn("Trend", panel)
+        for apparatus in ("cc-info", "cc-tip", "cc-explain"):
+            with self.subTest(apparatus=apparatus):
+                self.assertNotIn(apparatus, panel)
 
     def test_slides_are_numbered_and_carry_the_running_foot(self):
         # A deck is presented away from the report; a reader needs to know where
@@ -209,15 +215,33 @@ class SlideDeckTests(unittest.TestCase):
         self.assertIn("Gottfried &amp; Somberg Wealth Management", deck)
 
     def test_the_deck_follows_the_firm_client_deck_template(self):
-        # Navy covers, white evidence pages, a gold rule under every page title,
-        # navy table headers, serif throughout -- the template the firm already
-        # presents to clients (resources reference: Bloom portfolio review).
+        # Navy ground, the firm monogram to the approved geometry, a gold rule
+        # under every page title, serif throughout -- the template the firm
+        # already presents to clients (reference: Bloom portfolio review).
+        deck_page = self._render("deep")
+        deck = deck_page[deck_page.index('class="deck"'):]
+        self.assertIn('class="slide cover"', deck)      # the navy title cover
+        self.assertIn('class="s-rule"', deck)           # gold rule under titles
+        self.assertIn('class="s-ring"', deck)           # the firm monogram
+        self.assertIn("#BFA054", deck_page)             # the template's gold
+
+    def test_the_deck_has_no_contents_or_disclosure_slide(self):
+        # Both were cut: a seven-page deck does not need a table of contents,
+        # and the disclosure travels on the cover instead of taking a page.
         deck = self._render("deep")
         deck = deck[deck.index('class="deck"'):]
-        self.assertIn('class="slide cover"', deck)      # navy title / contents
-        self.assertIn('class="s-rule"', deck)           # gold rule under titles
-        self.assertIn('class="s-table"', deck)          # the template's table
-        self.assertIn("Contents", deck)
+        self.assertNotIn("s-contents", deck)
+        self.assertNotIn(">Contents<", deck)
+        self.assertNotIn(">Disclosure<", deck)
+
+    def test_the_disclosure_still_travels_with_the_deck(self):
+        # Cutting the slide must not cut the disclosure: a deck is shown without
+        # the report attached to it.
+        deck = self._render("deep")
+        deck = deck[deck.index('class="deck"'):]
+        self.assertIn("Firm compliance review is required", deck)
+        self.assertIn("Internal use only", deck)
+        self.assertIn("possible loss of principal", deck)
 
     def test_the_deck_sets_everything_in_the_template_serif(self):
         # The reference deck is Garamond for display and a Times-class serif for
