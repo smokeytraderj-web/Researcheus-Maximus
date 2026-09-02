@@ -18,12 +18,13 @@ import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from backend import feedback as feedback_store
+from backend import gate
 from backend.credentials import load as load_credentials
 from backend.jobs import (
     KEEP_REPORTS,
@@ -70,6 +71,60 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Technical Analyst Agent", lifespan=lifespan)
+
+
+# Paths that must answer before anyone has entered the code: the gate itself,
+# the assets it is drawn with, liveness, and the report links -- which are the
+# client-facing deliverable and are opened by people who do not have the code.
+GATE_EXEMPT_PREFIXES = ("/api/unlock", "/api/health", "/r/", "/vendor/", "/unlock.html")
+
+
+def _is_exempt(path: str) -> bool:
+    return path.startswith(GATE_EXEMPT_PREFIXES)
+
+
+@app.middleware("http")
+async def require_access_code(request: Request, call_next):
+    """Hold everything except the exempt paths behind the shared access code."""
+    if _is_exempt(request.url.path) or gate.token_valid(request.cookies.get(gate.COOKIE_NAME, "")):
+        return await call_next(request)
+    if request.url.path.startswith("/api/"):
+        return JSONResponse({"detail": "Enter the access code to continue."}, status_code=401)
+    # Serve the gate in place, so the address the reader typed still stands
+    # once they are through it.
+    return FileResponse(WEB_DIR / "unlock.html", media_type="text/html", status_code=401)
+
+
+class UnlockIn(BaseModel):
+    code: str = Field(default="", max_length=32)
+
+
+@app.post("/api/unlock")
+def unlock(body: UnlockIn, request: Request) -> JSONResponse:
+    """Exchange the shared code for a signed, expiring access cookie."""
+    client = request.client.host if request.client else "unknown"
+    if gate.locked_out(client):
+        raise HTTPException(429, "Too many attempts. Try again later.")
+    if not gate.code_matches(body.code):
+        gate.record_failure(client)
+        raise HTTPException(401, "That code was not recognised.")
+    gate.clear_failures(client)
+    response = JSONResponse({"unlocked": True})
+    response.set_cookie(
+        gate.COOKIE_NAME,
+        gate.issue_token(),
+        max_age=gate.TOKEN_TTL,
+        httponly=True,
+        samesite="lax",
+        # Railway terminates TLS in front of the app and forwards over plain
+        # HTTP, so the request's own scheme reads "http" there. The forwarded
+        # header is what says how the browser actually connected.
+        secure=(
+            request.url.scheme == "https"
+            or request.headers.get("x-forwarded-proto", "").split(",")[0].strip() == "https"
+        ),
+    )
+    return response
 
 
 class ResearchStart(BaseModel):

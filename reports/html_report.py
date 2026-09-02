@@ -1012,17 +1012,17 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 <div class="page-view" id="page1">
 {_masthead(result, 'Technical Research', f'Confidence {result.confidence.value} · {plan.stance}')}
 <section id="call">
-  <div class="pos-bar" style="margin-top:4px">
-    <div class="pos-cell"><div class="pos-k">Entry</div><div class="pos-v">{_money(plan.entry_low)} – {_money(plan.entry_high)}</div></div>
-    <div class="pos-cell"><div class="pos-k">Stop</div><div class="pos-v bear">{_money(plan.stop_level)}</div></div>
-    <div class="pos-cell"><div class="pos-k">First target</div><div class="pos-v bull">{_money(plan.first_target)}</div></div>
-    <div class="pos-cell"><div class="pos-k">Reward / risk</div><div class="pos-v">{plan.reward_risk:.2f}×</div></div>
-  </div>
   {_conviction_checklist_html(result.conviction_checklist)}
   <div class="why-block">
     <div class="why-k">Why this call</div>
     {f'<p class="why-checks">{escape(checks_narrative)}</p>' if checks_narrative else ''}
     <p>{escape(condense_reasoning(result.technical.summary))}</p>
+  </div>
+  <div class="pos-bar" style="margin-top:20px">
+    <div class="pos-cell"><div class="pos-k">Entry</div><div class="pos-v">{_money(plan.entry_low)} – {_money(plan.entry_high)}</div></div>
+    <div class="pos-cell"><div class="pos-k">Stop</div><div class="pos-v bear">{_money(plan.stop_level)}</div></div>
+    <div class="pos-cell"><div class="pos-k">First target</div><div class="pos-v bull">{_money(plan.first_target)}</div></div>
+    <div class="pos-cell"><div class="pos-k">Reward / risk</div><div class="pos-v">{plan.reward_risk:.2f}×</div></div>
   </div>
   {_topline(result)}{demo}
 </section>
@@ -1276,66 +1276,73 @@ _DECK_CSS = """
 .deck{display:none}
 body.deck-on .page,body.deck-on .rail{display:none!important}
 body.deck-on .deck{display:block}
-body.deck-on{background:#0E1E3A}
+body.deck-on{background:#EDF1F6}
+/* The deck is the report's visual system at slide scale: a white page, navy
+   type, one gold rule. The dark gradient it used to carry read as a different
+   document from the report it is exported out of. */
 .slide{position:relative;width:1160px;max-width:96vw;aspect-ratio:16/9;margin:26px auto;
-  background:linear-gradient(160deg,#12264A 0%,#0C1A33 100%);color:#E8EDF6;
-  border-radius:14px;padding:52px 60px;box-sizing:border-box;overflow:hidden;
-  display:flex;flex-direction:column;box-shadow:0 18px 44px rgba(0,0,0,.34)}
-.slide:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#C9A227}
+  background:#FFFFFF;color:#25324F;
+  border:1px solid #DCE3EC;padding:64px 72px 52px;box-sizing:border-box;overflow:hidden;
+  display:flex;flex-direction:column;box-shadow:0 10px 30px -18px rgba(20,33,61,.3)}
+.slide:before{content:"";position:absolute;left:72px;right:72px;top:0;height:3px;background:#BFA054}
 .s-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;
-  text-transform:uppercase;color:#7FA0CE;margin-bottom:16px}
-.s-h1{font-family:'Source Serif 4',Georgia,serif;font-size:56px;line-height:1.04;font-weight:600;margin:0;color:#FFFFFF;letter-spacing:-.01em}
-.s-h2{font-family:'Source Serif 4',Georgia,serif;font-size:34px;line-height:1.14;font-weight:600;margin:0 0 30px;color:#FFFFFF}
-.s-sub{font-size:16px;color:#9DB4D6;margin-top:14px}
-.s-body{font-size:17px;line-height:1.62;color:#D6E0EF;margin:0}
+  text-transform:uppercase;color:#65758B;margin-bottom:18px}
+.s-h1{font-family:'Source Serif 4',Georgia,serif;font-size:56px;line-height:1.06;font-weight:600;margin:0;color:#14213D;letter-spacing:-.012em}
+.s-h2{font-family:'Source Serif 4',Georgia,serif;font-size:34px;line-height:1.16;font-weight:600;margin:0 0 30px;color:#14213D}
+.s-sub{font-family:'IBM Plex Mono',monospace;font-size:14px;color:#65758B;margin-top:16px;letter-spacing:.02em}
+.s-body{font-size:17px;line-height:1.62;color:#3E4759;margin:0}
 .s-body + .s-body{margin-top:14px}
 .s-mid{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center}
 .s-foot{margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;
-  font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#6F8CB8;padding-top:22px}
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8A97AB;
+  padding-top:22px;border-top:1px solid #EDF1F6}
 .s-rating{font-family:'Source Serif 4',Georgia,serif;font-size:64px;font-weight:700;line-height:1}
-.s-rating.up{color:#63C89A}.s-rating.down{color:#E8827C}.s-rating.flat{color:#E6C868}
+.s-rating.up{color:#1F7A52}.s-rating.down{color:#B4453E}.s-rating.flat{color:#8A6D1F}
 /* Checklist on a slide: the criterion and a three-word reading, no detail
    sentence. The report is where the figures behind each one are set out. */
-.s-checks{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:34px}
-.s-check{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
-  border-radius:12px;padding:24px 20px;text-align:center}
-.s-mark{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;
-  justify-content:center;font-size:19px;font-weight:700;margin:0 auto 16px}
-.s-mark.pass{background:#2E8B63;color:#fff}
-.s-mark.fail{background:rgba(232,130,124,.16);border:1.5px solid #E8827C;color:#E8827C}
-.s-mark.unconfirmed{background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.22);color:#9DB4D6}
-.s-check-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;
-  text-transform:uppercase;color:#7FA0CE;margin-bottom:9px}
-.s-check-read{font-size:17px;line-height:1.3;font-weight:600;color:#EAF0F9}
+.s-checks{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:36px}
+.s-check{background:#F7F9FC;border:1px solid #DCE3EC;
+  border-radius:10px;padding:24px 18px;text-align:center}
+.s-mark{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:17px;font-weight:700;margin:0 auto 16px}
+.s-mark.pass{background:#1F7A52;color:#fff}
+.s-mark.fail{background:#FFF;border:1.5px solid #B4453E;color:#B4453E}
+.s-mark.unconfirmed{background:#FFF;border:1.5px solid #C7D0DC;color:#8A97AB}
+.s-check-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:#8A97AB;margin-bottom:9px}
+.s-check-read{font-size:16px;line-height:1.32;font-weight:600;color:#14213D}
 .s-scoreline{display:flex;align-items:baseline;gap:12px}
-.s-score{font-family:'Source Serif 4',Georgia,serif;font-size:82px;font-weight:700;color:#fff;line-height:.9}
-.s-scoreof{font-family:'Source Serif 4',Georgia,serif;font-size:34px;color:#7FA0CE}
-.s-scorecap{font-size:19px;color:#9DB4D6;margin-left:6px}
+.s-score{font-family:'Source Serif 4',Georgia,serif;font-size:82px;font-weight:700;color:#14213D;line-height:.9}
+.s-scoreof{font-family:'Source Serif 4',Georgia,serif;font-size:34px;color:#8A97AB}
+.s-scorecap{font-size:18px;color:#65758B;margin-left:6px}
 /* Points, not paragraphs. */
 .s-points{list-style:none;margin:14px 0 0;padding:0}
-.s-points li{font-size:21px;line-height:1.4;color:#EAF0F9;padding-left:26px;position:relative;margin-bottom:16px}
-.s-points li:before{content:"";position:absolute;left:0;top:11px;width:11px;height:11px;
-  border-radius:50%;background:#2E8B63}
-.s-points.against li:before{background:#E8827C}
-.s-lead{font-family:'Source Serif 4',Georgia,serif;font-size:36px;line-height:1.24;
-  color:#fff;font-weight:600;margin:0}
-.s-figs{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(255,255,255,.12);
-  border:1px solid rgba(255,255,255,.12);border-radius:10px;overflow:hidden;margin-top:8px}
-.s-fig{background:#12264A;padding:18px 18px}
-.s-fig-k{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;
-  text-transform:uppercase;color:#7FA0CE}
-.s-fig-v{font-size:25px;font-weight:600;color:#fff;margin-top:7px;font-family:'IBM Plex Mono',monospace}
-.s-fig-v.down{color:#E8827C}.s-fig-v.up{color:#63C89A}
+.s-points li{font-size:20px;line-height:1.42;color:#25324F;padding-left:26px;position:relative;margin-bottom:16px}
+.s-points li:before{content:"";position:absolute;left:0;top:10px;width:9px;height:9px;
+  border-radius:50%;background:#1F7A52}
+.s-points.against li:before{background:#B4453E}
+.s-lead{font-family:'Source Serif 4',Georgia,serif;font-size:36px;line-height:1.26;
+  color:#14213D;font-weight:600;margin:0}
+.s-figs{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#DCE3EC;
+  border:1px solid #DCE3EC;border-radius:10px;overflow:hidden;margin-top:8px}
+.s-fig{background:#FFFFFF;padding:20px 18px}
+.s-fig-k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:#8A97AB}
+/* 22px, not 25: the entry cell carries a full price range and wrapped
+   mid-range at the larger size. */
+.s-fig-v{font-size:22px;font-weight:600;color:#14213D;margin-top:8px;
+  font-family:'IBM Plex Mono',monospace;letter-spacing:-.01em}
+.s-fig-v.down{color:#B4453E}.s-fig-v.up{color:#1F7A52}
 .s-chart{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
-  background:#fff;border-radius:10px;padding:14px;margin-top:4px}
+  background:#fff;border:1px solid #EDF1F6;border-radius:10px;padding:14px;margin-top:4px}
 .s-chart img{max-width:100%;max-height:100%;object-fit:contain}
-.s-list{margin:0;padding-left:20px;font-size:16px;line-height:1.62;color:#D6E0EF}
+.s-list{margin:0;padding-left:20px;font-size:16px;line-height:1.62;color:#3E4759}
 .s-list li{margin-bottom:9px}
-.s-two{display:grid;grid-template-columns:1fr 1fr;gap:34px;flex:1;min-height:0}
-.s-disc{font-size:11.5px;line-height:1.55;color:#8FA6C8}
+.s-two{display:grid;grid-template-columns:1fr 1fr;gap:44px;flex:1;min-height:0}
+.s-disc{font-size:11.5px;line-height:1.6;color:#65758B}
 @media print{
   body.deck-on{background:#fff}
-  .slide{margin:0;border-radius:0;box-shadow:none;width:100%;max-width:none;
+  .slide{margin:0;border:0;box-shadow:none;width:100%;max-width:none;
     aspect-ratio:auto;height:100vh;break-after:page;break-inside:avoid;
     -webkit-print-color-adjust:exact;print-color-adjust:exact}
   .slide:last-child{break-after:auto}
@@ -1461,7 +1468,7 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
         'change without notice. Investing involves risk, including possible loss of principal. '
         'Firm compliance review is required before client distribution. Internal use only.</p>'
         f'<p class="s-disc" style="margin-top:16px">Confidence in this view: '
-        f'<b style="color:#E8EDF6">{escape(result.confidence.value)}</b>. '
+        f'<b style="color:#14213D">{escape(result.confidence.value)}</b>. '
         f'Full evidence and sources are set out in the accompanying report.</p>',
         result,
     ))
