@@ -133,6 +133,17 @@ _DYNAMIC_CSS = r"""
 .hz-note{font-size:12.5px;color:var(--body);line-height:1.6;margin-top:14px;max-width:70ch}
 .hz-agree{font-size:12.5px;color:var(--body);line-height:1.6;margin:16px 0 0}
 .hz-agree b{color:var(--ink)}
+.pr{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px}
+.pr th{text-align:left;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:0 10px 7px 0;border-bottom:1px solid var(--line)}
+.pr th.r,.pr td.r{text-align:right;padding-right:0}
+.pr td{padding:8px 10px 8px 0;border-bottom:1px solid var(--line-2);color:var(--body)}
+.pr .pr-t{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--ink);width:64px}
+.pr .pos{color:var(--bull)}.pr .neg{color:var(--bear)}
+.pr-self td{background:var(--panel);font-weight:600;color:var(--ink)}
+.pr-lede{font-size:13.5px;color:var(--ink);margin:0 0 12px}
+.pr-med{font-size:12px;color:var(--muted);margin-top:9px}
+.pr-rule{font-size:11.5px;color:var(--muted);line-height:1.55;margin-top:10px;max-width:78ch}
+.pr-notes{margin:8px 0 0;padding-left:16px;font-size:11.5px;color:var(--muted);line-height:1.5}
 .house-line{margin-top:0}
 .hv-profiles{display:grid;grid-template-columns:repeat(2,1fr);gap:0 34px;margin-top:18px}
 .hv-list{display:grid;gap:14px}
@@ -873,6 +884,52 @@ def _horizon_views_html(result: ResearchResult) -> str:
     )
 
 
+def _peer_group_html(result: ResearchResult) -> str:
+    """The industry cohort, and where this security sits in it.
+
+    Evidence the broad benchmark cannot give: lagging the market and lagging
+    your own industry are different findings, and only the second says anything
+    about the company. The selection rule is printed with the table, because a
+    peer comparison is only as good as its peer set and a reader has to be able
+    to judge it.
+    """
+    group = getattr(result, "peer_group", None)
+    if group is None or not group.usable:
+        return ""
+    rows = "".join(
+        f'<tr><td class="pr-t">{escape(m.ticker)}</td><td>{escape(m.name)}</td>'
+        f'<td class="num r {"pos" if (m.return_pct or 0) >= 0 else "neg"}">{m.return_pct:+.1%}</td>'
+        f'<td class="num r">{f"{m.forward_pe:.1f}x" if m.forward_pe else "&mdash;"}</td></tr>'
+        for m in sorted(group.members, key=lambda m: -(m.return_pct if m.return_pct is not None else -9))
+    )
+    subject = (
+        f'<tr class="pr-self"><td class="pr-t">{escape(result.identity.ticker)}</td>'
+        f'<td>{escape(result.identity.company_name)}</td>'
+        f'<td class="num r {"pos" if (group.subject_return_pct or 0) >= 0 else "neg"}">'
+        f'{group.subject_return_pct:+.1%}</td><td class="num r">&mdash;</td></tr>'
+        if group.subject_return_pct is not None else ""
+    )
+    median = group.median_return()
+    standing = group.standing()
+    notes = "".join(f"<li>{escape(note)}</li>" for note in group.limitations)
+    return (
+        '<section id="peers"><div class="sec-head"><h2>Against its industry</h2>'
+        f'<span class="verdict v-neu">{escape(group.industry)}</span></div>'
+        + (f'<p class="pr-lede">{escape(result.identity.ticker)} ranks {escape(standing)}.</p>'
+           if standing else "")
+        + '<table class="pr"><thead><tr><th></th><th>Company</th>'
+        f'<th class="r">Return</th><th class="r">Forward P/E</th></tr></thead>'
+        f"<tbody>{subject}{rows}</tbody></table>"
+        + (f'<p class="pr-med">Group median {median:+.1%} over {escape(group.window_label)}.</p>'
+           if median is not None else "")
+        + f'<p class="pr-rule">{escape(group.selection_rule)} Returns are measured over identical '
+        "dates. Forward multiples come from the data provider already normalised; fiscal periods "
+        "across an industry do not necessarily align.</p>"
+        + (f'<ul class="pr-notes">{notes}</ul>' if notes else "")
+        + "</section>"
+    )
+
+
 def _house_strip(result: ResearchResult) -> str:
     """Each house's call, in the same strip language as the plan and the market.
 
@@ -1141,7 +1198,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
 </section>
 <section id="data">
   <div class="sec-head"><h2>Essential data</h2></div>
-  {data_html}{_house_profile_html(result)}{_house_notes_html(result)}
+  {data_html}{_house_profile_html(result)}{_house_notes_html(result)}{_peer_group_html(result)}
 </section>
 <section id="risks">
   <div class="sec-head"><h2>Risks and decision triggers</h2></div>
@@ -1431,7 +1488,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </div>
 <div class="page-view" id="page3" hidden>
 {page2_strip}
-<section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p>{_house_notes_html(result)}<details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*result.fundamental.signals, *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div>{_house_profile_html(result)}</section>
+<section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p>{_house_notes_html(result)}<details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*result.fundamental.signals, *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div>{_house_profile_html(result)}{_peer_group_html(result)}</section>
 <section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div><p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
 </div>
 </main></div>

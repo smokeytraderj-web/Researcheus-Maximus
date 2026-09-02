@@ -7,6 +7,7 @@ import datetime as dt
 from enum import Enum
 
 from core.conviction_checklist import ConvictionChecklist
+from core.peers import PeerGroup
 
 
 class Horizon(str, Enum):
@@ -358,6 +359,7 @@ class ResearchResult:
     conviction_checklist: ConvictionChecklist | None = None
     house_views: tuple[HouseView, ...] = ()
     horizon_views: tuple[HorizonView, ...] = ()
+    peer_group: PeerGroup | None = None
 
     def validate(self) -> None:
         if self.current_price <= 0:

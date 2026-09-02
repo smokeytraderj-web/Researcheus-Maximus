@@ -13,6 +13,7 @@ from core.models import ChartRecord, Confidence, Horizon, HorizonView, Portfolio
 from core.conviction_checklist import _REVISION_LOOKBACK_DAYS, evaluate_conviction_checklist
 from research.events import build_event_context, event_metrics, event_signals
 from research.options import options_insight
+from research.peer_lookup import peer_group_for
 from research.tvremix_provider import (
     fetch_earnings_history,
     fetch_options_snapshot,
@@ -1580,6 +1581,22 @@ class LiveResearchProvider:
             request.horizon,
             request.deep_analysis,
         )
+        # A peer group is evidence the broad benchmark cannot give: whether the
+        # name is lagging the market, or lagging its own industry. Never fatal --
+        # a security with no defensible cohort simply has no peer section.
+        try:
+            import yfinance as _yf
+
+            peers = peer_group_for(
+                _yf.Ticker, _yf.Industry, _yf.download,
+                symbol=symbol,
+                industry_key=str(info.get("industryKey") or ""),
+                industry_label=str(info.get("industry") or ""),
+                market_cap=info.get("marketCap"),
+                currency=str(info.get("currency") or "").upper(),
+            )
+        except Exception:  # noqa: BLE001
+            peers = None
         # An All Horizons request asks three questions; answer all three rather
         # than blending them into one number that hides the disagreement.
         horizons = (
@@ -2078,6 +2095,7 @@ class LiveResearchProvider:
             sentiment=synthesis.sentiment,
             lead_rating=lead,
             horizon_views=horizons,
+            peer_group=peers,
             confidence=confidence,
             executive_summary=executive,
             key_metrics=key_metrics,
