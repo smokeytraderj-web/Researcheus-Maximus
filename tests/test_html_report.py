@@ -127,7 +127,7 @@ class PrintLayoutTests(unittest.TestCase):
         self.assertIn(".tech-report .scn-chips,.tech-report .scn-slider{display:none!important}", html)
         # The graph, the action zone and the outcome figures are static
         # conclusions and must survive into print.
-        for kept in ("scn-graph", 'id="zone"', "scn-out"):
+        for kept in ("scn-scale", 'id="zone"', "scn-out"):
             with self.subTest(kept=kept):
                 self.assertIn(kept, html)
 
@@ -197,16 +197,39 @@ class SlideDeckTests(unittest.TestCase):
         deck = html[html.index('class="deck"'):]
         # The report says "Price $325.13 is above both the 50-day ... averages."
         # The slide says "Above the 50 and 200-day".
-        strip = deck.index('class="s-strip five"')
-        self.assertIn("Above the 50 and 200-day", deck[strip:strip + 3000])
-        self.assertNotIn("is above both the 50-day", deck[strip:strip + 3000])
+        table = deck.index('<th>Criterion</th>')
+        self.assertIn("Above the 50 and 200-day", deck[table:table + 3000])
+        self.assertNotIn("is above both the 50-day", deck[table:table + 3000])
 
     def test_slides_are_numbered_and_carry_the_running_foot(self):
         # A deck is presented away from the report; a reader needs to know where
         # they are in it and whose it is.
         deck = self._render("deep")
-        self.assertIn('class="s-num"', deck)
-        self.assertIn("01/", deck)
+        self.assertIn("Page 1 of ", deck)
+        self.assertIn("Gottfried &amp; Somberg Wealth Management", deck)
+
+    def test_the_deck_follows_the_firm_client_deck_template(self):
+        # Navy covers, white evidence pages, a gold rule under every page title,
+        # navy table headers, serif throughout -- the template the firm already
+        # presents to clients (resources reference: Bloom portfolio review).
+        deck = self._render("deep")
+        deck = deck[deck.index('class="deck"'):]
+        self.assertIn('class="slide cover"', deck)      # navy title / contents
+        self.assertIn('class="s-rule"', deck)           # gold rule under titles
+        self.assertIn('class="s-table"', deck)          # the template's table
+        self.assertIn("Contents", deck)
+
+    def test_the_deck_sets_everything_in_the_template_serif(self):
+        # The reference deck is Garamond for display and a Times-class serif for
+        # text, with no sans and no mono anywhere.
+        html = self._render("deep")
+        self.assertIn("EB+Garamond", html)
+        deck_css = html[html.index(".deck{display:none}"):html.index('<div class="deck">')]
+        self.assertIn("'Source Serif 4',Georgia,'Times New Roman',serif", deck_css)
+        self.assertIn("'EB Garamond',Garamond,Georgia,serif", deck_css)
+        for face in ("IBM Plex Sans", "IBM Plex Mono"):
+            with self.subTest(face=face):
+                self.assertNotIn(face, deck_css)
 
     def test_slide_labels_name_the_slide_rather_than_selling_it(self):
         # "Our recommendation" / "Why we say Add" / "Four views of the same

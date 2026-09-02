@@ -100,15 +100,16 @@ _DYNAMIC_CSS = r"""
    strips share a single 2px rule: the second drops its own top border and sits
    flush under the first. */
 .plan-line{margin-top:20px}
+.tl-n{font-size:12.5px;margin-top:3px}
 .plan-line + .topline{margin-top:0;border-top:0}
-.plan-line .tl-v{font-size:17px}
+.plan-line .tl-v{font-size:19px}
 /* An entry zone is two prices and a dash -- it wrapped mid-range at strip size. */
-.plan-line .tl-v.range{font-size:14.5px}
+.plan-line .tl-v.range{font-size:16.5px}
 .action p{font-size:12.5px;line-height:1.5;color:var(--body);margin:0}
-.why-block{margin-top:20px;padding:16px 18px;border-left:3px solid var(--gold);background:var(--panel);border-radius:0 4px 4px 0}
+.why-block{margin-top:20px;padding:20px 22px;border-left:3px solid var(--gold);background:var(--panel);border-radius:0 4px 4px 0}
 .why-block .why-k{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-bottom:9px}
-.why-block p{font-size:13.5px;color:var(--body);line-height:1.62;margin:0}
-.why-block p + p{margin-top:10px}
+.why-block p{font-size:15.5px;color:var(--body);line-height:1.68;margin:0}
+.why-block p + p{margin-top:13px}
 /* The deterministic checklist reading leads, because it is the part tied
    directly to the five boxes above it; the analyst prose follows. */
 .why-block .why-checks{color:var(--ink)}
@@ -163,31 +164,28 @@ _DYNAMIC_CSS = r"""
 .scn-chip span{font-size:12.5px;letter-spacing:0;text-transform:none;color:var(--ink);font-weight:600}
 .scn-chip:hover{border-color:var(--ink);color:var(--ink)}
 .scn-chip[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);box-shadow:0 0 0 2px rgba(22,35,63,.10)}
-/* The plan as a picture, with the consequence on the vertical axis: risk below
-   the stop, the entry band, reward above the first target, and what each price
-   is actually worth on a position. This replaced a flat zone strip -- it carries
-   the same bands plus the outcome, rather than adding a second view of one thing.
-   Drawn server-side so print and a JS-less reader keep the whole chart; script
-   only moves the pin. */
-.scn-graph{margin-top:18px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 8px 2px}
-.scn-graph svg{display:block;width:100%;height:auto}
-.scn-band.risk{fill:rgba(163,75,75,.13)}
-.scn-band.entry{fill:rgba(191,160,84,.20)}
-.scn-band.reward{fill:rgba(63,125,98,.12)}
-.scn-zero{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 4}
-.scn-curve{fill:none;stroke-width:2.6;stroke-linecap:round}
-.scn-curve.loss{stroke:var(--bear)}.scn-curve.gain{stroke:var(--bull)}
-.scn-area.loss{fill:rgba(163,75,75,.16)}.scn-area.gain{fill:rgba(63,125,98,.15)}
-.scn-tick{stroke:var(--line);stroke-width:1}
-.scn-xl{font-family:'IBM Plex Mono',monospace;font-size:15px;fill:var(--muted);text-anchor:middle}
-.scn-xp{font-family:'IBM Plex Mono',monospace;font-size:14px;fill:var(--ink-2);text-anchor:middle}
-.scn-yl{font-family:'IBM Plex Mono',monospace;font-size:14px;fill:var(--muted);text-anchor:end}
-.scn-axis-cap{font-family:'IBM Plex Mono',monospace;font-size:13px;fill:var(--muted);letter-spacing:.1em}
-/* The pin is the one thing that moves, so it is the only saturated mark. */
-.scn-pin-line{stroke:var(--ink);stroke-width:2}
-.scn-pin-dot{fill:var(--gold);stroke:var(--ink);stroke-width:2}
-.scn-pin-box{fill:var(--ink)}
-.scn-pin-text{font-family:'IBM Plex Mono',monospace;font-size:15px;fill:#fff;text-anchor:middle;font-weight:600}
+/* Where a tested price sits against the plan, as a slim scale rather than a
+   chart. The chart this replaced was accurate but it was the largest object on
+   the page, which made a quick orientation check look like the panel's subject;
+   the outcome figures below already state the consequence in numbers. Drawn
+   server-side so print and a JS-less reader get it right at today's price. */
+.scn-scale{margin:22px 0 18px}
+.scn-rail{position:relative;height:4px;border-radius:2px;background:#E4E8EE}
+.scn-zone{position:absolute;top:0;height:100%;border-radius:2px}
+.scn-zone.risk{background:rgba(163,75,75,.34)}
+.scn-zone.entry{background:rgba(191,160,84,.55)}
+.scn-zone.reward{background:rgba(63,125,98,.32)}
+/* The marker is the only thing that moves, so it is the only saturated mark. */
+.scn-pin{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;
+  background:var(--ink);box-shadow:0 0 0 3px #fff;transition:left .13s ease}
+.scn-marks{position:relative;height:23px;margin-top:6px}
+.scn-tick{position:absolute;transform:translateX(-50%);white-space:nowrap;text-align:center}
+/* A short tick ties each label to the point on the rail it names; without it the
+   three labels read as a caption floating under the bar. */
+.scn-tick:before{content:"";display:block;width:1px;height:5px;background:var(--line-2);
+  margin:0 auto 4px}
+.scn-tick i{font-style:normal;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);font-weight:600}
 .scn-slider{margin-top:6px}
 .scn-slider input[type=range]{width:100%;display:block}
 .scn-ticks{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);margin-top:5px}
@@ -205,7 +203,7 @@ _DYNAMIC_CSS = r"""
 .cc-score.perfect{color:var(--bull)}
 .cc-toptext{flex:1}
 .cc-title{font-size:15px;font-weight:600;color:var(--ink)}
-.cc-sub{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+.cc-sub{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.45}
 .cc-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:15px}
 /* Each criterion is its own elevated card -- "floating" above the page rather
    than a row in a flat table, so the five read as independent, weighable checks.
@@ -227,7 +225,7 @@ _DYNAMIC_CSS = r"""
 .cc-col:first-child .cc-tip{left:0}
 .cc-col:last-child .cc-tip{left:auto;right:0}
 .cc-info:hover+.cc-tip,.cc-info:focus+.cc-tip{visibility:visible;opacity:1}
-.cc-detail{font-size:12.5px;color:var(--body);line-height:1.5}
+.cc-detail{font-size:13.5px;color:var(--body);line-height:1.55}
 /* Screen relies on the hover/click tooltip above; print can't hover, so it gets the
    same explanation as a small static caption instead of losing it entirely. */
 .cc-explain{display:none}
@@ -701,7 +699,7 @@ def _document(title: str, css_reference: str, body: str, script: str = "", extra
 <title>{escape(title)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&amp;family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
 <style>{css}</style>
 </head>
 <body>{body}<script>{script}</script></body>
@@ -765,6 +763,24 @@ def _plan_line(plan, entry_mid: float) -> str:
 </div>"""
 
 
+def _stated_question(request: ResearchRequest, result: ResearchResult) -> str:
+    """The question the report answers, in a form that reads as one.
+
+    Someone who types "AMZN" has not asked anything, so printing "AMZN" under
+    "Your question" told the reader nothing and looked like a field that had
+    failed to fill. Anything too short to be a question -- a bare ticker, a
+    company name -- becomes the question that entry actually implies, named
+    against the resolved security so there is no ambiguity about which one.
+    """
+    asked = request.question.strip() or request.query.strip()
+    if asked.endswith("?") or len(asked.split()) >= 4:
+        return asked
+    return (
+        "What does the current evidence say about "
+        f"{result.identity.company_name} ({result.identity.ticker})?"
+    )
+
+
 def _general_chart(result: ResearchResult) -> ChartRecord | None:
     if result.overview_chart is not None:
         return result.overview_chart
@@ -775,7 +791,7 @@ def _general_chart(result: ResearchResult) -> ChartRecord | None:
 
 def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
     tone_class, tone_name = _tone(result.lead_rating)
-    question = request.question.strip() or f"What does the current evidence say about {result.identity.ticker}?"
+    question = _stated_question(request, result)
     answer = strip_conclusion_prefix(result.request_response or result.executive_summary)
     technical_reason = result.technical.signals[0] if result.technical.signals else result.technical.summary
     fundamental_reason = result.fundamental.signals[0] if result.fundamental.signals else result.fundamental.summary
@@ -960,125 +976,48 @@ def _tradingview_symbol(result: ResearchResult) -> str:
     return f"{exchange}:{result.identity.ticker}"
 
 
-def _signed_money(value: float) -> str:
-    """A P&L figure. Cents are noise on a $100,000 position, so they are dropped."""
-    if abs(value) < 0.5:
-        return "$0"
-    return f"{'−' if value < 0 else '+'}${abs(value):,.0f}"
+def _scenario_scale(plan, current: float, lo: float, hi: float) -> tuple[str, str]:
+    """A slim scale showing where a tested price sits against the plan.
 
+    This replaced a full profit-and-loss chart. The chart was accurate but it
+    dominated the panel and turned a quick "where does this price land" check
+    into the largest object on the page; the outcome figures below it already
+    state the consequence in numbers. What is wanted here is orientation, so
+    this is a 4px rail with the three zones tinted, the planned levels ticked,
+    and one marker.
 
-# The scenario chart's drawing box, in its own viewBox units. The SVG scales to
-# whatever width it is given, so these are fixed and the geometry is derived.
-_SCN_W, _SCN_H = 1000, 288
-_SCN_L, _SCN_R, _SCN_T, _SCN_B = 92, 986, 26, 208
-_SCN_NOTIONAL = 100_000.0
-
-
-def _scenario_graph(plan, current: float, entry_mid: float, lo: float, hi: float) -> tuple[str, str]:
-    """The plan drawn against its consequence: what each price is actually worth.
-
-    Returns the SVG and the geometry the script needs to move the pin. The chart
-    itself is built here rather than in script so that print -- which cannot run
-    the tester -- and a reader with JavaScript off still get the complete plan
-    with its zones, levels and outcome scale. Script moves the pin and nothing
-    else.
-
-    This replaced a flat zone strip. It carries the same three bands and the same
-    levels, so it is not a second view of the same thing: it adds the vertical
-    axis the strip could not show, which is the whole question the tester is
-    asked -- what a given price is worth.
+    Positions are written server-side as percentages, so print and a reader with
+    no JavaScript get the scale drawn correctly at today's price. Script moves
+    only the marker.
     """
     span = max(hi - lo, 1e-9)
 
-    def x(price: float) -> float:
-        return _SCN_L + (min(max(price, lo), hi) - lo) / span * (_SCN_R - _SCN_L)
+    def at(price: float) -> float:
+        return max(0.0, min(100.0, (price - lo) / span * 100.0))
 
-    def pnl(price: float) -> float:
-        return _SCN_NOTIONAL * (price / entry_mid - 1.0)
-
-    low_pnl, high_pnl = pnl(lo), pnl(hi)
-    pad = max(high_pnl - low_pnl, 1e-9) * 0.10
-    p_lo, p_hi = low_pnl - pad, high_pnl + pad
-
-    def y(value: float) -> float:
-        return _SCN_B - (value - p_lo) / (p_hi - p_lo) * (_SCN_B - _SCN_T)
-
-    zero_y, mid_x = y(0.0), x(entry_mid)
-    parts = ['<text class="scn-axis-cap" x="4" y="13">VALUE ON A $100,000 POSITION</text>']
-    # Zones first, as the ground the rest is drawn on.
-    for cls, band_lo, band_hi in (
-        ("risk", lo, plan.stop_level),
-        ("entry", plan.entry_low, plan.entry_high),
-        ("reward", plan.first_target, hi),
-    ):
-        left, right = x(band_lo), x(band_hi)
-        if right - left > 0.5:
-            parts.append(
-                f'<rect class="scn-band {cls}" x="{left:.1f}" y="{_SCN_T}" '
-                f'width="{right - left:.1f}" height="{_SCN_B - _SCN_T}"/>'
-            )
-    levels = [
-        ("Stop", plan.stop_level),
-        ("Entry", entry_mid),
-        ("Today", current),
-        ("T1", plan.first_target),
-        ("T2", plan.second_target),
-    ]
-    for _label, price in levels:
-        guide = x(price)
-        parts.append(
-            f'<line class="scn-tick" x1="{guide:.1f}" y1="{_SCN_T}" x2="{guide:.1f}" y2="{_SCN_B + 6}"/>'
+    stop, entry_low, entry_high = at(plan.stop_level), at(plan.entry_low), at(plan.entry_high)
+    target = at(plan.first_target)
+    marks = "".join(
+        f'<span class="scn-tick" style="left:{at(price):.2f}%"><i>{escape(label)}</i></span>'
+        for label, price in (
+            ("Stop", plan.stop_level),
+            ("Entry", (plan.entry_low + plan.entry_high) / 2),
+            ("Target", plan.first_target),
         )
-    # The outcome, split at break-even so loss and gain are not one colour.
-    parts.append(
-        f'<polygon class="scn-area loss" points="{_SCN_L:.1f},{y(low_pnl):.1f} '
-        f'{mid_x:.1f},{zero_y:.1f} {_SCN_L:.1f},{zero_y:.1f}"/>'
-        f'<polygon class="scn-area gain" points="{mid_x:.1f},{zero_y:.1f} '
-        f'{_SCN_R:.1f},{y(high_pnl):.1f} {_SCN_R:.1f},{zero_y:.1f}"/>'
-        f'<line class="scn-zero" x1="{_SCN_L}" y1="{zero_y:.1f}" x2="{_SCN_R}" y2="{zero_y:.1f}"/>'
-        f'<path class="scn-curve loss" d="M{_SCN_L:.1f},{y(low_pnl):.1f} L{mid_x:.1f},{zero_y:.1f}"/>'
-        f'<path class="scn-curve gain" d="M{mid_x:.1f},{zero_y:.1f} L{_SCN_R:.1f},{y(high_pnl):.1f}"/>'
     )
-    # Outcome scale: break-even, and what the stop and the first target are worth.
-    for value, text in ((0.0, "$0"), (pnl(plan.stop_level), _signed_money(pnl(plan.stop_level))),
-                        (pnl(plan.first_target), _signed_money(pnl(plan.first_target)))):
-        parts.append(f'<text class="scn-yl" x="{_SCN_L - 10}" y="{y(value) + 5:.1f}">{text}</text>')
-    # Level labels, pushed apart just enough to stop them colliding when the stop,
-    # the entry zone and today's price sit close together.
-    placed = sorted(((x(price), label, price) for label, price in levels))
-    for index in range(1, len(placed)):
-        if placed[index][0] - placed[index - 1][0] < 104:
-            placed[index] = (placed[index - 1][0] + 104, placed[index][1], placed[index][2])
-    for at, label, price in placed:
-        at = min(max(at, _SCN_L + 34), _SCN_R - 34)
-        parts.append(
-            f'<text class="scn-xl" x="{at:.1f}" y="{_SCN_B + 24}">{label}</text>'
-            f'<text class="scn-xp" x="{at:.1f}" y="{_SCN_B + 42}">{_money(price)}</text>'
-        )
-    # The pin starts at today's price, so the static chart says something true.
-    pin_x, pin_y = x(current), y(pnl(current))
-    tag_x = min(max(pin_x, _SCN_L + 50), _SCN_R - 50)
-    parts.append(
-        f'<line class="scn-pin-line" id="scnPinLine" x1="{pin_x:.1f}" y1="{_SCN_T}" '
-        f'x2="{pin_x:.1f}" y2="{_SCN_B}"/>'
-        f'<circle class="scn-pin-dot" id="scnPinDot" r="6" cx="{pin_x:.1f}" cy="{pin_y:.1f}"/>'
-        f'<g id="scnPinTag" transform="translate({tag_x:.1f},{_SCN_T + 13})">'
-        f'<rect class="scn-pin-box" x="-48" y="-13" width="96" height="26" rx="5"/>'
-        f'<text class="scn-pin-text" id="scnPinText" y="5">{_money(current)}</text></g>'
+    html = (
+        '<div class="scn-scale">'
+        '<div class="scn-rail">'
+        f'<span class="scn-zone risk" style="left:0;width:{stop:.2f}%"></span>'
+        f'<span class="scn-zone entry" style="left:{entry_low:.2f}%;'
+        f'width:{max(0.6, entry_high - entry_low):.2f}%"></span>'
+        f'<span class="scn-zone reward" style="left:{target:.2f}%;width:{100 - target:.2f}%"></span>'
+        f'<span class="scn-pin" id="scnPin" style="left:{at(current):.2f}%"></span>'
+        "</div>"
+        f'<div class="scn-marks">{marks}</div></div>'
     )
-    svg = (
-        f'<div class="scn-graph"><svg viewBox="0 0 {_SCN_W} {_SCN_H}" role="img" '
-        f'aria-label="Value of a $100,000 position across the tested price range">'
-        + "".join(parts)
-        + "</svg></div>"
-    )
-    geometry = json.dumps(
-        {"l": _SCN_L, "r": _SCN_R, "t": _SCN_T, "b": _SCN_B,
-         "lo": lo, "hi": hi, "plo": p_lo, "phi": p_hi,
-         "em": entry_mid, "n": _SCN_NOTIONAL},
-        separators=(",", ":"),
-    )
-    return svg, geometry
+    geometry = json.dumps({"lo": lo, "hi": hi}, separators=(",", ":"))
+    return html, geometry
 
 
 def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
@@ -1200,8 +1139,8 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
             ("Target 2", plan.second_target),
         )
     )
-    scenario_graph, scenario_geometry = _scenario_graph(
-        plan, result.current_price, entry_mid, slider_min, slider_max
+    scenario_graph, scenario_geometry = _scenario_scale(
+        plan, result.current_price, slider_min, slider_max
     )
     scenario_panel = f'''<div class="evidence-panel" id="evidenceScenario" role="tabpanel" aria-labelledby="evidenceScenarioTab" hidden><div class="scn">
   <div class="scn-head">
@@ -1250,7 +1189,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </section>
 <section id="plan"><div class="sec-head"><h2>Action plan</h2><span class="verdict v-neu">{escape(plan.stance)}</span></div>
   <div class="ladder-wrap"><div class="ladder" id="ladder"></div><div class="rr"><div class="rr-k">Reward to risk</div><div class="rr-big num">{plan.reward_risk:.2f}×</div><div class="rr-note">Entry midpoint {_money(entry_mid)} to first target {_money(plan.first_target)}, measured against a {_money(plan.stop_level)} stop.</div><div class="rrbar"><div class="up" style="flex:{max(plan.reward_risk, 0.01):.2f}"></div><div class="dn" style="flex:1"></div></div><div class="rrleg"><span>+{_money(max(0, plan.first_target-entry_mid))} upside</span><span>−{_money(max(0, entry_mid-plan.stop_level))} risk</span></div></div></div>
-  <div class="plan" style="margin-top:16px"><div class="pc"><div class="pc-k">Entry zone</div><div class="pc-v">{_money(plan.entry_low)} – {_money(plan.entry_high)}</div><div class="pc-n">{escape(plan.confirmation)}</div></div><div class="pc"><div class="pc-k">Stop / invalidation</div><div class="pc-v" style="color:var(--bear)">{_money(plan.stop_level)}</div><div class="pc-n">{plan.stop_pct:.1%} below entry midpoint. {escape(plan.invalidation)}</div></div><div class="pc"><div class="pc-k">Targets</div><div class="pc-v" style="color:var(--bull)">{_money(plan.first_target)} / {_money(plan.second_target)}</div><div class="pc-n">Planning references, not guaranteed outcomes.</div></div></div>
+  <div class="plan" style="margin-top:.9em"><div class="pc"><div class="pc-k">Entry zone</div><div class="pc-v">{_money(plan.entry_low)} – {_money(plan.entry_high)}</div><div class="pc-n">{escape(plan.confirmation)}</div></div><div class="pc"><div class="pc-k">Stop / invalidation</div><div class="pc-v" style="color:var(--bear)">{_money(plan.stop_level)}</div><div class="pc-n">{plan.stop_pct:.1%} below entry midpoint. {escape(plan.invalidation)}</div></div><div class="pc"><div class="pc-k">Targets</div><div class="pc-v" style="color:var(--bull)">{_money(plan.first_target)} / {_money(plan.second_target)}</div><div class="pc-n">Planning references, not guaranteed outcomes.</div></div></div>
   <details><summary>Why these levels, and what invalidates them</summary><div class="det-body"><ul>{reasons}</ul></div></details>
   {f'<details class="adv"><summary>Options / hedging reference <span class="adv-flag">Advisor</span></summary><div class="det-body"><p>{escape(plan.options_strategy)} — {escape(plan.options_structure)}</p><p>{escape(plan.options_risk)}</p></div></details>' if plan.options_strategy else ''}
 </section>
@@ -1265,7 +1204,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 <section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div><p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
 </div>
 </main></div>
-{_deck_html(result, request, request.query, checks_narrative, condense_reasoning(result.technical.summary), deck_charts)}"""
+{_deck_html(result, request, _stated_question(request, result), checks_narrative, condense_reasoning(result.technical.summary), deck_charts)}"""
     script = f"const PLAN={plan_json};\nconst TV_SYMBOL={json.dumps(tv_symbol)};\n" + _technical_script() + _deck_script()
     return _document(
         f"{result.identity.ticker} Technical Research — Technical Analyst Agent",
@@ -1408,21 +1347,12 @@ function renderLadder(containerId,testPrice,height){
 // target" and print the wrong action. The slider still drives this variable when
 // dragged; it just no longer defines it.
 var testPrice=null;
-// The outcome chart is drawn server-side, so it is complete in print and with
-// scripting off. All this does is move the pin along it, using the same geometry
-// the drawing was built from -- the picture and the control cannot disagree.
+// The scale is drawn server-side, so print and a reader with no JavaScript get
+// it correct at today's price. All this does is move the one marker.
 function drawScenarioGraph(p){
-  var line=document.getElementById('scnPinLine'); if(!line||typeof SCN==='undefined') return;
-  var clamped=Math.max(SCN.lo,Math.min(SCN.hi,p));
-  var x=SCN.l+(clamped-SCN.lo)/(SCN.hi-SCN.lo)*(SCN.r-SCN.l);
-  var value=SCN.n*(p/SCN.em-1);
-  var y=SCN.b-(Math.max(SCN.plo,Math.min(SCN.phi,value))-SCN.plo)/(SCN.phi-SCN.plo)*(SCN.b-SCN.t);
-  line.setAttribute('x1',x.toFixed(1)); line.setAttribute('x2',x.toFixed(1));
-  var dot=document.getElementById('scnPinDot');
-  dot.setAttribute('cx',x.toFixed(1)); dot.setAttribute('cy',y.toFixed(1));
-  var tagX=Math.max(SCN.l+50,Math.min(SCN.r-50,x));
-  document.getElementById('scnPinTag').setAttribute('transform','translate('+tagX.toFixed(1)+','+(SCN.t+13)+')');
-  document.getElementById('scnPinText').textContent=money(p);
+  var pin=document.getElementById('scnPin'); if(!pin||typeof SCN==='undefined') return;
+  var at=(Math.max(SCN.lo,Math.min(SCN.hi,p))-SCN.lo)/(SCN.hi-SCN.lo)*100;
+  pin.style.left=at.toFixed(2)+'%';
 }
 function updateScenario(){
   var slider=document.getElementById('slider');if(!slider)return;
@@ -1486,109 +1416,140 @@ _DECK_CSS = """
 .deck{display:none}
 body.deck-on .page,body.deck-on .rail{display:none!important}
 body.deck-on .deck{display:block}
-body.deck-on{background:#0A1223}
-/* Navy is the firm's base colour and the deck is shown on its own, away from the
-   white report page. Structure comes from hairline rules and alignment rather
-   than from filled, rounded cards -- the same restraint the report page uses,
-   at slide scale. Charts are white images and keep their own white field. */
+body.deck-on{background:#E9ECF1}
+/* The deck follows the firm's approved client-deck template: navy covers for the
+   title and contents, white pages for the evidence, a gold rule beneath every
+   page title, navy table headers, and serif throughout -- Garamond for display,
+   a transitional serif for text. The report keeps its own system; this is the
+   deck's, and it is the one the firm already presents to clients.
+
+   Every size is in em against the slide's own font-size, and that font-size
+   tracks the slide's width. A slide is a fixed canvas: if the type does not
+   scale with it, a narrower window keeps 18px rows inside a shorter page and the
+   content runs out through the footer. Type is set larger than the reference
+   proportionally -- these are read in a room, and legibility was worth the room
+   it costs. */
 .slide{position:relative;width:1160px;max-width:96vw;aspect-ratio:16/9;margin:24px auto;
-  background:#16233F;color:#C4CFE2;padding:52px 64px 38px;box-sizing:border-box;
-  overflow:hidden;display:flex;flex-direction:column}
-/* A short gold mark, not a banner rule across the head of every slide. */
-.slide:before{content:"";position:absolute;left:64px;top:0;width:52px;height:2px;background:#C9A961}
-.s-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.22em;
-  text-transform:uppercase;color:#8296B8;margin-bottom:16px}
-.s-h1{font-family:'Source Serif 4',Georgia,serif;font-size:54px;line-height:1.05;
-  font-weight:600;margin:0;color:#FFFFFF;letter-spacing:-.014em}
-.s-h2{font-family:'Source Serif 4',Georgia,serif;font-size:32px;line-height:1.18;
-  font-weight:600;margin:0 0 24px;color:#FFFFFF}
-.s-h3{font-family:'Source Serif 4',Georgia,serif;font-size:23px;line-height:1.22;
-  font-weight:600;margin:0 0 14px;color:#FFFFFF}
-.s-sub{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#8296B8;
-  margin-top:14px;letter-spacing:.05em}
-.s-body{font-size:16px;line-height:1.6;color:#C4CFE2;margin:0}
-.s-mid{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center}
+  background:#FFFFFF;color:#22303F;padding:2.55em 3.2em 2.2em;box-sizing:border-box;
+  overflow:hidden;display:flex;flex-direction:column;
+  font-family:'Source Serif 4',Georgia,'Times New Roman',serif;
+  font-size:min(18px,1.49vw);line-height:1.45}
+.slide.cover{background:linear-gradient(135deg,#1F3055 0%,#182741 46%,#0D172B 100%);
+  color:#DCE3EE;padding:2.9em 3.7em 2.2em}
+.s-head{display:flex;align-items:baseline;justify-content:space-between;gap:1.6em}
+.s-title{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:2.22em;line-height:1.1;
+  font-weight:700;margin:0;color:#16233F;letter-spacing:-.004em}
+.s-when{font-style:italic;font-size:.89em;color:#5A6B80;white-space:nowrap}
+/* The gold rule under the page title is the template's signature. */
+.s-rule{height:2px;background:#BF9B4F;margin:.78em 0 1.45em}
+.s-mid{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-start}
 .s-foot{margin-top:auto;display:flex;justify-content:space-between;align-items:baseline;
-  font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.09em;
-  text-transform:uppercase;color:#6E80A0;padding-top:16px;border-top:1px solid #2A3959}
-.s-foot .s-num{color:#8296B8}
-/* Facts under the company name on the opening slide: the rating dominates, the
-   two figures that qualify it sit beside it. */
-.s-facts{display:flex;gap:56px;align-items:flex-start;margin-top:30px;
-  padding-top:22px;border-top:1px solid #33436A}
-.s-rating{font-family:'Source Serif 4',Georgia,serif;font-size:52px;font-weight:600;
-  line-height:1;margin-top:8px}
-/* Signal colours lifted for a dark ground; the report's #1F7A52 and #B4453E are
-   unreadable on navy. Same meanings, same restraint. */
-.s-rating.up{color:#5FCF95}.s-rating.down{color:#EE9188}.s-rating.flat{color:#DFBE76}
-/* One divided-column strip, used for the checklist and for the plan's figures, so
-   the deck states every set of parallel facts the same way -- and the same way
-   the report's own metrics strip does. */
-.s-strip{display:grid;border-top:1px solid #33436A;border-bottom:1px solid #33436A}
-.s-strip.five{grid-template-columns:repeat(5,minmax(0,1fr))}
-.s-strip.four{grid-template-columns:repeat(4,minmax(0,1fr))}
-.s-cell{padding:20px 22px 22px;border-left:1px solid #2A3959;min-width:0}
-.s-cell:first-child{border-left:0;padding-left:0}
-.s-cell-k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.16em;
-  text-transform:uppercase;color:#8296B8}
-.s-cell-v{margin-top:10px;font-size:17px;line-height:1.34;color:#FFFFFF;font-weight:500}
-.s-cell-v.num{font-family:'IBM Plex Mono',monospace;font-size:20px;letter-spacing:-.012em}
-.s-cell-v.up{color:#5FCF95}.s-cell-v.down{color:#EE9188}
-.s-cell-n{margin-top:7px;font-size:12px;line-height:1.4;color:#7386A6}
-/* A glyph in the signal colour, not a filled badge -- a mark should read as a
-   mark, not as a button. */
-.s-mark{display:block;font-size:15px;font-weight:700;line-height:1;margin-bottom:13px}
-.s-mark.pass{color:#5FCF95}.s-mark.fail{color:#EE9188}.s-mark.unconfirmed{color:#6E80A0}
-.s-scoreline{display:flex;align-items:baseline;gap:10px;margin-bottom:26px}
-.s-score{font-family:'Source Serif 4',Georgia,serif;font-size:64px;font-weight:600;
-  color:#FFFFFF;line-height:.92}
-.s-scoreof{font-family:'Source Serif 4',Georgia,serif;font-size:28px;color:#8296B8}
-.s-scorecap{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;
-  text-transform:uppercase;color:#8296B8;margin-left:8px}
-/* Findings as ruled lines rather than bulleted dots: a set of parallel readings
-   is a small table, and rules line them up where dots only decorate them. */
+  font-size:.67em;color:#7A879A;padding-top:.8em}
+.slide.cover .s-foot{color:#8B9BB6}
+.s-note{font-style:italic;font-size:.78em;line-height:1.55;color:#5A6B80;margin:1em 0 0}
+
+/* --- Covers ------------------------------------------------------------- */
+.s-mono{text-align:center;margin-bottom:1.7em}
+.s-ring{display:inline-flex;align-items:center;justify-content:center;width:6.55em;height:6.55em;
+  border:1.5px solid #C9A961;border-radius:50%}
+.s-ring i{display:flex;align-items:center;justify-content:center;width:5.45em;height:5.45em;
+  border:1px solid #C9A961;border-radius:50%;font-style:normal;
+  font-family:'EB Garamond',Garamond,Georgia,serif;font-size:2.22em;color:#C9A961;
+  letter-spacing:.06em;line-height:1}
+.s-firm{margin-top:.72em;font-family:'EB Garamond',Garamond,Georgia,serif;font-size:.7em;
+  letter-spacing:.24em;text-transform:uppercase;color:#C9A961}
+.s-cover-name{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:3.22em;line-height:1.08;
+  font-weight:700;color:#FFFFFF;margin:0}
+.s-cover-sub{font-size:1.28em;color:#C6D0E0;margin-top:.45em}
+.s-cover-rule{width:8.3em;height:2px;background:#BF9B4F;margin-top:1.2em}
+.s-eyebrow{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:.72em;letter-spacing:.2em;
+  text-transform:uppercase;color:#C9A961;margin-bottom:.6em}
+.s-cover-h{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:2.44em;font-weight:700;
+  color:#FFFFFF;margin:0 0 1em}
+.s-contents{list-style:none;margin:0;padding:0}
+.s-contents li{display:flex;align-items:baseline;gap:1.45em;padding:.5em 0;font-size:1.06em;
+  color:#E4EAF3}
+.s-contents .n{font-family:'EB Garamond',Garamond,Georgia,serif;color:#C9A961;font-size:.95em;
+  min-width:1.7em}
+.s-contents .p{margin-left:auto;color:#9DAEC8;font-size:.8em}
+
+/* --- Table: the template's workhorse ------------------------------------ */
+.s-table{width:100%;border-collapse:collapse;font-size:1em}
+.s-table th{background:#16233F;color:#FFFFFF;font-weight:600;text-align:left;
+  padding:.72em .89em;font-size:.94em}
+.s-table th.r,.s-table td.r{text-align:right}
+.s-table td{padding:.72em .89em;border-bottom:1px solid #E4E8EE;color:#22303F}
+.s-table tbody tr:nth-child(even){background:#F6F8FA}
+.s-table .m{font-weight:600}
+.s-table .up{color:#1F7A52}.s-table .down{color:#B4453E}
+.s-mark{font-weight:700;font-size:1.06em}
+.s-mark.pass{color:#1F7A52}.s-mark.fail{color:#B4453E}.s-mark.unconfirmed{color:#8A97AB}
+
+/* --- The call ----------------------------------------------------------- */
+.s-verdict{display:flex;gap:3.5em;align-items:flex-start;margin-bottom:1.45em;flex-wrap:wrap}
+.s-k{font-size:.72em;letter-spacing:.16em;text-transform:uppercase;color:#7A879A;
+  margin-bottom:.45em}
+.s-rating{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:3.44em;font-weight:700;
+  line-height:1}
+.s-rating.up{color:#1F7A52}.s-rating.down{color:#B4453E}.s-rating.flat{color:#8A6D1F}
+.s-figure{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:2.22em;font-weight:600;
+  color:#16233F;line-height:1.1}
+.s-lead{font-size:1.44em;line-height:1.45;color:#22303F;margin:0;max-width:40ch}
+
+/* --- Two columns of findings -------------------------------------------- */
+.s-two{display:grid;grid-template-columns:1fr 1fr;gap:2.55em}
+.s-col-k{font-size:.72em;letter-spacing:.18em;text-transform:uppercase;color:#7A879A;
+  padding-bottom:.5em;border-bottom:1.5px solid #E4E8EE;margin-bottom:.12em}
+.s-col.supports .s-col-k{border-bottom-color:#1F7A52}
+.s-col.against .s-col-k{border-bottom-color:#B4453E}
 .s-points{list-style:none;margin:0;padding:0}
-.s-points li{font-size:17px;line-height:1.45;color:#DCE4F0;padding:12px 0;
-  border-top:1px solid #2A3959}
-.s-points li:first-child{border-top:0;padding-top:2px}
-.s-points.tight li{font-size:15.5px;line-height:1.5;padding:10px 0}
-.s-col-k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.18em;
-  text-transform:uppercase;color:#8296B8;padding-bottom:10px;
-  border-bottom:1px solid #33436A;margin-bottom:6px}
-.s-col.supports .s-col-k{border-bottom-color:#3F7F5E}
-.s-col.against .s-col-k{border-bottom-color:#8E504A}
-.s-lead{font-family:'Source Serif 4',Georgia,serif;font-size:34px;line-height:1.26;
-  color:#FFFFFF;font-weight:600;margin:0;max-width:24ch}
-.s-chart{background:#FFFFFF;display:flex;align-items:center;justify-content:center;
-  padding:14px;min-height:0;min-width:0}
+.s-points li{font-size:1.06em;line-height:1.45;color:#22303F;padding:.72em 0;
+  border-bottom:1px solid #EFF2F6}
+
+/* --- Chart pages -------------------------------------------------------- */
+.s-evidence{display:grid;grid-template-columns:1.6fr 1fr;gap:2em;flex:1;min-height:0;
+  align-items:stretch}
+.s-chart{display:flex;align-items:center;justify-content:center;min-height:0;min-width:0}
 .s-chart img{max-width:100%;max-height:100%;object-fit:contain}
-/* Chart and its reading side by side: the picture leads, the words say what it
-   means. A chart with nothing said about it leaves the room to guess. */
-.s-evidence{display:grid;grid-template-columns:1.55fr 1fr;gap:38px;flex:1;
-  min-height:0;align-items:stretch}
 .s-read{display:flex;flex-direction:column;justify-content:center;min-width:0}
-.s-two{display:grid;grid-template-columns:1fr 1fr;gap:52px}
-.s-disc{font-size:12px;line-height:1.65;color:#8FA0BE;max-width:78ch}
-.s-disc b{color:#FFFFFF;font-weight:600}
+.s-read .s-points li{font-size:.94em;padding:.61em 0}
+.s-disc{font-size:.83em;line-height:1.6;color:#3E4759;max-width:88ch}
+.s-disc b{color:#16233F;font-weight:600}
 @media print{
-  body.deck-on{background:#16233F}
+  body.deck-on{background:#fff}
   .slide{margin:0;width:100%;max-width:none;aspect-ratio:auto;height:100vh;
-    break-after:page;break-inside:avoid;
+    font-size:min(18px,1.55vw);break-after:page;break-inside:avoid;
     -webkit-print-color-adjust:exact;print-color-adjust:exact}
   .slide:last-child{break-after:auto}
 }
 """
 
 
-def _deck_slide(eyebrow: str, body: str, result: ResearchResult, number: int, total: int) -> str:
-    """One slide: a running label, the idea, and a running foot with its number."""
+def _deck_page(title: str, meta: str, body: str, result: ResearchResult,
+               number: int, total: int, note: str = "") -> str:
+    """A white evidence page: title, gold rule, content, running foot."""
     return (
-        f'<section class="slide"><div class="s-eyebrow">{escape(eyebrow)}</div>'
+        f'<section class="slide">'
+        f'<div class="s-head"><h2 class="s-title">{escape(title)}</h2>'
+        f'<span class="s-when">{escape(meta)}</span></div>'
+        f'<div class="s-rule"></div>'
         f'<div class="s-mid">{body}</div>'
-        f'<div class="s-foot"><span>Gottfried &amp; Somberg Wealth Management</span>'
-        f'<span>{escape(result.identity.ticker)} &middot; {escape(_date_only(result.as_of))}'
-        f'<span class="s-num"> &middot; {number:02d}/{total:02d}</span></span></div></section>'
+        + (f'<p class="s-note">{escape(note)}</p>' if note else "")
+        + f'<div class="s-foot"><span>{_FIRM}</span>'
+        f'<span>Page {number} of {total}</span></div></section>'
     )
+
+
+def _deck_cover(body: str, number: int, total: int) -> str:
+    """A navy cover: the title page and the contents page."""
+    return (
+        f'<section class="slide cover"><div class="s-mid">{body}</div>'
+        f'<div class="s-foot"><span>{_FIRM}</span>'
+        f'<span>Page {number} of {total}</span></div></section>'
+    )
+
+
+_FIRM = "Gottfried &amp; Somberg Wealth Management"
 
 
 def _slide_points(chart: ChartRecord, limit: int = 3, budget: int = 58) -> tuple[str, ...]:
@@ -1625,110 +1586,111 @@ def _insight_bullets(insight: str) -> tuple[str, ...]:
 def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
                checks_narrative: str, reasoning: str,
                charts: Sequence[tuple[str, ChartRecord | None]]) -> str:
-    """The report as a short deck.
+    """The report as a short deck, on the firm's approved client-deck template.
 
     Deliberately not the report reproduced at report density. A slide is read
-    from across a room in seconds, so each one carries a single idea in as few
-    words as will hold it: the criteria as three-word readings rather than their
-    full sentences, the findings as ruled lines rather than paragraphs. The
-    report remains the place the evidence is set out in full.
-
-    Slide labels name what is on the slide and nothing more. An earlier version
-    editorialised -- "Our recommendation", "Why we say Add", "Four views of the
-    same question" -- which reads as a pitch rather than as research.
+    from across a room in seconds, so each page carries one idea: the criteria as
+    three-word readings rather than their full sentences, the findings as table
+    rows rather than paragraphs. The report remains where the evidence is set out
+    in full.
     """
     tone_class = _tone(result.lead_rating)[0]
     tone = "up" if tone_class == "v-bull" else "down" if tone_class == "v-bear" else "flat"
     checklist = result.conviction_checklist
     rows = checklist_headlines(checklist) if checklist is not None else ()
-    slides: list[tuple[str, str]] = []
+    when = _date_only(result.as_of)
+    meta = f"{result.identity.ticker} · {when}"
+    document = "Technical Research" if request.deep_analysis else "General Research"
 
-    # 1. The security and the call, with the two figures that qualify it.
-    slides.append((
-        result.horizon.value,
-        f'<h1 class="s-h1">{escape(result.identity.company_name)}</h1>'
-        f'<div class="s-sub">{escape(result.identity.ticker)} &middot; '
-        f'{escape(result.identity.exchange)} &middot; {escape(result.identity.currency)}</div>'
-        f'<div class="s-facts">'
-        f'<div><div class="s-cell-k">Rating</div>'
-        f'<div class="s-rating {tone}">{escape(result.lead_rating.value)}</div></div>'
-        f'<div><div class="s-cell-k">Confidence</div>'
-        f'<div class="s-cell-v">{escape(result.confidence.value)}</div></div>'
-        f'<div><div class="s-cell-k">Last price</div>'
-        f'<div class="s-cell-v num">{_money(result.current_price)}</div></div>'
-        f'</div>',
-    ))
+    # Pages are collected as builders so the contents list and the running "Page
+    # n of N" can both be written once the deck's length is actually known.
+    pages: list[tuple[str, str, str, str]] = []  # (title, meta, body, note)
 
-    # 2. The score, at a glance. Names and readings only -- the report carries
-    #    the figures behind each one.
     if rows:
-        cells = "".join(
-            f'<div class="s-cell"><span class="s-mark {status}">'
-            f'{"&#10003;" if status == "pass" else "&ndash;" if status == "unconfirmed" else "&times;"}</span>'
-            f'<div class="s-cell-k">{escape(label)}</div>'
-            f'<div class="s-cell-v">{escape(reading)}</div></div>'
+        judged = len(rows) - sum(1 for _, _, status in rows if status == "unconfirmed")
+        body = (
+            f'<div class="s-verdict">'
+            f'<div><div class="s-k">Rating</div>'
+            f'<div class="s-rating {tone}">{escape(result.lead_rating.value)}</div></div>'
+            f'<div><div class="s-k">Confidence</div>'
+            f'<div class="s-figure">{escape(result.confidence.value)}</div></div>'
+            f'<div><div class="s-k">Conviction</div>'
+            f'<div class="s-figure">{checklist.passed_count} of {judged}</div></div>'
+            f'<div><div class="s-k">Last price</div>'
+            f'<div class="s-figure">{_money(result.current_price)}</div></div>'
+            f'</div>'
+        )
+    else:
+        body = (
+            f'<div class="s-verdict"><div><div class="s-k">Rating</div>'
+            f'<div class="s-rating {tone}">{escape(result.lead_rating.value)}</div></div>'
+            f'<div><div class="s-k">Confidence</div>'
+            f'<div class="s-figure">{escape(result.confidence.value)}</div></div>'
+            f'<div><div class="s-k">Last price</div>'
+            f'<div class="s-figure">{_money(result.current_price)}</div></div></div>'
+        )
+    body += f'<p class="s-lead">{escape(question)}</p>'
+    pages.append(("The call", meta, body, ""))
+
+    # The checklist as the template's table: criterion, reading, mark.
+    if rows:
+        table_rows = "".join(
+            f'<tr><td class="m">{escape(label)}</td><td>{escape(reading)}</td>'
+            f'<td class="r"><span class="s-mark {status}">'
+            f'{"&#10003;" if status == "pass" else "&ndash;" if status == "unconfirmed" else "&times;"}'
+            f"</span></td></tr>"
             for label, reading, status in rows
         )
-        judged = len(rows) - sum(1 for _, _, status in rows if status == "unconfirmed")
-        slides.append((
-            "Conviction Checklist",
-            f'<div class="s-scoreline"><span class="s-score">{checklist.passed_count}</span>'
-            f'<span class="s-scoreof">of {judged}</span>'
-            f'<span class="s-scorecap">confirm</span></div>'
-            f'<div class="s-strip five">{cells}</div>',
+        pages.append((
+            "Conviction Checklist", meta,
+            '<table class="s-table"><thead><tr><th>Criterion</th><th>Reading</th>'
+            '<th class="r">Confirms</th></tr></thead>'
+            f"<tbody>{table_rows}</tbody></table>",
+            "Five independent, deterministic criteria. Supplementary evidence, not a rating.",
         ))
 
-    # 3. Where the evidence agrees, and where it does not.
+    # Where the evidence agrees, and where it does not.
     if rows:
         good = [reading for _label, reading, status in rows if status == "pass"]
         bad = [reading for _label, reading, status in rows if status == "fail"]
-        # The Technical report's "question" is usually the raw ticker, which made
-        # this slide's heading read "AXON". Fall back to the call itself when
-        # there is no real question on the table.
-        asked = question.strip()
-        heading = asked if len(asked.split()) >= 4 else f"The case for {result.lead_rating.value}"
         supports = (
-            '<ul class="s-points">' + "".join(f"<li>{escape(item)}</li>" for item in good[:4]) + "</ul>"
-            if good else '<p class="s-body">No check confirms.</p>'
+            '<ul class="s-points">' + "".join(f"<li>{escape(item)}</li>" for item in good) + "</ul>"
+            if good else '<p class="s-lead" style="font-size:1.06em">No check confirms.</p>'
         )
         against = (
-            '<ul class="s-points">' + "".join(f"<li>{escape(item)}</li>" for item in bad[:4]) + "</ul>"
-            if bad else '<p class="s-body">No check argues against this view.</p>'
+            '<ul class="s-points">' + "".join(f"<li>{escape(item)}</li>" for item in bad) + "</ul>"
+            if bad else '<p class="s-lead" style="font-size:1.06em">No check argues against this view.</p>'
         )
-        slides.append((
-            "The case",
-            f'<h2 class="s-h2">{escape(heading)}</h2><div class="s-two">'
+        pages.append((
+            "The case", meta,
+            f'<div class="s-two">'
             f'<div class="s-col supports"><div class="s-col-k">Supports</div>{supports}</div>'
-            f'<div class="s-col against"><div class="s-col-k">Against</div>{against}</div>'
-            f'</div>',
+            f'<div class="s-col against"><div class="s-col-k">Against</div>{against}</div></div>',
+            "",
         ))
 
-    # 4. The plan, as four figures in the same strip the checklist uses.
+    # The plan, as the template's table.
     plan = result.technical_plan
     if plan is not None:
         entry_mid = (plan.entry_low + plan.entry_high) / 2
         upside = (plan.first_target / entry_mid - 1.0) if entry_mid else 0.0
-        slides.append((
-            "Position",
-            f'<h2 class="s-h2">{escape(plan.stance)}</h2>'
-            f'<div class="s-strip four">'
-            f'<div class="s-cell"><div class="s-cell-k">Entry</div>'
-            f'<div class="s-cell-v num">{_money(plan.entry_low)}&ndash;{_money(plan.entry_high)}</div>'
-            f'<div class="s-cell-n">Midpoint {_money(entry_mid)}</div></div>'
-            f'<div class="s-cell"><div class="s-cell-k">Stop</div>'
-            f'<div class="s-cell-v num down">{_money(plan.stop_level)}</div>'
-            f'<div class="s-cell-n">{plan.stop_pct:.1%} below the midpoint</div></div>'
-            f'<div class="s-cell"><div class="s-cell-k">First target</div>'
-            f'<div class="s-cell-v num up">{_money(plan.first_target)}</div>'
-            f'<div class="s-cell-n">{upside:.1%} above the midpoint</div></div>'
-            f'<div class="s-cell"><div class="s-cell-k">Reward / risk</div>'
-            f'<div class="s-cell-v num">{plan.reward_risk:.2f}&times;</div>'
-            f'<div class="s-cell-n">Upside per unit of risk</div></div>'
-            f'</div>',
+        pages.append((
+            "Position", meta,
+            '<table class="s-table"><thead><tr><th>Level</th><th class="r">Price</th>'
+            '<th>Basis</th></tr></thead><tbody>'
+            f'<tr><td class="m">Entry zone</td><td class="r">{_money(plan.entry_low)}&ndash;{_money(plan.entry_high)}</td>'
+            f'<td>Midpoint {_money(entry_mid)}</td></tr>'
+            f'<tr><td class="m">Stop</td><td class="r down">{_money(plan.stop_level)}</td>'
+            f'<td>{plan.stop_pct:.1%} below the midpoint</td></tr>'
+            f'<tr><td class="m">First target</td><td class="r up">{_money(plan.first_target)}</td>'
+            f'<td>{upside:.1%} above the midpoint</td></tr>'
+            f'<tr><td class="m">Reward / risk</td><td class="r">{plan.reward_risk:.2f}&times;</td>'
+            f'<td>Upside per unit of risk</td></tr>'
+            "</tbody></table>",
+            escape(plan.stance),
         ))
 
-    # 5. The evidence, chart by chart, each with what it says. This is the part
-    #    that has to carry the argument when the report is not in the room.
+    # The evidence, chart by chart, each with what it says.
     for label, chart in charts:
         if chart is None:
             continue
@@ -1739,19 +1701,15 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
         picture = f'<div class="s-chart"><img src="{image}" alt="{escape(chart.title)}"></div>'
         if points:
             body = (
-                f'<div class="s-evidence">{picture}<div class="s-read">'
-                f'<h3 class="s-h3">{escape(chart.title)}</h3>'
-                '<ul class="s-points tight">'
+                f'<div class="s-evidence">{picture}<div class="s-read"><ul class="s-points">'
                 + "".join(f"<li>{escape(point)}</li>" for point in points)
                 + "</ul></div></div>"
             )
         else:
-            # Nothing to say about it: give the chart the whole slide rather than
-            # filling a column with a sentence about the report.
-            body = f'<h3 class="s-h3">{escape(chart.title)}</h3>{picture}'
-        slides.append((label, body))
+            body = picture
+        pages.append((chart.title, meta, body, ""))
 
-    # 6. The one thing that would change the view.
+    # The one thing that would change the view.
     watch = checklist_watch(checklist) if checklist is not None else ""
     risk = result.risks[0] if result.risks else ""
     if watch or risk:
@@ -1762,28 +1720,53 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
         )
         if risk:
             body += (
-                '<div class="s-col-k" style="margin-top:34px;max-width:30ch">Principal risk</div>'
-                f'<p class="s-body" style="max-width:64ch">{escape(risk)}</p>'
+                '<div class="s-col-k" style="margin-top:1.9em;max-width:26ch">Principal risk</div>'
+                f'<p class="s-lead" style="font-size:1.06em;max-width:66ch;margin-top:.8em">{escape(risk)}</p>'
             )
-        slides.append(("What would change the view", body))
+        pages.append(("What would change the view", meta, body, ""))
 
-    # 7. Disclosure. A deck leaves the room without its report.
-    slides.append((
-        "Disclosure",
+    pages.append((
+        "Disclosure", meta,
         f'<p class="s-disc">Confidence in this view: <b>{escape(result.confidence.value)}</b>. '
         'Evidence, sources and the full reasoning are set out in the accompanying report.</p>'
-        '<p class="s-disc" style="margin-top:18px">This material is informational and reflects '
+        '<p class="s-disc" style="margin-top:.9em">This material is informational and reflects '
         'conditions as of the stated time. Sources are believed reliable but are not guaranteed. '
         'Opinions and scenarios may change without notice. Investing involves risk, including '
         'possible loss of principal. Firm compliance review is required before client '
         'distribution. Internal use only.</p>',
+        "",
     ))
 
-    total = len(slides)
-    return '<div class="deck">' + "".join(
-        _deck_slide(eyebrow, body, result, index, total)
-        for index, (eyebrow, body) in enumerate(slides, 1)
-    ) + "</div>"
+    # Two covers precede the evidence pages, so the contents can list them by the
+    # page number they will actually carry.
+    total = len(pages) + 2
+    contents = "".join(
+        f'<li><span class="n">{index:02d}</span><span>{escape(title)}</span>'
+        f'<span class="p">Page {index + 2}</span></li>'
+        for index, (title, _meta, _body, _note) in enumerate(pages, 1)
+    )
+    slides = [
+        _deck_cover(
+            '<div class="s-mono"><span class="s-ring"><i>GS</i></span>'
+            f'<div class="s-firm">{_FIRM}</div></div>'
+            f'<h1 class="s-cover-name">{escape(result.identity.company_name)}</h1>'
+            f'<div class="s-cover-sub">{escape(document)} &middot; {escape(result.identity.ticker)} '
+            f'&middot; {escape(when)}</div>'
+            '<div class="s-cover-rule"></div>',
+            1, total,
+        ),
+        _deck_cover(
+            f'<div class="s-eyebrow">{escape(document)} overview</div>'
+            '<h2 class="s-cover-h">Contents</h2>'
+            f'<ul class="s-contents">{contents}</ul>',
+            2, total,
+        ),
+    ]
+    slides += [
+        _deck_page(title, page_meta, body, result, index, total, note)
+        for index, (title, page_meta, body, note) in enumerate(pages, 3)
+    ]
+    return '<div class="deck">' + "".join(slides) + "</div>"
 
 
 def _deck_script() -> str:
