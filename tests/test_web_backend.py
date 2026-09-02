@@ -182,10 +182,27 @@ class SharedReportLinkTests(unittest.TestCase):
         self.assertTrue(fresh.exists())
         self.assertFalse(stale.parent.exists())
 
-    def test_shutdown_leaves_nothing_behind(self) -> None:
-        self._write_report("a" * 12)
+    def test_shutdown_leaves_no_reports_behind(self) -> None:
+        report = self._write_report("a" * 12)
         discard_all_reports(self.root)
-        self.assertFalse(self.root.exists())
+        self.assertFalse(report.parent.exists())
+        self.assertEqual([e for e in self.root.iterdir() if e.is_dir()
+                          and e.name != feedback_store.FEEDBACK_DIRNAME], [])
+
+    def test_shutdown_keeps_the_feedback_log(self) -> None:
+        # Shutdown used to rmtree the whole reports root, which threw away the
+        # feedback with it -- on a host that redeploys by replacing the
+        # container, that was every deploy.
+        self._write_report("a" * 12)
+        feedback_store.record(self.root, message="keep me", helpful=True)
+        discard_all_reports(self.root)
+        self.assertEqual(feedback_store.read_all(self.root)[0]["message"], "keep me")
+
+    def test_report_purges_never_touch_the_feedback_directory(self) -> None:
+        feedback_store.record(self.root, message="keep me", helpful=True)
+        purge_incomplete(self.root)           # feedback holds no .html
+        purge_expired_reports(self.root)
+        self.assertEqual(len(feedback_store.read_all(self.root)), 1)
 
 
 class CredentialResolutionTests(unittest.TestCase):
@@ -402,7 +419,11 @@ class FeedbackTests(unittest.TestCase):
         feedback_store.record(self.root, message="", helpful=True)
         feedback_store.record(self.root, message="bad", helpful=False)
         summary = feedback_store.summarise(self.root)
-        self.assertEqual(summary, {"total": 2, "helpful": 1, "unhelpful": 1, "with_comment": 1})
+        self.assertEqual(
+            {k: summary[k] for k in ("total", "helpful", "unhelpful", "with_comment")},
+            {"total": 2, "helpful": 1, "unhelpful": 1, "with_comment": 1},
+        )
+        self.assertFalse(summary["mirrored_to_doc"])
 
     def test_overlong_message_is_truncated_not_rejected(self) -> None:
         feedback_store.record(self.root, message="x" * 10_000, helpful=None)
@@ -421,3 +442,75 @@ class FeedbackTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FeedbackDeliveryTests(unittest.TestCase):
+    """Mirroring to the Google Doc must never be able to lose an entry or fail a
+    reader's request -- the local log is the record of truth and the webhook is
+    best-effort on top of it."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self._env = os.environ.get(feedback_store.WEBHOOK_ENV)
+        os.environ[feedback_store.WEBHOOK_ENV] = "https://example.invalid/hook"
+
+    def tearDown(self) -> None:
+        if self._env is None:
+            os.environ.pop(feedback_store.WEBHOOK_ENV, None)
+        else:
+            os.environ[feedback_store.WEBHOOK_ENV] = self._env
+        self._tmp.cleanup()
+
+    def test_entries_are_recorded_even_when_the_webhook_is_unreachable(self) -> None:
+        feedback_store.record(self.root, message="still logged", helpful=True)
+        self.assertEqual(feedback_store.read_all(self.root)[0]["message"], "still logged")
+
+    def test_a_failed_delivery_leaves_the_entry_pending_not_lost(self) -> None:
+        self._record_offline("one")
+        with mock.patch.object(feedback_store, "_post", return_value=False):
+            self.assertEqual(feedback_store.flush(self.root), 0)
+        self.assertEqual(feedback_store.summarise(self.root)["awaiting_delivery"], 1)
+
+    def _record_offline(self, *notes: str) -> None:
+        """Record without delivering: record() also kicks off a background
+        flush, and a test that then flushes by hand would be racing it."""
+        with mock.patch.object(feedback_store, "_post", return_value=False):
+            for note in notes:
+                feedback_store.record(self.root, message=note, helpful=True)
+
+    def test_a_later_flush_delivers_everything_that_was_pending(self) -> None:
+        self._record_offline("one", "two", "three")
+        sent: list[dict] = []
+        with mock.patch.object(feedback_store, "_post",
+                               side_effect=lambda url, entry: sent.append(entry) or True):
+            feedback_store.flush(self.root)
+        self.assertEqual([e["message"] for e in sent], ["one", "two", "three"])
+        self.assertEqual(feedback_store.summarise(self.root)["awaiting_delivery"], 0)
+
+    def test_delivery_resumes_at_the_entry_that_failed(self) -> None:
+        # A restart mid-run must not re-send what already landed in the doc, and
+        # must not skip what did not.
+        self._record_offline("one", "two", "three")
+        calls = {"n": 0}
+
+        def flaky(_url, _entry):
+            calls["n"] += 1
+            return calls["n"] <= 2
+
+        with mock.patch.object(feedback_store, "_post", side_effect=flaky):
+            feedback_store.flush(self.root)
+        self.assertEqual(feedback_store.summarise(self.root)["awaiting_delivery"], 1)
+        sent: list[dict] = []
+        with mock.patch.object(feedback_store, "_post",
+                               side_effect=lambda url, entry: sent.append(entry) or True):
+            feedback_store.flush(self.root)
+        self.assertEqual([e["message"] for e in sent], ["three"])
+
+    def test_nothing_is_sent_when_no_doc_is_configured(self) -> None:
+        os.environ.pop(feedback_store.WEBHOOK_ENV, None)
+        feedback_store.record(self.root, message="local only", helpful=True)
+        with mock.patch.object(feedback_store, "_post") as post:
+            self.assertEqual(feedback_store.flush(self.root), 0)
+        post.assert_not_called()
+        self.assertEqual(feedback_store.summarise(self.root)["awaiting_delivery"], 0)

@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
+from backend import feedback
 
 JobStatus = Literal["running", "ready", "failed"]
 
@@ -64,7 +65,7 @@ def purge_expired_reports(reports_root: Path) -> int:
     cutoff = datetime.now(timezone.utc) - REPORT_TTL
     removed = 0
     for entry in reports_root.iterdir():
-        if not entry.is_dir():
+        if not entry.is_dir() or entry.name == feedback.FEEDBACK_DIRNAME:
             continue
         modified = datetime.fromtimestamp(entry.stat().st_mtime, timezone.utc)
         if modified < cutoff:
@@ -74,10 +75,17 @@ def purge_expired_reports(reports_root: Path) -> int:
 
 
 def discard_all_reports(reports_root: Path) -> None:
-    """Delete every report. Called on shutdown so nothing is left behind."""
-    if KEEP_REPORTS:
+    """Delete every report. Called on shutdown so nothing is left behind.
+
+    Removes the report directories rather than the root itself: the root also
+    holds the feedback log, which is not a report and is not temporary. This
+    used to rmtree the whole root, which threw the feedback away with it.
+    """
+    if KEEP_REPORTS or not reports_root.is_dir():
         return
-    shutil.rmtree(reports_root, ignore_errors=True)
+    for entry in reports_root.iterdir():
+        if entry.is_dir() and entry.name != feedback.FEEDBACK_DIRNAME:
+            shutil.rmtree(entry, ignore_errors=True)
 
 # Job ids are generated here and also arrive from the URL, where they index
 # straight into the reports directory -- so they must be validated as opaque
@@ -157,6 +165,8 @@ def purge_incomplete(reports_root: Path) -> None:
     if not reports_root.is_dir():
         return
     for entry in reports_root.iterdir():
+        if entry.name == feedback.FEEDBACK_DIRNAME:
+            continue
         if entry.is_dir() and not any(entry.glob("*.html")):
             shutil.rmtree(entry, ignore_errors=True)
 

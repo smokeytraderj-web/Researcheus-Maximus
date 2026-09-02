@@ -64,6 +64,10 @@ async def lifespan(_: FastAPI):
     # reports go too unless the operator asked to keep them.
     purge_incomplete(REPORTS_ROOT)
     purge_expired_reports(REPORTS_ROOT)
+    # Anything a restart interrupted mid-delivery goes to the Doc now. Feedback
+    # lives outside the reports directory, so the purge above never touches it.
+    if feedback_store.webhook_url():
+        threading.Thread(target=feedback_store.flush, args=(REPORTS_ROOT,), daemon=True).start()
     yield
     registry.shutdown()
     # Reports are temporary: leave nothing behind on the way out.

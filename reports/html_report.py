@@ -1467,7 +1467,8 @@ body.deck-on{background:#0A1223}
 .s-mid{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-start}
 .s-foot{margin-top:auto;display:flex;justify-content:space-between;align-items:baseline;
   font-size:.67em;color:#6E80A0;padding-top:.8em}
-.s-note{font-style:italic;font-size:.78em;line-height:1.55;color:#8FA3C4;margin:1em 0 0}
+/* Slides carry no footnotes. Everything a slide states has to be legible from
+   the back of a room, and a 14px italic grey line is not. */
 
 /* --- Cover: the firm's monogram, to the template's own geometry ---------- */
 /* Outer ring 11.25% of slide width, inner 9.15%, "GS" at 2.92%, gold #BFA054 --
@@ -1491,9 +1492,15 @@ body.deck-on{background:#0A1223}
 /* --- The call ------------------------------------------------------------ */
 .s-ask{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:1.5em;line-height:1.34;
   color:#DCE4F0;margin:0 0 .7em;max-width:34ch}
-.s-rating{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:5.2em;font-weight:700;
-  line-height:.96;margin:0}
-.s-rating.up{color:#5FCF95}.s-rating.down{color:#EE9188}.s-rating.flat{color:#E2C179}
+/* White, not the tone colour: at display size a green or red word was the only
+   thing on the page and read as a shout. Direction still shows, in a short rule
+   under it. */
+.s-rating{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:3.9em;font-weight:700;
+  line-height:1;margin:0;color:#FFFFFF}
+.s-rating:after{content:"";display:block;width:2.3em;height:3px;margin-top:.28em}
+.s-rating.up:after{background:#5FCF95}
+.s-rating.down:after{background:#EE9188}
+.s-rating.flat:after{background:#E2C179}
 .s-stance{font-style:italic;font-size:1.06em;color:#9DAEC8;margin:.5em 0 0}
 .s-callgrid{display:grid;grid-template-columns:1.25fr 1fr;gap:2.6em;flex:1;min-height:0;
   align-items:center}
@@ -1510,7 +1517,7 @@ body.deck-on{background:#0A1223}
 .s-v{margin-top:.42em;font-family:'EB Garamond',Garamond,Georgia,serif;font-size:1.72em;
   font-weight:600;color:#FFFFFF;line-height:1.1}
 .s-v.up{color:#5FCF95}.s-v.down{color:#EE9188}
-.s-n{margin-top:.3em;font-size:.72em;line-height:1.4;color:#7C8DAB}
+.s-n{margin-top:.34em;font-size:.86em;line-height:1.4;color:#A9B8D0}
 
 /* --- Why: the reasoning, condensed -------------------------------------- */
 .s-why p{font-size:1.16em;line-height:1.55;color:#DCE4F0;margin:0}
@@ -1529,7 +1536,7 @@ body.deck-on{background:#0A1223}
 .s-box.fail{background:transparent;border:1.5px solid #4A5C7C;color:transparent}
 .s-box.unconfirmed{background:transparent;border:1.5px solid #4A5C7C;color:#8296B8;font-size:.7em}
 .s-check-label{font-size:.95em;font-weight:600;color:#FFFFFF;line-height:1.2}
-.s-check-detail{font-size:.72em;line-height:1.5;color:#AEBCD2}
+.s-check-read{font-size:.95em;line-height:1.35;color:#DCE4F0}
 .s-score{display:flex;align-items:baseline;gap:.55em;margin-bottom:.9em}
 .s-score b{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:2em;font-weight:700;
   color:#FFFFFF;line-height:1}
@@ -1590,7 +1597,7 @@ def _firm_mark() -> str:
     return f'<img src="{data_url}" alt="Gottfried &amp; Somberg Wealth Management">'
 
 
-def _deck_page(title: str, meta: str, body: str, number: int, total: int, note: str = "") -> str:
+def _deck_page(title: str, meta: str, body: str, number: int, total: int) -> str:
     """An evidence page: title, gold rule, content, running foot."""
     return (
         f'<section class="slide">'
@@ -1598,8 +1605,7 @@ def _deck_page(title: str, meta: str, body: str, number: int, total: int, note: 
         f'<span class="s-when">{escape(meta)}</span></div>'
         f'<div class="s-rule"></div>'
         f'<div class="s-mid">{body}</div>'
-        + (f'<p class="s-note">{escape(note)}</p>' if note else "")
-        + f'<div class="s-foot"><span>{_FIRM}</span>'
+        f'<div class="s-foot"><span>{_FIRM}</span>'
         f'<span>Page {number} of {total}</span></div></section>'
     )
 
@@ -1665,7 +1671,7 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
     meta = f"{result.identity.ticker} · {when}"
     document = "Technical Research" if request.deep_analysis else "General Research"
     plan = result.technical_plan
-    pages: list[tuple[str, str, str, str]] = []  # (title, meta, body, note)
+    pages: list[tuple[str, str, str]] = []  # (title, meta, body)
 
     # 1. Why -- the reasoning, condensed. The report's two-movement narrative
     #    leads; the analyst prose that follows it in the report is a third
@@ -1677,18 +1683,17 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
         for part in paragraphs[1:]:
             body += f"<p>{escape(_condense(part, 62))}</p>"
         body += "</div>"
-        pages.append(("Why", meta, body, ""))
+        pages.append(("Why", meta, body))
 
     # 2. The call. The rating carries the page; the figures that qualify it sit
     #    beside it rather than under it, so neither competes for the eye.
     judged = (checklist.total_count - checklist.unconfirmed_count) if checklist else 0
     cells = [
         ("Confidence", escape(result.confidence.value), "", ""),
-        ("Last price", _money(result.current_price), "", f"As of {escape(when)}"),
+        ("Last price", _money(result.current_price), "", ""),
     ]
     if checklist:
-        cells.insert(1, ("Conviction", f"{checklist.passed_count} of {judged}", "",
-                         "Deterministic checks confirmed"))
+        cells.insert(1, ("Conviction", f"{checklist.passed_count} of {judged}", "", ""))
     street = _find_metric(result, "analyst mean target", default="")
     if street and street != "—":
         cells.append(("Street target", escape(street), "",
@@ -1707,17 +1712,20 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
         f'<p class="s-ask">{escape(question)}</p>'
         f'<p class="s-rating {tone}">{escape(result.lead_rating.value)}</p>{stance}</div>'
         f'<div class="s-strip two">{strip}</div></div>',
-        "",
     ))
 
     # 3. The checklist, in the same five cards the report page carries.
     if checklist is not None and checklist.criteria:
         icons = {"pass": "&#10003;", "fail": "", "unconfirmed": "?"}
+        # The card carries the criterion and a three-word reading. Its full
+        # sentence is the report's job; set small and grey on a slide it is the
+        # least legible thing on the page and nobody reads it.
+        readings = {label: reading for label, reading, _status in checklist_headlines(checklist)}
         cards = "".join(
             f'<div class="s-check"><div class="s-check-top">'
             f'<span class="s-box {item.status}">{icons[item.status]}</span>'
             f'<span class="s-check-label">{escape(item.label)}</span></div>'
-            f'<div class="s-check-detail">{escape(item.detail)}</div></div>'
+            f'<div class="s-check-read">{escape(readings.get(item.label, ""))}</div></div>'
             for item in checklist.criteria
         )
         pages.append((
@@ -1725,7 +1733,6 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
             f'<div class="s-score"><b>{checklist.passed_count}/{checklist.total_count}</b>'
             f"<span>criteria confirmed</span></div>"
             f'<div class="s-checks">{cards}</div>',
-            "Five independent, deterministic criteria. Supplementary evidence, not a rating.",
         ))
 
     # 4. The action plan, on its own page and separate from the market figures.
@@ -1749,7 +1756,6 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
             f'<div class="s-n">Upside per unit of risk</div></div>'
             "</div>"
             f'<p class="s-lead" style="margin-top:1.4em">{escape(plan.confirmation)}</p>',
-            escape(plan.invalidation),
         ))
 
     # 5. The evidence, chart by chart, each with what it says.
@@ -1766,7 +1772,7 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
             + "".join(f"<li>{escape(point)}</li>" for point in points)
             + "</ul></div></div>"
         ) if points else picture
-        pages.append((chart.title, meta, body, ""))
+        pages.append((chart.title, meta, body))
 
     # 6. The one thing that would change the view.
     watch = checklist_watch(checklist) if checklist is not None else ""
@@ -1783,7 +1789,7 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
                 f'<p class="s-points" style="font-size:1.02em;max-width:64ch;margin-top:.8em">'
                 f"{escape(risk)}</p>"
             )
-        pages.append(("What would change the view", meta, body, ""))
+        pages.append(("What would change the view", meta, body))
 
     total = len(pages) + 1
     cover = (
@@ -1797,8 +1803,8 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
         f'<div class="s-foot"><span>{_FIRM}</span><span>Page 1 of {total}</span></div></section>'
     )
     return '<div class="deck">' + cover + "".join(
-        _deck_page(title, page_meta, body, index, total, note)
-        for index, (title, page_meta, body, note) in enumerate(pages, 2)
+        _deck_page(title, page_meta, body, index, total)
+        for index, (title, page_meta, body) in enumerate(pages, 2)
     ) + "</div>"
 
 

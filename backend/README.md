@@ -149,3 +149,50 @@ Feedback follows the same retention rule as reports: temporary unless
 Login and per-user history. Report URLs are unguessable but **unauthenticated** —
 anyone with the link can read the report until it expires. Treat that as public
 sharing, and don't put client-identifying material into a prompt.
+
+## Logging feedback to a Google Doc
+
+Reader feedback is always written to `<reports dir>/_feedback/feedback.jsonl`
+and is readable at `GET /api/feedback`. That file is exempt from the report
+retention purge, but the reports directory defaults to the system temp
+directory — so on a host that redeploys by replacing the container (Railway
+does), it does not survive a deploy. Set `RESEARCHEUS_FEEDBACK_DIR` to a mounted
+volume, mirror to a Google Doc, or both.
+
+The mirror uses an Apps Script web app rather than the Google Docs API on
+purpose: it is authorised by its URL, so this application holds no Google
+credentials and cannot act as you.
+
+1. Create the Google Doc that will hold the log.
+2. In that doc: **Extensions → Apps Script**, and replace the contents with:
+
+```javascript
+function doPost(e) {
+  var entry = JSON.parse(e.postData.contents);
+  var body = DocumentApp.getActiveDocument().getBody();
+  var verdict = entry.helpful === true ? 'Helpful'
+              : entry.helpful === false ? 'Not helpful' : 'No rating';
+  body.appendParagraph(
+    entry.at + '  ·  ' + (entry.ticker || '—') + '  ·  ' +
+    (entry.mode || '—') + '  ·  ' + verdict
+  ).setHeading(DocumentApp.ParagraphHeading.HEADING3);
+  if (entry.message) { body.appendParagraph(entry.message); }
+  if (entry.job_id) {
+    body.appendParagraph('Report: ' + entry.job_id).setItalic(true);
+  }
+  return ContentService.createTextOutput('ok');
+}
+```
+
+3. **Deploy → New deployment → Web app**. Execute as *me*; who has access,
+   *Anyone*. Copy the `/exec` URL.
+4. Set `RESEARCHEUS_FEEDBACK_WEBHOOK` to that URL on the server and redeploy.
+
+Treat the URL as a secret: anyone holding it can append to the doc. It is only
+ever read from the environment — never logged, never sent to a model, never
+returned by the API.
+
+Delivery is best-effort and off the request path. The local file is the record
+of truth: an entry that cannot be delivered stays pending and is retried on the
+next submission and at startup, so nothing is lost while the script is down.
+`GET /api/feedback` reports `awaiting_delivery` so a backlog is visible.
