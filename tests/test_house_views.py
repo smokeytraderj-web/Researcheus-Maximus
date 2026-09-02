@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from core.models import HouseView
+from core.models import HouseNote, HouseView
 from research import house_views
 
 
@@ -164,3 +164,90 @@ class ReportIntegrationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _jpmm(**overrides) -> HouseView:
+    """The AXON page as it actually reads on J.P. Morgan Markets."""
+    values = dict(
+        house="J.P. Morgan", ticker="AXON", equity_rating="Overweight",
+        price_target=755.0, target_horizon="End date 31 Dec 2027", upside_pct=0.457,
+        analyst="Joseph Cardoso", published="2026-08-06",
+        sector="Aerospace & Defense", region="North America",
+        profile=(
+            ("Price ($)", "518.30"), ("Date of price", "01 Sep 26"),
+            ("Market cap ($ mn)", "42,748"), ("Shares O/S (mn)", "82"),
+            ("Free float (%)", "94.8%"), ("3M ADV ($ mn)", "531.1"),
+            ("52-week range ($)", "792.16-339.01"), ("Volatility (90 Day)", "72"),
+            ("BBG ANR (Buy | Hold | Sell)", "19|1|0"),
+        ),
+        latest_note=HouseNote(
+            title="Axon: 2Q26 Review: Raises Revenue Bar in Typical Fashion",
+            summary="Revenue and EBITDA ahead of expectations on broad-based momentum.",
+            published="2026-08-06", authors="Joseph Cardoso, Marc Vitenzon", kind="Equity",
+        ),
+    )
+    values.update(overrides)
+    return HouseView(**values)
+
+
+class EquityProfileTests(unittest.TestCase):
+    def test_the_profile_price_and_its_date_are_read_back(self):
+        price, dated = _jpmm().profile_price()
+        self.assertEqual(price, 518.30)
+        self.assertEqual(dated, "01 Sep 26")
+
+    def test_a_profile_row_must_be_a_labelled_value(self):
+        with self.assertRaises(ValueError):
+            _jpmm(profile=(("", "518.30"),)).validate()
+
+    def test_a_note_must_be_titled_and_dated(self):
+        with self.assertRaises(ValueError):
+            _jpmm(latest_note=HouseNote(title="", published="2026-08-06")).validate()
+        with self.assertRaises(ValueError):
+            _jpmm(latest_note=HouseNote(title="A note", published="")).validate()
+
+    def test_the_whole_page_survives_a_store_round_trip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "house_views.json"
+            house_views.save(_jpmm(), path)
+            back = house_views.for_ticker("AXON", path)[0]
+            self.assertEqual(back.upside_pct, 0.457)
+            self.assertEqual(back.sector, "Aerospace & Defense")
+            self.assertEqual(len(back.profile), 9)
+            self.assertEqual(back.profile[8], ("BBG ANR (Buy | Hold | Sell)", "19|1|0"))
+            self.assertEqual(back.latest_note.authors, "Joseph Cardoso, Marc Vitenzon")
+
+
+class PriceDisagreementTests(unittest.TestCase):
+    """The house quotes upside against its own price on its own date. When that
+    price and ours differ materially the report has to say so, or the upside
+    reads as if it were measured against ours."""
+
+    def test_close_prices_raise_nothing(self):
+        self.assertEqual(house_views.price_disagreement(_jpmm(), 520.0), "")
+
+    def test_a_material_gap_is_reported_with_both_prices_and_the_date(self):
+        text = house_views.price_disagreement(_jpmm(), 455.0)
+        self.assertIn("$518.30", text)
+        self.assertIn("$455.00", text)
+        self.assertIn("01 Sep 26", text)
+        self.assertIn("their own price", text)
+
+    def test_a_house_quoting_no_price_raises_nothing(self):
+        self.assertEqual(house_views.price_disagreement(_jpmm(profile=()), 455.0), "")
+
+
+class JpmmReportTests(ReportIntegrationTests):
+    def test_the_full_page_renders_rating_profile_and_note(self):
+        html = self._render((_jpmm(),))
+        for expected in ("Overweight", "$755.00", "+45.7%", "End date 31 Dec 2027",
+                         "Joseph Cardoso", "Aerospace &amp; Defense",
+                         "Market cap ($ mn)", "42,748", "19|1|0",
+                         "2Q26 Review", "broad-based momentum"):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, html)
+
+    def test_a_disagreeing_house_price_is_flagged_in_the_report(self):
+        # The demo result prices AXON around $76, far from the profile's $518.
+        html = self._render((_jpmm(ticker="AXON"),))
+        self.assertIn("their upside is measured against their own price", html)

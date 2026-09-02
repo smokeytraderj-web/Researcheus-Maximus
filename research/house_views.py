@@ -33,7 +33,7 @@ import os
 import threading
 from pathlib import Path
 
-from core.models import HouseView
+from core.models import HouseNote, HouseView
 
 _lock = threading.Lock()
 
@@ -47,8 +47,14 @@ STALE_AFTER_DAYS = 180
 _FIELDS = (
     "house", "ticker", "equity_rating", "price_target", "currency", "target_horizon",
     "credit_rating", "credit_rating_scale", "analyst", "published", "document",
-    "locator", "retrieved_at",
+    "locator", "retrieved_at", "sector", "region", "upside_pct",
 )
+_TEXT_FIELDS = tuple(f for f in _FIELDS if f not in {"price_target", "upside_pct"})
+_NOTE_FIELDS = ("title", "summary", "published", "authors", "kind", "locator")
+# A house's price and this analysis's price are two observations of the same
+# thing. Past this gap the report says so, because the house's quoted upside is
+# measured against theirs, not ours.
+PRICE_DISAGREEMENT = 0.02
 
 
 def store_path() -> Path:
@@ -77,10 +83,14 @@ def _to_view(record: dict) -> HouseView | None:
     report is worse than a missing one.
     """
     try:
+        raw_note = record.get("latest_note") or None
+        note = HouseNote(**{f: raw_note.get(f, "") for f in _NOTE_FIELDS}) if raw_note else None
         view = HouseView(
-            **{field: record.get(field, "") for field in _FIELDS if field != "price_target"},
+            **{field: record.get(field, "") for field in _TEXT_FIELDS},
             price_target=record.get("price_target"),
-            profile=tuple(tuple(row) for row in record.get("profile", ())),
+            upside_pct=record.get("upside_pct"),
+            profile=tuple(tuple(str(cell) for cell in row) for row in record.get("profile", ())),
+            latest_note=note,
             notes=tuple(record.get("notes", ())),
         )
         view.validate()
@@ -99,6 +109,10 @@ def save(view: HouseView, path: Path | None = None) -> None:
         data[_key(view.house, view.ticker)] = {
             **{field: getattr(view, field) for field in _FIELDS},
             "profile": [list(row) for row in view.profile],
+            "latest_note": (
+                {f: getattr(view.latest_note, f) for f in _NOTE_FIELDS}
+                if view.latest_note is not None else None
+            ),
             "notes": list(view.notes),
         }
         target.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
@@ -153,3 +167,25 @@ def freshness(view: HouseView, as_of: str) -> tuple[str, bool]:
         return f"published {age} days ago", False
     months = round(age / 30.4)
     return f"published about {months} month{'s' if months != 1 else ''} ago", age > STALE_AFTER_DAYS
+
+
+def price_disagreement(view: HouseView, current_price: float) -> str:
+    """How the house's own price differs from this analysis's, when it matters.
+
+    Returns an empty string when the two agree closely enough to compare, or
+    when the house quotes no price. Not a blocking conflict: the two are
+    observations at different times and the report says so rather than picking
+    one. It matters because the house's upside is measured against theirs.
+    """
+    house_price, dated = view.profile_price()
+    if not house_price or current_price <= 0:
+        return ""
+    gap = abs(house_price - current_price) / current_price
+    if gap < PRICE_DISAGREEMENT:
+        return ""
+    when = f" as of {dated}" if dated else ""
+    return (
+        f"{view.house} quotes ${house_price:,.2f}{when}, {gap:.1%} "
+        f"{'above' if house_price > current_price else 'below'} the ${current_price:,.2f} this "
+        "analysis uses; their upside is measured against their own price."
+    )

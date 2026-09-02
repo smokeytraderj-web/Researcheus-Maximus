@@ -101,6 +101,29 @@ class SourceRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class HouseNote:
+    """A research note a house has published, as a citation plus a summary.
+
+    The summary is a condensed account of the note, not the note. What the
+    report carries is a pointer -- who published it, when, what it concluded --
+    so a reader can ask for the note itself through their own entitlement.
+    """
+
+    title: str
+    summary: str = ""
+    published: str = ""
+    authors: str = ""
+    kind: str = ""
+    locator: str = ""
+
+    def validate(self) -> None:
+        if not self.title.strip():
+            raise ValueError("A research note must carry its title.")
+        if not self.published.strip():
+            raise ValueError("A research note must carry the date it was published.")
+
+
+@dataclass(frozen=True, slots=True)
 class HouseView:
     """A named research house's published view on a security.
 
@@ -129,7 +152,14 @@ class HouseView:
     document: str = ""
     locator: str = ""
     retrieved_at: str = ""
+    sector: str = ""
+    region: str = ""
+    # The upside the house itself quotes, which is measured against the house's
+    # own price on its own date -- not against this report's current price. Kept
+    # as published rather than recomputed, so the figure matches their page.
+    upside_pct: float | None = None
     profile: tuple[tuple[str, str], ...] = ()
+    latest_note: "HouseNote | None" = None
     notes: tuple[str, ...] = ()
 
     def validate(self) -> None:
@@ -149,6 +179,32 @@ class HouseView:
         # view published yesterday from one published two years ago.
         if not self.published.strip():
             raise ValueError("A house view must carry the date it was published.")
+        for row in self.profile:
+            if len(row) != 2 or not str(row[0]).strip():
+                raise ValueError("Each profile row must be a labelled value.")
+        if self.latest_note is not None:
+            self.latest_note.validate()
+
+    def profile_price(self) -> tuple[float | None, str]:
+        """The price the house's own profile quotes, and the date it carries.
+
+        Returned so the report can say when it disagrees with the price this
+        analysis was run at. The house's upside is measured against this figure,
+        so a reader comparing the two needs both, with their dates.
+        """
+        price: float | None = None
+        dated = ""
+        for label, value in self.profile:
+            key = str(label).strip().casefold()
+            if price is None and key.startswith("price"):
+                cleaned = str(value).replace(",", "").replace("$", "").strip()
+                try:
+                    price = float(cleaned)
+                except ValueError:
+                    price = None
+            elif "date of price" in key:
+                dated = str(value).strip()
+        return price, dated
 
     def age_days(self, as_of: str) -> int | None:
         """Days between publication and the analysis date, or None if unparseable."""

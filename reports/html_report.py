@@ -132,6 +132,17 @@ _DYNAMIC_CSS = r"""
 .hv-figs dt{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .hv-figs dd{margin:3px 0 0;font-size:16px;font-weight:600;color:var(--ink)}
 .hv-h{font-size:11px;font-weight:400;color:var(--muted)}
+.hv-ctx{font-size:11.5px;color:var(--muted);margin:-4px 0 11px}
+.hv-flag{margin-top:11px;padding:9px 12px;background:#FDFAF2;border-left:2px solid var(--gold);font-size:11.5px;color:var(--neutral);line-height:1.5}
+.hv-body{margin-top:13px}
+.hv-profile{border-collapse:collapse;font-size:12px;width:100%;max-width:420px}
+.hv-profile th{text-align:left;font-weight:500;color:var(--muted);padding:5px 10px 5px 0;border-bottom:1px solid var(--line-2)}
+.hv-profile td{text-align:right;color:var(--ink);padding:5px 0;border-bottom:1px solid var(--line-2);font-weight:500}
+.hv-k{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:6px}
+.hv-note-block{margin-top:14px;padding-top:13px;border-top:1px solid var(--line-2)}
+.hv-note-title{font-family:'Source Serif 4',serif;font-size:14.5px;font-weight:600;color:var(--ink);line-height:1.35}
+.hv-note-sum{font-size:12.5px;line-height:1.6;color:var(--body);margin:7px 0 0}
+.hv-note-by{font-size:11px;color:var(--muted);margin-top:7px}
 .hv-doc{margin-top:10px;font-size:11.5px;color:var(--muted)}
 .hv-stale{margin-top:9px;font-size:11.5px;color:#8A6D1F}
 .hv-note{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:12px}
@@ -781,34 +792,65 @@ def _topline(result: ResearchResult) -> str:
 def _house_views_html(result: ResearchResult) -> str:
     """Third-party house views, attributed and dated.
 
-    Shown as evidence beside our own conclusion, never folded into it. Each row
-    keeps the house's own rating wording and states how old the view is, because
-    a price target with no date beside it reads as current however old it is.
+    Shown as evidence beside our own conclusion, never folded into it. Each view
+    keeps the house's own rating wording, states how old it is -- a price target
+    with no date beside it reads as current however old it is -- and says so
+    when the house's own price differs materially from the one this analysis was
+    run at, because the upside they quote is measured against theirs.
     """
     views = getattr(result, "house_views", ())
     if not views:
         return ""
-    rows = []
+    blocks = []
     for view in views:
         age, stale = house_views.freshness(view, result.as_of)
         figures = []
         if view.equity_rating:
-            figures.append(f'<dt>Equity rating</dt><dd>{escape(view.equity_rating)}</dd>')
+            figures.append(f"<dt>Equity rating</dt><dd>{escape(view.equity_rating)}</dd>")
         if view.price_target is not None:
-            horizon = f' <span class="hv-h">{escape(view.target_horizon)}</span>' if view.target_horizon else ""
+            extra = []
+            if view.upside_pct is not None:
+                extra.append(f"{view.upside_pct:+.1%}")
+            if view.target_horizon:
+                extra.append(escape(view.target_horizon))
+            tail = f' <span class="hv-h">{" · ".join(extra)}</span>' if extra else ""
             figures.append(
-                f'<dt>Price target</dt><dd class="num">{_money(view.price_target)}{horizon}</dd>'
+                f'<dt>Price target</dt><dd class="num">{_money(view.price_target)}{tail}</dd>'
             )
         if view.credit_rating:
             scale = f' <span class="hv-h">{escape(view.credit_rating_scale)}</span>' if view.credit_rating_scale else ""
-            figures.append(f'<dt>Credit rating</dt><dd>{escape(view.credit_rating)}{scale}</dd>')
-        attribution = escape(view.analyst) + " · " if view.analyst else ""
-        rows.append(
+            figures.append(f"<dt>Credit rating</dt><dd>{escape(view.credit_rating)}{scale}</dd>")
+
+        context = " · ".join(escape(part) for part in (view.analyst, view.sector, view.region) if part)
+        profile = ""
+        if view.profile:
+            rows = "".join(
+                f"<tr><th>{escape(str(label))}</th><td class=\"num\">{escape(str(value))}</td></tr>"
+                for label, value in view.profile
+            )
+            profile = f'<table class="hv-profile"><tbody>{rows}</tbody></table>'
+
+        note_html = ""
+        note = view.latest_note
+        if note is not None:
+            byline = " · ".join(escape(p) for p in (note.kind, note.authors, note.published) if p)
+            note_html = (
+                '<div class="hv-note-block"><div class="hv-k">Latest note</div>'
+                f'<div class="hv-note-title">{escape(note.title)}</div>'
+                + (f'<p class="hv-note-sum">{escape(note.summary)}</p>' if note.summary else "")
+                + (f'<div class="hv-note-by">{byline}</div>' if byline else "")
+                + "</div>"
+            )
+        conflict = house_views.price_disagreement(view, result.current_price)
+        blocks.append(
             f'<div class="hv{" stale" if stale else ""}">'
             f'<div class="hv-top"><span class="hv-house">{escape(view.house)}</span>'
-            f'<span class="hv-age">{attribution}{escape(age)}</span></div>'
-            f'<dl class="hv-figs">{"".join(figures)}</dl>'
-            + (f'<div class="hv-doc">{escape(view.document)}</div>' if view.document else "")
+            f'<span class="hv-age">{escape(age)}</span></div>'
+            + (f'<div class="hv-ctx">{context}</div>' if context else "")
+            + f'<dl class="hv-figs">{"".join(figures)}</dl>'
+            + (f'<div class="hv-flag">{escape(conflict)}</div>' if conflict else "")
+            + note_html
+            + (f'<div class="hv-body">{profile}</div>' if profile else "")
             + (f'<div class="hv-stale">Published more than {house_views.STALE_AFTER_DAYS} days ago; '
                "confirm it still stands before relying on it.</div>" if stale else "")
             + "</div>"
@@ -816,8 +858,8 @@ def _house_views_html(result: ResearchResult) -> str:
     return (
         '<section id="houses"><div class="sec-head"><h2>Research house views</h2>'
         f'<span class="verdict v-neu">{len(views)} cited</span></div>'
-        f'<div class="hv-list">{"".join(rows)}</div>'
-        '<p class="hv-note">Published views of third-party research houses, shown as evidence. '
+        f'<div class="hv-list">{"".join(blocks)}</div>'
+        '<p class="hv-note">Published views of third-party research houses, cited as evidence. '
         "Each house uses its own rating scale, which is not this report's; the rating above is "
         "this firm's own conclusion.</p></section>"
     )

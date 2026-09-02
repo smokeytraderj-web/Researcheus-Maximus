@@ -37,7 +37,7 @@ from backend.jobs import (
     purge_incomplete,
     registry,
 )
-from core.models import HouseView
+from core.models import HouseNote, HouseView
 from core.request_builder import build_request
 from research import house_views
 from services.research_runner import ResearchRunner
@@ -344,13 +344,29 @@ class HouseViewIn(BaseModel):
     published: str = Field(default="", max_length=32)
     document: str = Field(default="", max_length=300)
     locator: str = Field(default="", max_length=500)
+    sector: str = Field(default="", max_length=80)
+    region: str = Field(default="", max_length=60)
+    upside_pct: float | None = None
+    # The house's own profile rows, label/value, exactly as the portal states
+    # them -- units and all, so nothing is silently reinterpreted.
+    profile: list[tuple[str, str]] = Field(default_factory=list, max_length=40)
+    note_title: str = Field(default="", max_length=300)
+    note_summary: str = Field(default="", max_length=2000)
+    note_published: str = Field(default="", max_length=32)
+    note_authors: str = Field(default="", max_length=300)
+    note_kind: str = Field(default="", max_length=40)
+    note_locator: str = Field(default="", max_length=500)
 
 
 @app.post("/api/house-views")
 def save_house_view(body: HouseViewIn) -> dict:
     """Record a house's current view of a security, superseding any earlier one."""
+    fields = body.model_dump()
+    note_fields = {k[5:]: fields.pop(k) for k in list(fields) if k.startswith("note_")}
+    note = HouseNote(**note_fields) if note_fields.get("title", "").strip() else None
     view = HouseView(
-        **body.model_dump(),
+        **fields | {"profile": tuple(tuple(row) for row in fields.pop("profile", []))},
+        latest_note=note,
         retrieved_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
     )
     try:
