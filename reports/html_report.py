@@ -132,6 +132,38 @@ _DYNAMIC_CSS = r"""
    Horizontal, one column per criterion, so the whole thing reads at a glance right under
    the masthead -- this is the report's most-scanned piece of reasoning, not a buried detail. */
 .cc-card{margin-top:16px;margin-bottom:24px}
+/* Price-scenario panel (Deep Technical only). The previous version showed the
+   same thing three ways at once -- a slider, a dashed level ladder and a side
+   column of figures -- so nothing led. This states the tested price once, offers
+   the planned levels as discrete choices, which is how the decision is actually
+   framed, and puts the consequences in the report's own horizontal figure strip.
+   Wording here deliberately avoids the panel's display name: this stylesheet is
+   shared with the General brief, which must not mention a control it lacks. */
+.scn{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:22px 24px 20px}
+.scn-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.scn-k{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.scn-price{font-family:'Source Serif 4',Georgia,serif;font-size:40px;font-weight:700;color:var(--ink);line-height:1.05;margin-top:5px}
+.scn-delta{font-size:11.5px;color:var(--muted);margin-top:3px}
+.scn-chips{display:flex;flex-wrap:wrap;gap:7px;justify-content:flex-end;max-width:430px}
+.scn-chip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;cursor:pointer;
+  background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 11px;
+  font:600 10px/1.1 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+  transition:border-color .13s,color .13s,box-shadow .13s}
+.scn-chip span{font-size:12.5px;letter-spacing:0;text-transform:none;color:var(--ink);font-weight:600}
+.scn-chip:hover{border-color:var(--ink);color:var(--ink)}
+.scn-chip[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);box-shadow:0 0 0 2px rgba(22,35,63,.10)}
+.scn-slider{margin-top:18px}
+.scn-slider input[type=range]{width:100%;display:block}
+.scn-ticks{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);margin-top:5px}
+.scn .zone{margin-top:14px;padding:13px 15px;border:1px solid var(--line);border-left:3px solid var(--ink);
+  background:#fff;border-radius:0 6px 6px 0;font-size:13.5px;line-height:1.5;color:var(--ink-2)}
+.scn-out{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:16px}
+.scn-cell{background:#fff;padding:12px 14px}
+.scn-ck{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.scn-cv{font-size:19px;font-weight:600;color:var(--ink);margin-top:5px}
+.scn-note{font-size:10.5px;color:var(--muted);margin-top:11px;line-height:1.45}
+@media (max-width:820px){.scn-out{grid-template-columns:repeat(2,minmax(0,1fr))}.scn-chips{justify-content:flex-start;max-width:none}}
 .cc-top{display:flex;align-items:center;gap:16px;padding:0 1px 16px}
 .cc-score{font-family:'Source Serif 4',Georgia,serif;font-size:34px;font-weight:700;color:var(--ink);line-height:1;white-space:nowrap}
 .cc-score.perfect{color:var(--bull)}
@@ -248,6 +280,24 @@ _DYNAMIC_CSS = r"""
    command real screen space; print has no such budget, so reset both here rather
    than let the enlarged base bleed into the page count. */
 .general-brief .cc-col{padding:11px 12px 10px;min-height:0}
+/* The Technical report prints the checklist too, and at screen size its cards
+   are ~62mm tall -- enough to be pushed to a page of their own, stranding the
+   call above them on a near-empty one. Compact them the same way the brief
+   does, and keep the call, the boxes and the reasoning on one page. */
+.tech-report .cc-card{margin-top:12px;margin-bottom:12px;break-before:avoid}
+.tech-report .cc-top{padding:0 1px 10px}
+.tech-report .cc-score{font-size:22px}
+.tech-report .cc-grid{gap:9px}
+.tech-report .cc-col{padding:10px 11px 9px;min-height:0;box-shadow:none}
+.tech-report .cc-col-top{gap:6px;margin-bottom:6px}
+.tech-report .cc-box{width:14px;height:14px;border-radius:4px;font-size:10px}
+.tech-report .cc-label{font-size:9.5px}
+.tech-report .cc-detail{font-size:9px}
+.tech-report .cc-explain{font-size:8px}
+.tech-report #call{break-inside:auto;margin-top:14px}
+.tech-report .verdict-hero{padding:10px 0 8px}
+.tech-report .verdict-hero .vh-word{font-size:26px}
+.tech-report .verdict-hero,.tech-report #call .pos-bar{break-after:avoid}
 .general-brief .cc-col-top{gap:6px;margin-bottom:7px}
 .general-brief .cc-box{width:14px;height:14px;border-radius:4px;font-size:10px}
 .general-brief .cc-label{font-size:9.5px}
@@ -883,7 +933,35 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
     tv_tab = '<button class="evidence-tab" role="tab" aria-selected="false" aria-controls="evidenceTradingView" id="evidenceTradingViewTab">TradingView</button>'
     tv_panel = '<div class="evidence-panel" id="evidenceTradingView" role="tabpanel" aria-labelledby="evidenceTradingViewTab" hidden><figure class="chart" style="padding:0"><div id="tvWidget" class="tv-widget"></div></figure></div>'
     scenario_tab = f'<button class="evidence-tab" role="tab" aria-selected="false" aria-controls="evidenceScenario" id="evidenceScenarioTab">Scenario tester</button>'
-    scenario_panel = f'''<div class="evidence-panel" id="evidenceScenario" role="tabpanel" aria-labelledby="evidenceScenarioTab" hidden><div class="scen"><div><div class="slider-lab"><span class="big num" id="sPrice">{_money(result.current_price)}</span><span class="k" id="sDelta">At today's price</span></div><div class="slider-control"><input type="range" id="slider" min="{slider_min:.2f}" max="{slider_max:.2f}" step="0.01" value="{result.current_price:.2f}" aria-label="Test a future price"><div class="ticks"><span style="left:0%">{_money(slider_min)}</span><span style="left:100%">{_money(slider_max)}</span></div></div><div class="zone" id="zone" aria-live="polite"></div><div class="ladder compact" id="scenarioLadder"></div></div><div class="out"><div class="o-row"><span class="o-k">Change from today</span><span class="o-v num" id="oChg">0.0%</span></div><div class="o-row"><span class="o-k">Vs. entry midpoint</span><span class="o-v num" id="oEntry">—</span></div><div class="o-row"><span class="o-k">Distance to stop</span><span class="o-v num" id="oStop">—</span></div><div class="o-row"><span class="o-k">On a $100,000 position</span><span class="o-v num" id="oPnl">$0</span></div><div class="o-note">Illustrative only. Excludes dividends, commissions, taxes and execution differences.</div></div></div></div>'''
+    # Discrete, meaningful levels first: an advisor thinks in "what if it hits the
+    # stop", not in dragging a slider until a number looks right. The slider stays
+    # for values between them, and the outcome strip reuses the report's own
+    # horizontal figure language instead of a competing side column.
+    chips = "".join(
+        f'<button type="button" class="scn-chip" data-price="{value!r}">{label}<span class="num">{_money(value)}</span></button>'
+        for label, value in (
+            ("Stop", plan.stop_level),
+            ("Entry", entry_mid),
+            ("Today", result.current_price),
+            ("Target 1", plan.first_target),
+            ("Target 2", plan.second_target),
+        )
+    )
+    scenario_panel = f'''<div class="evidence-panel" id="evidenceScenario" role="tabpanel" aria-labelledby="evidenceScenarioTab" hidden><div class="scn">
+  <div class="scn-head">
+    <div><div class="scn-k">Test price</div><div class="scn-price num" id="sPrice">{_money(result.current_price)}</div><div class="scn-delta" id="sDelta">At today\'s price</div></div>
+    <div class="scn-chips" role="group" aria-label="Jump to a planned level">{chips}</div>
+  </div>
+  <div class="scn-slider"><input type="range" id="slider" min="{slider_min:.2f}" max="{slider_max:.2f}" step="0.01" value="{result.current_price:.2f}" aria-label="Test a future price"><div class="scn-ticks"><span>{_money(slider_min)}</span><span>{_money(slider_max)}</span></div></div>
+  <div class="zone" id="zone" aria-live="polite"></div>
+  <div class="scn-out">
+    <div class="scn-cell"><div class="scn-ck">Change from today</div><div class="scn-cv num" id="oChg">0.0%</div></div>
+    <div class="scn-cell"><div class="scn-ck">Vs. entry midpoint</div><div class="scn-cv num" id="oEntry">&mdash;</div></div>
+    <div class="scn-cell"><div class="scn-ck">Distance to stop</div><div class="scn-cv num" id="oStop">&mdash;</div></div>
+    <div class="scn-cell"><div class="scn-ck">On a $100,000 position</div><div class="scn-cv num" id="oPnl">$0</div></div>
+  </div>
+  <div class="scn-note">Illustrative only. Excludes dividends, commissions, taxes and execution differences.</div>
+</div></div>'''
     page2_strip = f'''<div class="p2-strip"><span class="p2-co">{escape(result.identity.company_name)} <span class="num">{escape(result.identity.ticker)}</span></span><span class="p2-px num">{_money(result.current_price)}</span><span class="verdict {tone_class}">{escape(result.lead_rating.value)}</span></div>'''
     body = f"""
 <div class="shell">
@@ -1069,14 +1147,41 @@ function renderLadder(containerId,testPrice,height){
   });
   container.innerHTML=h;
 }
+// The tested price, not the slider, is the source of truth. A range input
+// quantizes to its step, so setting it to a planned level lands a fraction of a
+// cent short -- enough for "at the first target" to evaluate as "below the first
+// target" and print the wrong action. The slider still drives this variable when
+// dragged; it just no longer defines it.
+var testPrice=null;
 function updateScenario(){
-  var slider=document.getElementById('slider');if(!slider)return;var p=Number(slider.value),chg=p/PLAN.current-1,entry=p/PLAN.entryMid-1,dist=p-PLAN.stop;
+  var slider=document.getElementById('slider');if(!slider)return;
+  if(testPrice===null)testPrice=Number(slider.value);
+  var p=testPrice,chg=p/PLAN.current-1,entry=p/PLAN.entryMid-1,dist=p-PLAN.stop;
+  // Below a cent on a $100k position is zero, not a signed nothing.
+  if(Math.abs(chg)<1e-7)chg=0; if(Math.abs(entry)<1e-7)entry=0; if(Math.abs(dist)<0.005)dist=0;
   document.getElementById('sPrice').textContent=money(p);document.getElementById('sDelta').textContent=Math.abs(chg)<.0001?"At today's price":pct(chg)+' from today';
-  document.getElementById('oChg').textContent=pct(chg);document.getElementById('oEntry').textContent=pct(entry);document.getElementById('oStop').textContent=money(Math.abs(dist))+' '+(dist>=0?'above':'below');document.getElementById('oPnl').textContent=(chg>=0?'+':'−')+money(Math.abs(chg*100000));
-  var z=document.getElementById('zone');if(p<PLAN.stop)z.innerHTML='<b>Invalidated.</b> Price is below the planned stop; the setup no longer qualifies.';else if(p<PLAN.entryLow)z.innerHTML='<b>Below the entry zone.</b> Wait for price to reclaim structure before considering an order.';else if(p<=PLAN.entryHigh)z.innerHTML='<b>Inside the entry zone.</b> Act only if the stated confirmation is present.';else if(p<PLAN.target1)z.innerHTML='<b>Above the entry zone.</b> Avoid chasing; reassess reward to risk.';else if(p<PLAN.target2)z.innerHTML='<b>First target reached.</b> Review risk, sizing and whether to trail the stop.';else z.innerHTML='<b>Second target reached.</b> Re-underwrite rather than assuming further upside.';
-  renderLadder('scenarioLadder',p,190);
+  document.getElementById('oChg').textContent=pct(chg);document.getElementById('oEntry').textContent=pct(entry);document.getElementById('oStop').textContent=dist===0?money(0)+' — at the stop':money(Math.abs(dist))+' '+(dist>0?'above':'below');document.getElementById('oPnl').textContent=chg===0?money(0):(chg>0?'+':'−')+money(Math.abs(chg*100000));
+  var z=document.getElementById('zone');if(p<=PLAN.stop)z.innerHTML='<b>Invalidated.</b> Price is below the planned stop; the setup no longer qualifies.';else if(p<PLAN.entryLow)z.innerHTML='<b>Below the entry zone.</b> Wait for price to reclaim structure before considering an order.';else if(p<=PLAN.entryHigh)z.innerHTML='<b>Inside the entry zone.</b> Act only if the stated confirmation is present.';else if(p<PLAN.target1)z.innerHTML='<b>Above the entry zone.</b> Avoid chasing; reassess reward to risk.';else if(p<PLAN.target2)z.innerHTML='<b>First target reached.</b> Review risk, sizing and whether to trail the stop.';else z.innerHTML='<b>Second target reached.</b> Re-underwrite rather than assuming further upside.';
+  // The chip matching the tested price reads as selected, so the preset levels
+  // stay meaningful after the slider has been dragged off one of them.
+  document.querySelectorAll('.scn-chip').forEach(function(chip){
+    chip.setAttribute('aria-pressed', Number(chip.dataset.price)===p ? 'true' : 'false');
+  });
 }
-var slider=document.getElementById('slider');if(slider){slider.addEventListener('input',updateScenario);updateScenario()}
+var slider=document.getElementById('slider');
+if(slider){
+  slider.addEventListener('input',function(){testPrice=Number(slider.value);updateScenario();});
+  document.querySelectorAll('.scn-chip').forEach(function(chip){
+    chip.addEventListener('click',function(){
+      testPrice=Number(chip.dataset.price);
+      // The slider only follows, clamped to its own range: a wide plan can put a
+      // target past the end of the track without that changing the tested price.
+      slider.value=Math.min(Math.max(testPrice,Number(slider.min)),Number(slider.max));
+      updateScenario();
+    });
+  });
+  updateScenario();
+}
 renderLadder('ladder',null,238);
 """
 
