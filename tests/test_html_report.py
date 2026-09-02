@@ -222,8 +222,17 @@ class SlideDeckTests(unittest.TestCase):
         deck = deck_page[deck_page.index('class="deck"'):]
         self.assertIn('class="slide cover"', deck)      # the navy title cover
         self.assertIn('class="s-rule"', deck)           # gold rule under titles
-        self.assertIn('class="s-ring"', deck)           # the firm monogram
+        self.assertIn('class="s-mono"', deck)           # the firm's mark
         self.assertIn("#BFA054", deck_page)             # the template's gold
+
+    def test_the_cover_carries_the_firm_mark_as_an_embedded_image(self):
+        # The real seal, not a redrawn approximation of it -- and inlined, so a
+        # report opened from a mail attachment with no network still shows it.
+        from reports.html_report import _firm_mark
+        mark = _firm_mark()
+        self.assertTrue(mark.startswith('<img src="data:image/png;base64,'), mark[:60])
+        deck = self._render("general")
+        self.assertIn(mark, deck)
 
     def test_the_deck_has_no_contents_or_disclosure_slide(self):
         # Both were cut: a seven-page deck does not need a table of contents,

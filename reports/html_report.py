@@ -13,6 +13,7 @@ import mimetypes
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from html import escape
 from pathlib import Path
 
@@ -1471,19 +1472,14 @@ body.deck-on{background:#0A1223}
 /* --- Cover: the firm's monogram, to the template's own geometry ---------- */
 /* Outer ring 11.25% of slide width, inner 9.15%, "GS" at 2.92%, gold #BFA054 --
    measured off the approved deck rather than approximated by eye. */
-.s-mono{text-align:center;margin-bottom:1.8em}
-/* Sizing and type are kept on separate elements deliberately. Putting the "GS"
-   font-size on the inner ring made its own em 1.88x the slide's, so a ring
-   declared at 5.9em rendered at 11.09 -- larger than the 7.26em ring meant to
-   contain it, and both came out as ellipses. */
-.s-ring{display:inline-flex;align-items:center;justify-content:center;flex:none;
-  width:7.26em;height:7.26em;border:.083em solid #BFA054;border-radius:50%}
-.s-ring i{display:flex;align-items:center;justify-content:center;flex:none;
-  width:5.9em;height:5.9em;border:.05em solid #BFA054;border-radius:50%;font-style:normal}
-.s-ring b{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:1.88em;font-weight:700;
-  color:#BFA054;letter-spacing:.1em;text-indent:.1em;line-height:1}
-.s-firm{margin-top:.85em;font-size:.61em;letter-spacing:.34em;text-transform:uppercase;
-  color:#BFA054}
+/* The firm's actual mark, embedded so the report stays self-contained. Sized to
+   the approved deck's monogram (11.25% of slide width). It carries the firm name
+   and "LLC" in its own ring, so no separate wordmark is set beneath it. */
+/* Larger than the deck's drawn monogram was: the real mark carries the firm
+   name and "LLC" as type inside its ring, and at 11% of slide width that type
+   is not readable. */
+.s-mono{text-align:center;margin-bottom:1.5em}
+.s-mono img{width:10.6em;height:auto;display:inline-block}
 .s-cover-name{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:3.22em;line-height:1.08;
   font-weight:700;color:#FFFFFF;margin:0}
 .s-cover-sub{font-family:'EB Garamond',Garamond,Georgia,serif;font-size:1.42em;color:#C6D0E0;
@@ -1578,6 +1574,20 @@ _DECK_DISCLOSURE = (
     "involves risk, including possible loss of principal. Firm compliance review is required "
     "before client distribution. Internal use only."
 )
+
+
+@lru_cache(maxsize=1)
+def _firm_mark() -> str:
+    """The firm's mark as an inline image, or nothing if it is not on disk.
+
+    Embedded rather than linked: the report is a single self-contained file that
+    has to render from a mail attachment with no network. Cached because it is
+    the same bytes on every report.
+    """
+    data_url = _image_data_url(str(Path(__file__).resolve().parent.parent / "resources" / "gs_logo.png"))
+    if not data_url:
+        return ""
+    return f'<img src="{data_url}" alt="Gottfried &amp; Somberg Wealth Management">'
 
 
 def _deck_page(title: str, meta: str, body: str, number: int, total: int, note: str = "") -> str:
@@ -1778,8 +1788,7 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
     total = len(pages) + 1
     cover = (
         '<section class="slide cover"><div class="s-mid" style="flex:none">'
-        '<div class="s-mono"><span class="s-ring"><i><b>GS</b></i></span>'
-        f'<div class="s-firm">{_FIRM}</div></div>'
+        f'<div class="s-mono">{_firm_mark()}</div>'
         f'<h1 class="s-cover-name">{escape(result.identity.company_name)}</h1>'
         f'<div class="s-cover-sub">{escape(document)} &middot; {escape(result.identity.ticker)} '
         f'&middot; {escape(when)}</div>'
