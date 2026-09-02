@@ -16,7 +16,7 @@ from html import escape
 from pathlib import Path
 
 from core.assessments import condense_reasoning, fundamental_outlook, strip_conclusion_prefix, technical_setup
-from core.conviction_checklist import checklist_narrative
+from core.conviction_checklist import checklist_headlines, checklist_narrative, checklist_watch
 from core.models import ChartRecord, Rating, ResearchRequest, ResearchResult
 
 
@@ -1285,7 +1285,7 @@ body.deck-on{background:#0E1E3A}
 .s-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;
   text-transform:uppercase;color:#7FA0CE;margin-bottom:16px}
 .s-h1{font-family:'Source Serif 4',Georgia,serif;font-size:56px;line-height:1.04;font-weight:600;margin:0;color:#FFFFFF;letter-spacing:-.01em}
-.s-h2{font-family:'Source Serif 4',Georgia,serif;font-size:34px;line-height:1.12;font-weight:600;margin:0 0 22px;color:#FFFFFF}
+.s-h2{font-family:'Source Serif 4',Georgia,serif;font-size:34px;line-height:1.14;font-weight:600;margin:0 0 30px;color:#FFFFFF}
 .s-sub{font-size:16px;color:#9DB4D6;margin-top:14px}
 .s-body{font-size:17px;line-height:1.62;color:#D6E0EF;margin:0}
 .s-body + .s-body{margin-top:14px}
@@ -1294,19 +1294,31 @@ body.deck-on{background:#0E1E3A}
   font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#6F8CB8;padding-top:22px}
 .s-rating{font-family:'Source Serif 4',Georgia,serif;font-size:64px;font-weight:700;line-height:1}
 .s-rating.up{color:#63C89A}.s-rating.down{color:#E8827C}.s-rating.flat{color:#E6C868}
-/* Checklist: five columns, the same five criteria, sized for a room. */
-.s-checks{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:6px}
+/* Checklist on a slide: the criterion and a three-word reading, no detail
+   sentence. The report is where the figures behind each one are set out. */
+.s-checks{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:34px}
 .s-check{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
-  border-radius:10px;padding:16px 15px}
-.s-check-top{display:flex;align-items:center;gap:9px;margin-bottom:9px}
-.s-mark{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;
-  justify-content:center;font-size:13px;font-weight:700;flex:none}
+  border-radius:12px;padding:24px 20px;text-align:center}
+.s-mark{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;
+  justify-content:center;font-size:19px;font-weight:700;margin:0 auto 16px}
 .s-mark.pass{background:#2E8B63;color:#fff}
-.s-mark.fail{background:transparent;border:1.5px solid rgba(255,255,255,.30);color:transparent}
-.s-mark.unconfirmed{background:rgba(255,255,255,.10);border:1.5px solid rgba(255,255,255,.22);color:#9DB4D6;font-size:11px}
-.s-check-label{font-size:14px;font-weight:600;color:#EAF0F9;line-height:1.2}
-.s-check-detail{font-size:11.5px;line-height:1.45;color:#A9BEDC}
-.s-score{font-family:'Source Serif 4',Georgia,serif;font-size:46px;font-weight:700;color:#fff;line-height:1}
+.s-mark.fail{background:rgba(232,130,124,.16);border:1.5px solid #E8827C;color:#E8827C}
+.s-mark.unconfirmed{background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.22);color:#9DB4D6}
+.s-check-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:#7FA0CE;margin-bottom:9px}
+.s-check-read{font-size:17px;line-height:1.3;font-weight:600;color:#EAF0F9}
+.s-scoreline{display:flex;align-items:baseline;gap:12px}
+.s-score{font-family:'Source Serif 4',Georgia,serif;font-size:82px;font-weight:700;color:#fff;line-height:.9}
+.s-scoreof{font-family:'Source Serif 4',Georgia,serif;font-size:34px;color:#7FA0CE}
+.s-scorecap{font-size:19px;color:#9DB4D6;margin-left:6px}
+/* Points, not paragraphs. */
+.s-points{list-style:none;margin:14px 0 0;padding:0}
+.s-points li{font-size:21px;line-height:1.4;color:#EAF0F9;padding-left:26px;position:relative;margin-bottom:16px}
+.s-points li:before{content:"";position:absolute;left:0;top:11px;width:11px;height:11px;
+  border-radius:50%;background:#2E8B63}
+.s-points.against li:before{background:#E8827C}
+.s-lead{font-family:'Source Serif 4',Georgia,serif;font-size:36px;line-height:1.24;
+  color:#fff;font-weight:600;margin:0}
 .s-figs{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(255,255,255,.12);
   border:1px solid rgba(255,255,255,.12);border-radius:10px;overflow:hidden;margin-top:8px}
 .s-fig{background:#12264A;padding:18px 18px}
@@ -1342,51 +1354,67 @@ def _deck_slide(eyebrow: str, body: str, result: ResearchResult) -> str:
 
 def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
                checks_narrative: str, reasoning: str, chart: ChartRecord | None) -> str:
-    """The report as a small deck: one idea per slide, nothing that needs reading twice."""
-    tone = {"up": "up", "down": "down"}.get(_tone(result.lead_rating)[1], "flat")
-    tone_class = "up" if _tone(result.lead_rating)[0] in {"v-bull"} else "down" if _tone(result.lead_rating)[0] in {"v-bear"} else "flat"
+    """The report as a short deck.
+
+    Deliberately not the report reproduced at report density. A slide is read
+    from across a room in seconds, so each one carries a single idea in as few
+    words as will hold it: the criteria as three-word readings rather than their
+    full sentences, the reasoning as a handful of clauses rather than two
+    paragraphs. The report remains the place the evidence is set out in full.
+    """
+    tone_class = _tone(result.lead_rating)[0]
+    tone = "up" if tone_class == "v-bull" else "down" if tone_class == "v-bear" else "flat"
+    checklist = result.conviction_checklist
+    rows = checklist_headlines(checklist) if checklist is not None else ()
     slides = []
 
-    # 1. The call.
+    # 1. The call, and nothing else.
     slides.append(_deck_slide(
         f"{result.horizon.value} view",
         f'<h1 class="s-h1">{escape(result.identity.company_name)}</h1>'
-        f'<div class="s-sub">{escape(result.identity.ticker)} · {escape(result.identity.exchange)} · '
-        f'{_money(result.current_price)} · as of {escape(_date_only(result.as_of))}</div>'
-        f'<div style="margin-top:34px"><div class="s-eyebrow" style="margin-bottom:8px">Our recommendation</div>'
-        f'<div class="s-rating {tone_class}">{escape(result.lead_rating.value)}</div></div>',
+        f'<div class="s-sub">{escape(result.identity.ticker)} · {_money(result.current_price)} · '
+        f'{escape(_date_only(result.as_of))}</div>'
+        f'<div style="margin-top:30px"><div class="s-eyebrow" style="margin-bottom:6px">Our recommendation</div>'
+        f'<div class="s-rating {tone}">{escape(result.lead_rating.value)}</div></div>',
         result,
     ))
 
-    # 2. The checklist, which is the evidence the rating rests on.
-    checklist = result.conviction_checklist
-    if checklist is not None and checklist.criteria:
+    # 2. The score, at a glance. Names and readings only -- the report carries
+    #    the figures behind each one.
+    if rows:
         cells = "".join(
-            f'<div class="s-check"><div class="s-check-top">'
-            f'<span class="s-mark {item.status}">{"&#10003;" if item.passed else "?" if item.passed is None else ""}</span>'
-            f'<span class="s-check-label">{escape(item.label)}</span></div>'
-            f'<div class="s-check-detail">{escape(item.detail)}</div></div>'
-            for item in checklist.criteria
+            f'<div class="s-check"><span class="s-mark {status}">'
+            f'{"&#10003;" if status == "pass" else "&ndash;" if status == "unconfirmed" else "&times;"}</span>'
+            f'<div class="s-check-label">{escape(label)}</div>'
+            f'<div class="s-check-read">{escape(reading)}</div></div>'
+            for label, reading, status in rows
         )
+        judged = len(rows) - sum(1 for _, _, st in rows if st == "unconfirmed")
         slides.append(_deck_slide(
-            "Conviction checklist",
-            f'<div style="display:flex;align-items:baseline;gap:16px;margin-bottom:18px">'
-            f'<span class="s-score">{checklist.passed_count}/{checklist.total_count}</span>'
-            f'<span class="s-body" style="color:#9DB4D6">Five independent, deterministic criteria &mdash; '
-            f'supplementary evidence, not a rating.</span></div>'
+            "The evidence",
+            f'<div class="s-scoreline"><span class="s-score">{checklist.passed_count}</span>'
+            f'<span class="s-scoreof">of {judged}</span>'
+            f'<span class="s-scorecap">checks confirm</span></div>'
             f'<div class="s-checks">{cells}</div>',
             result,
         ))
 
-    # 3. The question and the reasoning against it.
-    body = f'<h2 class="s-h2">{escape(question)}</h2>' if question else '<h2 class="s-h2">Why this view</h2>'
-    if checks_narrative:
-        body += f'<p class="s-body">{escape(checks_narrative)}</p>'
-    if reasoning:
-        body += f'<p class="s-body">{escape(reasoning)}</p>'
-    slides.append(_deck_slide("The answer", body, result))
+    # 3. Why, as clauses rather than paragraphs.
+    if rows:
+        good = [r for _, r, st in rows if st == "pass"]
+        bad = [r for _, r, st in rows if st == "fail"]
+        body = f'<h2 class="s-h2">{escape(question)}</h2>' if question else '<h2 class="s-h2">Why</h2>'
+        body += '<div class="s-two" style="gap:44px;margin-top:16px">'
+        body += ('<div><div class="s-eyebrow">In favour</div><ul class="s-points">'
+                 + "".join(f"<li>{escape(item)}</li>" for item in good[:4])
+                 + "</ul></div>") if good else "<div></div>"
+        body += ('<div><div class="s-eyebrow">Against</div><ul class="s-points against">'
+                 + "".join(f"<li>{escape(item)}</li>" for item in bad[:4])
+                 + "</ul></div>") if bad else '<div><div class="s-eyebrow">Against</div><p class="s-body">Nothing in the checklist argues against this view.</p></div>'
+        body += "</div>"
+        slides.append(_deck_slide("The answer", body, result))
 
-    # 4. The plan, as figures rather than prose.
+    # 4. The plan, as four figures.
     plan = result.technical_plan
     if plan is not None:
         slides.append(_deck_slide(
@@ -1397,46 +1425,44 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
             f'<div class="s-fig"><div class="s-fig-k">Stop</div><div class="s-fig-v down">{_money(plan.stop_level)}</div></div>'
             f'<div class="s-fig"><div class="s-fig-k">First target</div><div class="s-fig-v up">{_money(plan.first_target)}</div></div>'
             f'<div class="s-fig"><div class="s-fig-k">Reward / risk</div><div class="s-fig-v">{plan.reward_risk:.2f}&times;</div></div>'
-            f'</div>'
-            f'<p class="s-body" style="margin-top:20px">{escape(plan.confirmation)}</p>'
-            f'<p class="s-body">{escape(plan.invalidation)}</p>',
+            f'</div>',
             result,
         ))
 
-    # 5. The chart, given the whole slide.
+    # 5. The chart, given the slide.
     if chart is not None:
         image = _image_data_url(chart.path)
         if image:
             slides.append(_deck_slide(
                 "Evidence",
-                f'<h2 class="s-h2" style="margin-bottom:14px">{escape(chart.title)}</h2>'
+                f'<h2 class="s-h2" style="font-size:26px;margin-bottom:12px">{escape(chart.title)}</h2>'
                 f'<div class="s-chart"><img src="{image}" alt="{escape(chart.title)}"></div>',
                 result,
             ))
 
-    # 6. Risks and what would change the view.
-    risks = "".join(f"<li>{escape(item)}</li>" for item in result.risks[:4])
-    triggers = "".join(f"<li>{escape(item)}</li>" for item in result.change_conditions[:4])
-    if risks or triggers:
-        slides.append(_deck_slide(
-            "Risks and triggers",
-            '<div class="s-two">'
-            f'<div><h2 class="s-h2">Principal risks</h2><ul class="s-list">{risks or "<li>None reported.</li>"}</ul></div>'
-            f'<div><h2 class="s-h2">What would change this</h2><ul class="s-list">{triggers or "<li>None reported.</li>"}</ul></div>'
-            '</div>',
-            result,
-        ))
+    # 6. What we are watching. One idea: the thing that would change the view.
+    watch = checklist_watch(checklist) if checklist is not None else ""
+    risk = result.risks[0] if result.risks else ""
+    if watch or risk:
+        body = ""
+        if watch:
+            body += f'<p class="s-lead">{escape(watch[:1].upper() + watch[1:])}.</p>'
+        else:
+            body += '<p class="s-lead">Nothing in the checklist currently argues against this view.</p>'
+        if risk:
+            body += f'<div class="s-eyebrow" style="margin-top:36px">Principal risk</div><p class="s-body">{escape(risk)}</p>'
+        slides.append(_deck_slide("What would change this", body, result))
 
-    # 7. Disclosure. A deck leaves the room without its report, so it carries its own.
+    # 7. Disclosure. A deck leaves the room without its report.
     slides.append(_deck_slide(
         "Disclosure",
-        '<h2 class="s-h2">Important information</h2>'
-        '<p class="s-disc">This material is informational and reflects conditions as of the stated time. '
-        'Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without '
-        'notice. Investing involves risk, including possible loss of principal. Firm compliance review is '
-        'required before client distribution. Internal use only.</p>'
-        f'<p class="s-disc" style="margin-top:18px">Confidence in this view: '
-        f'<b style="color:#E8EDF6">{escape(result.confidence.value)}</b></p>',
+        '<p class="s-disc">This material is informational and reflects conditions as of the stated '
+        'time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may '
+        'change without notice. Investing involves risk, including possible loss of principal. '
+        'Firm compliance review is required before client distribution. Internal use only.</p>'
+        f'<p class="s-disc" style="margin-top:16px">Confidence in this view: '
+        f'<b style="color:#E8EDF6">{escape(result.confidence.value)}</b>. '
+        f'Full evidence and sources are set out in the accompanying report.</p>',
         result,
     ))
     return f'<div class="deck">{"".join(slides)}</div>'

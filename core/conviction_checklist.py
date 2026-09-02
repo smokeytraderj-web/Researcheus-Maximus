@@ -133,6 +133,46 @@ class ConvictionChecklist:
         return self.total_count > 0 and self.passed_count == self.total_count
 
 
+# Slide-length readings of each criterion, confirmed and not. A deck is read
+# from across a room in a few seconds, so these are three or four words where the
+# report's sentence is thirty. They say the same thing at a different distance.
+_SLIDE_PHRASES = {
+    "trend": ("Above the 50 and 200-day", "Below its long-run averages"),
+    "momentum": ("Momentum participating", "Momentum not confirming"),
+    "relative_strength": ("Ahead of the S&P 500", "Behind the S&P 500"),
+    "quality": ("Strong return on capital", "Thin return on capital"),
+    "revisions": ("Estimates rising", "Estimates falling"),
+}
+
+
+def checklist_headlines(checklist: "ConvictionChecklist") -> tuple[tuple[str, str, str], ...]:
+    """(label, slide-length reading, status) for each criterion, for the deck."""
+    if checklist is None or not checklist.criteria:
+        return ()
+    rows = []
+    for item in checklist.criteria:
+        phrases = _SLIDE_PHRASES.get(item.key)
+        if not phrases:
+            continue
+        if item.passed is True:
+            reading = phrases[0]
+        elif item.passed is False:
+            reading = phrases[1]
+        else:
+            reading = "Not applicable" if item.detail.startswith("Not applicable") else "Not confirmed"
+        rows.append((item.label, reading, item.status))
+    return tuple(rows)
+
+
+def checklist_watch(checklist: "ConvictionChecklist") -> str:
+    """The single thing to watch: what the failing criteria would need to do."""
+    if checklist is None:
+        return ""
+    watch = [_WOULD_CHANGE[item.key] for item in checklist.criteria
+             if item.passed is False and item.key in _WOULD_CHANGE]
+    return _join(watch)
+
+
 # What would have to change for a failing criterion to confirm. Naming it is the
 # difference between "the dissent would need to change" -- true of any dissent,
 # and so worth nothing -- and telling the reader what to watch.

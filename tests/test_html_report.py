@@ -116,6 +116,33 @@ class SlideDeckTests(unittest.TestCase):
         self.assertNotIn("@page{size:297mm", html.split("<body")[0])
         self.assertIn("pageStyle.textContent='@page{size:297mm 167mm;margin:0}'", html)
 
+    def test_slides_stay_at_slide_density(self):
+        # The deck is not the report reproduced. Slides carried the criteria's
+        # full sentences and two paragraphs of reasoning, which is a page, not
+        # something read from across a room. This is the guard against drifting
+        # back: no slide may exceed a readable word count.
+        import re
+        for mode in ("general", "deep"):
+            with self.subTest(mode=mode):
+                html = self._render(mode)
+                deck = html[html.index('class="deck"'):]
+                slides = re.findall(r'<section class="slide">(.*?)</section>', deck, re.S)
+                self.assertGreaterEqual(len(slides), 5)
+                for index, slide in enumerate(slides, 1):
+                    words = len(re.sub(r"<[^>]+>", " ", slide).split())
+                    self.assertLessEqual(
+                        words, 110,
+                        f"slide {index} carries {words} words -- that is a page, not a slide",
+                    )
+
+    def test_slide_readings_are_short_not_the_report_sentences(self):
+        html = self._render("general")
+        deck = html[html.index('class="deck"'):]
+        # The report says "Price $325.13 is above both the 50-day ... averages."
+        # The slide says "Above the 50 and 200-day".
+        self.assertIn("s-check-read", deck)
+        self.assertNotIn("is above both the 50-day", deck[deck.index("s-checks"):deck.index("s-checks") + 3000])
+
     def test_the_deck_carries_its_own_disclosure(self):
         # A deck leaves the room without the report attached to it.
         html = self._render("general")
