@@ -63,6 +63,17 @@ def store_path() -> Path:
     return root / STORE_FILE
 
 
+def is_durable() -> bool:
+    """Whether the store will survive a restart of this process's host.
+
+    A container host replaces the container on every deploy, taking the home
+    directory with it -- so without RESEARCHEUS_DATA_DIR pointing at a mounted
+    volume, a view recorded today is gone at the next push. The app cannot fix
+    that for itself; what it can do is stop the loss being silent.
+    """
+    return bool(os.environ.get(DATA_DIR_ENV, "").strip())
+
+
 def _key(house: str, ticker: str) -> str:
     return f"{house.strip().casefold()}|{ticker.strip().upper()}"
 

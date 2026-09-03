@@ -153,15 +153,26 @@ class ReportIntegrationTests(unittest.TestCase):
         # The figures are woven in among our own, so attribution has to travel
         # with each number rather than sitting in a section heading above them.
         html = self._render((_view(ticker="AXON"),))
-        for label in ("J.P. Morgan rating", "J.P. Morgan target", "J.P. Morgan credit"):
+        # The heading names the house; the figures sit under it.
+        self.assertIn(">J.P. Morgan</h2>", html)
+        for label in ("Equity rating", "Price target", "Credit rating"):
             with self.subTest(label=label):
                 self.assertIn(label, html)
 
-    def test_the_house_figures_sit_in_the_data_block_not_a_section_of_their_own(self):
-        # Given a page to itself a house's rating read as a second verdict.
+    def test_the_house_gets_its_own_section_under_its_own_name(self):
+        # Woven among our figures it was hard to find. A reader looking for what
+        # a house says goes to the section named for them.
         html = self._render((_view(ticker="AXON"),))
-        self.assertNotIn('id="houses"', html)
-        self.assertIn('class="topline house-line"', html)
+        self.assertIn('id="houses"', html)
+        self.assertIn(">J.P. Morgan</h2>", html)
+
+    def test_the_house_figures_appear_once_not_scattered_as_well(self):
+        html = self._render((_view(ticker="AXON"),))
+        section = html[html.index('id="houses"'):]
+        section = section[:section.index("</section>")]
+        # The rating lives in the section, and nowhere else in the body.
+        body = html.split("</style>")[1]
+        self.assertEqual(body.count("Overweight"), section.count("Overweight"))
 
     def test_a_stale_view_says_so(self):
         html = self._render((_view(ticker="AXON", published="2024-01-05"),))
@@ -170,15 +181,14 @@ class ReportIntegrationTests(unittest.TestCase):
     def test_nothing_is_added_when_nothing_is_cited(self):
         # The stylesheet always carries the rules; the markup must not appear.
         html = self._render(())
-        self.assertNotIn('class="topline house-line"', html)
-        self.assertNotIn("Research houses &mdash;", html)
+        self.assertNotIn('id="houses"', html)
         self.assertNotIn("hv-note-block", html.split("</style>")[1])
 
     def test_the_house_rating_is_never_presented_as_our_rating(self):
         # An Overweight from another firm is not this app's Buy: the scales
         # differ, and the report must say whose call is whose.
         html = self._render((_view(ticker="AXON"),))
-        self.assertIn("each on its own scale, not this report", html)
+        self.assertIn("which is not this report", html)
         self.assertEqual(html.count('class="rating-word'), 1)
 
 

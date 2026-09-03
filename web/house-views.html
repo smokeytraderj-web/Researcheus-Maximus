@@ -90,6 +90,14 @@ tailwind.config = { theme: { extend: {
     </div>
   </form>
 
+  <div id="durability" class="hidden mt-8 rounded-xl border border-gold bg-[#FDFAF2] px-5 py-4">
+    <p class="text-[13px] leading-relaxed text-ink">
+      <b>These will not survive the next deploy.</b> This server has no data directory configured,
+      so views are written to a disk the host replaces when the app is redeployed. Set
+      <span class="font-mono text-[12px]">RESEARCHEUS_DATA_DIR</span> to a mounted volume to keep them.
+    </p>
+  </div>
+
   <div class="mt-10">
     <h2 class="font-serif text-[20px] font-semibold text-ink mb-3">Stored views</h2>
     <div id="stored" class="text-[13.5px] text-muted">Loading&hellip;</div>
@@ -206,6 +214,11 @@ function loadStored(){
     })
     .catch(function(){ el('stored').textContent = 'Could not load stored views.'; });
 }
+
+fetch('/api/health').then(function(r){ return r.json(); }).then(function(h){
+  // Silent loss is the worst version of this: say so before anything is typed.
+  if (h && h.house_views_durable === false) { el('durability').classList.remove('hidden'); }
+}).catch(function(){});
 
 loadStored();
 </script>

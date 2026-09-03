@@ -415,7 +415,14 @@ def health() -> dict:
     The frontend uses this to say up front when a workflow is unavailable,
     rather than letting the user start a run that is certain to fail.
     """
-    return {"status": "ok", "reports_retained": KEEP_REPORTS, **load_credentials().status()}
+    return {
+        "status": "ok",
+        "reports_retained": KEEP_REPORTS,
+        # False means a recorded house view is lost at the next deploy. See
+        # research/house_views.is_durable.
+        "house_views_durable": house_views.is_durable(),
+        **load_credentials().status(),
+    }
 
 
 # The frontend is served last so /api and /r win over the static mount.
