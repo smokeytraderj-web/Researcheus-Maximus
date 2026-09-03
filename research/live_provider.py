@@ -58,6 +58,9 @@ from security.certificates import verified_market_session
 # from a downtrend; three and five separate a downtrend from a cycle. The
 # feedback that prompted these asked for exactly 1, 3 and 5.
 RELATIVE_WINDOWS = ((1, "1 year"), (3, "3 years"), (5, "5 years"))
+# A window opens on the first session on or after its start date, and a
+# listing may be a few days younger than the round number suggests.
+COVERAGE_SLACK_DAYS = 10
 
 
 def relative_timeframe_charts(
@@ -82,8 +85,21 @@ def relative_timeframe_charts(
     charts: list[ChartRecord] = []
     end = end_date or dt.date.today().isoformat()
     end_on = dt.date.fromisoformat(end)
+    # How far back the shortest series actually goes. A window is only offered
+    # when the data covers it: rendering short does not raise, so without this
+    # a "5 years" chart drawn on two years of history passed silently.
+    earliest = None
+    for frame in histories.values():
+        try:
+            first = frame.index[0].date()
+        except Exception:  # noqa: BLE001
+            continue
+        earliest = first if earliest is None else max(earliest, first)
     for years, label in RELATIVE_WINDOWS:
-        start = (end_on - dt.timedelta(days=round(365.25 * years))).isoformat()
+        start_on = end_on - dt.timedelta(days=round(365.25 * years))
+        start = start_on.isoformat()
+        if earliest is not None and earliest > start_on + dt.timedelta(days=COVERAGE_SLACK_DAYS):
+            continue
         try:
             destination = workspace / f"relative-{years}y.png"
             path = render_total_return_chart(
@@ -1339,9 +1355,14 @@ class LiveResearchProvider:
         timeframe_histories: dict[str, object] = {}
         if symbol != "SPY" and not request.custom_start:
             five_years_ago = (dt.date.today() - dt.timedelta(days=round(365.25 * 5))).isoformat()
+            # Both ends are required: _history only honours a range when start
+            # AND end are given, and falls back to its default two years
+            # otherwise -- which silently clipped the three- and five-year
+            # windows to the same span and drew them as identical charts.
+            today = dt.date.today().isoformat()
             try:
                 timeframe_histories[symbol] = self._history(
-                    yf, ticker, symbol, self._market_session, five_years_ago, ""
+                    yf, ticker, symbol, self._market_session, five_years_ago, today
                 )
                 timeframe_histories["SPY"] = self._history(
                     yf,
@@ -1349,7 +1370,7 @@ class LiveResearchProvider:
                     "SPY",
                     self._market_session,
                     five_years_ago,
-                    "",
+                    today,
                 )
             except Exception:  # noqa: BLE001 - the alternatives are optional
                 timeframe_histories = {}
@@ -2166,6 +2187,10 @@ class LiveResearchProvider:
             ("Range-end price" if request.custom_start else "Current price", _metric(snapshot.price, money=True)),
             ("Market capitalization", _metric(info.get("marketCap"), money=True)),
             ("Trailing / forward P/E", f"{_metric(info.get('trailingPE'))} / {_metric(info.get('forwardPE'))}"),
+            # Carried as their own metrics, not only inside a sentence, so the
+            # report can set them as figures rather than parse them back out.
+            ("Forward P/E", _metric(info.get("forwardPE"))),
+            ("Debt / equity", _metric(info.get("debtToEquity"))),
             ("Revenue growth", _metric(info.get("revenueGrowth"), percent=True)),
             ("Earnings growth", _metric(info.get("earningsGrowth"), percent=True)),
             ("Analyst mean target", _metric(analyst_target, money=True)),

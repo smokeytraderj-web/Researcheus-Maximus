@@ -453,3 +453,81 @@ class DeckOrderTests(unittest.TestCase):
         for mode in ("general", "deep"):
             with self.subTest(mode=mode):
                 self.assertEqual(self._titles(mode)[0], "The call")
+
+
+class FundamentalFiguresTests(unittest.TestCase):
+    """Four sentences inside a collapsed disclosure -- "Reported/provider revenue
+    growth: 25.5%." -- is the least readable way to state a number and the least
+    likely place a reader looks for one."""
+
+    def _render(self):
+        import dataclasses
+        from core.models import SpecialistFinding
+        with tempfile.TemporaryDirectory() as tmp:
+            request = build_request("AXON", "deep")
+            result = DemoResearchProvider().run(request, Path(tmp))
+            result = dataclasses.replace(
+                result,
+                key_metrics=result.key_metrics + (
+                    ("Revenue growth", "25.5%"), ("Earnings growth", "-3.0%"),
+                    ("Forward P/E", "165.4"), ("Debt / equity", "18.4"),
+                    ("Street consensus (Yahoo)", "Buy"), ("Analyst mean target", "$390.10"),
+                    ("Analyst target implied upside", "9.5%"),
+                ),
+                fundamental=dataclasses.replace(
+                    result.fundamental,
+                    signals=(
+                        "Reported/provider revenue growth: 25.5%.",
+                        "Forward P/E: 165.4; debt/equity: 18.4.",
+                        "Street consensus: Buy; mean target: 390.1; implied upside: 9.5%.",
+                        "Segment mix shifted toward software.",
+                    ),
+                ),
+            )
+            target = Path(tmp) / "report.html"
+            build_research_html(result, request, target)
+            return target.read_text(encoding="utf-8")
+
+    def test_the_figures_are_set_as_figures(self):
+        html = self._render()
+        self.assertIn('class="fund-figs"', html)
+        for expected in ("Revenue growth", "25.5%", "Forward P/E", "165.4",
+                         "Debt / equity", "18.4", "Street target", "$390.10"):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, html)
+
+    def test_the_same_numbers_are_not_also_printed_as_sentences(self):
+        html = self._render()
+        for duplicated in ("Reported/provider revenue growth",
+                           "Forward P/E: 165.4", "Street consensus: Buy;"):
+            with self.subTest(duplicated=duplicated):
+                self.assertNotIn(duplicated, html)
+
+    def test_a_signal_that_is_not_a_figure_survives(self):
+        # Only the deterministic figure sentences are replaced by the box.
+        self.assertIn("Segment mix shifted toward software.", self._render())
+
+    def test_no_box_when_too_few_figures_are_available(self):
+        # One figure is not a panel; the box needs at least two to be worth the
+        # space, and a report without them simply does not carry it.
+        import dataclasses
+        import re
+        wanted = re.compile(
+            r"revenue growth|earnings growth|forward p/e|debt / equity|"
+            r"street consensus|analyst mean target|target implied upside",
+            re.I,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            request = build_request("AXON", "deep")
+            result = DemoResearchProvider().run(request, Path(tmp))
+            result = dataclasses.replace(
+                result,
+                key_metrics=tuple(
+                    (label, value) for label, value in result.key_metrics
+                    if not wanted.search(str(label))
+                ),
+            )
+            target = Path(tmp) / "report.html"
+            build_research_html(result, request, target)
+            html = target.read_text(encoding="utf-8")
+        self.assertNotIn('class="fund-figs"', html)

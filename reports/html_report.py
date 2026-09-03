@@ -159,6 +159,11 @@ _DYNAMIC_CSS = r"""
   transition:.14s}
 .tf-tab:hover{border-color:var(--ink);color:var(--ink)}
 .tf-tab.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.fund-figs{margin:16px 0 4px}
+/* Six figures read as two rows of three, not one crushed row of six. */
+.fund-figs .topline{grid-template-columns:repeat(3,1fr)}
+.fund-figs .tl:nth-child(3n+1){border-left:0;padding-left:0}
+.fund-figs .tl:nth-child(n+4){border-top:1px solid var(--line-2)}
 .house-line{margin-top:0}
 .hv-profiles{display:grid;grid-template-columns:repeat(2,1fr);gap:0 34px;margin-top:18px}
 .hv-list{display:grid;gap:14px}
@@ -987,6 +992,54 @@ def _timeframe_chart_html(
     return f'<div class="tf" data-tf><div class="tf-tabs">{tabs}</div>{panels}</div>'
 
 
+# The deterministic synthesis states these four as sentences. The report sets
+# them as figures instead, so these prefixes are dropped from the signal list
+# rather than printed twice.
+_FIGURE_SIGNAL_PREFIXES = ("Reported/provider ", "Forward P/E:", "Street consensus:")
+
+
+def _fundamental_signals(result: ResearchResult) -> tuple[str, ...]:
+    """Signals worth reading as prose, once the figures are set as figures."""
+    return tuple(
+        signal for signal in result.fundamental.signals
+        if not signal.startswith(_FIGURE_SIGNAL_PREFIXES)
+    )
+
+
+def _fundamental_figures(result: ResearchResult) -> str:
+    """The numbers behind the fundamental view, set as figures.
+
+    They were four sentences inside a collapsed disclosure -- "Reported/provider
+    revenue growth: 25.5%." -- which is the least readable way to state a number
+    and the least likely place a reader looks for one. Same figures, in the
+    strip the rest of the report states figures in.
+    """
+    # default="" rather than the em dash _find_metric returns otherwise: a
+    # missing figure has to read as missing here, or the box fills with dashes.
+    def figure(*terms: str) -> str:
+        return _find_metric(result, *terms, default="")
+
+    cells = (
+        ("Revenue growth", figure("revenue growth"), "Year over year"),
+        ("Earnings growth", figure("earnings growth"), "Year over year"),
+        ("Forward P/E", figure("forward p/e"), "Consensus next-year earnings"),
+        ("Debt / equity", figure("debt / equity"), "Balance-sheet leverage"),
+        ("Street consensus", figure("street consensus"), "Analyst recommendation"),
+        ("Street target", figure("analyst mean target"),
+         figure("target implied upside") or "Consensus reference"),
+    )
+    shown = [(label, value, note) for label, value, note in cells if value.strip()]
+    if len(shown) < 2:
+        return ""
+    figures = "".join(
+        f'<div class="tl"><div class="tl-k">{escape(label)}</div>'
+        f'<div class="tl-v num">{escape(value)}</div>'
+        f'<div class="tl-n">{escape(note)}</div></div>'
+        for label, value, note in shown
+    )
+    return f'<div class="fund-figs"><div class="topline">{figures}</div></div>'
+
+
 def _house_strip(result: ResearchResult) -> str:
     """Each house's call, in the same strip language as the plan and the market.
 
@@ -1604,7 +1657,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </div>
 <div class="page-view" id="page3" hidden>
 {page2_strip}
-<section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p>{_house_notes_html(result)}<details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*result.fundamental.signals, *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div>{_house_profile_html(result)}{_peer_group_html(result)}</section>
+<section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p>{_fundamental_figures(result)}{_house_notes_html(result)}<details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*_fundamental_signals(result), *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div>{_house_profile_html(result)}{_peer_group_html(result)}</section>
 <section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div><p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
 </div>
 </main></div>
