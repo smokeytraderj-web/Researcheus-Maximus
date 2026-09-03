@@ -144,6 +144,13 @@ _DYNAMIC_CSS = r"""
 .pr-med{font-size:12px;color:var(--muted);margin-top:9px}
 .pr-rule{font-size:11.5px;color:var(--muted);line-height:1.55;margin-top:10px;max-width:78ch}
 .pr-notes{margin:8px 0 0;padding-left:16px;font-size:11.5px;color:var(--muted);line-height:1.5}
+.af-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:2px solid var(--ink);border-bottom:1px solid var(--line)}
+.af{padding:14px 18px;border-left:1px solid var(--line-2)}
+.af:first-child{border-left:0;padding-left:0}
+.af-k{font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.af-v{font-size:22px;font-weight:600;color:var(--ink);margin-top:6px}
+.af-n{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.45}
+.af-note{font-size:12px;color:var(--body);line-height:1.55;margin-top:12px;max-width:76ch}
 .house-line{margin-top:0}
 .hv-profiles{display:grid;grid-template-columns:repeat(2,1fr);gap:0 34px;margin-top:18px}
 .hv-list{display:grid;gap:14px}
@@ -197,13 +204,6 @@ _DYNAMIC_CSS = r"""
 .ch-row .ch-k{color:var(--muted)}
 .ch-row .ch-v{font-family:'IBM Plex Mono',monospace;color:var(--ink);font-weight:500}
 .chart-hint{font-size:10px;color:var(--muted);margin-top:6px;font-style:italic}
-/* The scenario tester's live price ladder reuses the position/risk plan's ladder
-   markup and CSS (.ladder/.lrow/.lzone, defined in the approved base template) --
-   these are just the additions for the one moving "test price" marker the base
-   template doesn't have, plus a shorter variant for the tighter tester panel. */
-.ladder.compact{min-height:190px}
-.lrow.test .lrule{background:var(--gold);height:2px}
-.ltest-chip{background:var(--gold);color:#fff;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;padding:2px 7px;border-radius:2px}
 /* Conviction Checklist: five deterministic, independent criteria (core/conviction_checklist.py)
    shown as checkboxes with a headline score.  Supplementary evidence, never a rating label.
    Horizontal, one column per criterion, so the whole thing reads at a glance right under
@@ -229,28 +229,28 @@ _DYNAMIC_CSS = r"""
 .scn-chip span{font-size:12.5px;letter-spacing:0;text-transform:none;color:var(--ink);font-weight:600}
 .scn-chip:hover{border-color:var(--ink);color:var(--ink)}
 .scn-chip[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);box-shadow:0 0 0 2px rgba(22,35,63,.10)}
-/* Where a tested price sits against the plan, as a slim scale rather than a
-   chart. The chart this replaced was accurate but it was the largest object on
-   the page, which made a quick orientation check look like the panel's subject;
-   the outcome figures below already state the consequence in numbers. Drawn
-   server-side so print and a JS-less reader get it right at today's price. */
-.scn-scale{margin:22px 0 18px}
-.scn-rail{position:relative;height:4px;border-radius:2px;background:#E4E8EE}
-.scn-zone{position:absolute;top:0;height:100%;border-radius:2px}
-.scn-zone.risk{background:rgba(163,75,75,.34)}
-.scn-zone.entry{background:rgba(191,160,84,.55)}
-.scn-zone.reward{background:rgba(63,125,98,.32)}
-/* The marker is the only thing that moves, so it is the only saturated mark. */
-.scn-pin{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;
-  background:var(--ink);box-shadow:0 0 0 3px #fff;transition:left .13s ease}
-.scn-marks{position:relative;height:23px;margin-top:6px}
-.scn-tick{position:absolute;transform:translateX(-50%);white-space:nowrap;text-align:center}
-/* A short tick ties each label to the point on the rail it names; without it the
-   three labels read as a caption floating under the bar. */
-.scn-tick:before{content:"";display:block;width:1px;height:5px;background:var(--line-2);
-  margin:0 auto 4px}
-.scn-tick i{font-style:normal;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--muted);font-weight:600}
+/* The tester states what a price is worth against each planned level, rather
+   than drawing a picture of where it sits. Two pictures were tried here -- a
+   profit-and-loss curve and a zone rail -- and both spent the panel's whole
+   area re-drawing four prices the reader can already see, while the question
+   being asked ("what is this worth to me") stayed in small type underneath.
+   The rows are the answer, so the rows are the panel. Rendered server-side at
+   today's price so print and a JS-less reader get a complete table; script
+   rewrites two columns as the slider moves. */
+.scn-levels{width:100%;border-collapse:collapse;font-size:13px;margin:18px 0 4px}
+.scn-levels th{text-align:left;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;padding:0 12px 8px 0;border-bottom:1px solid var(--line)}
+/* Right-aligned figures still need a gutter: with padding-right zeroed they ran
+   straight into the next column -- "-$13,000Plan invalidated". */
+.scn-levels th.r,.scn-levels td.r{text-align:right;padding-right:22px}
+.scn-levels th:last-child,.scn-levels td:last-child{padding-right:0}
+.scn-levels .mean{color:var(--muted);font-size:12px}
+.scn-levels td{padding:9px 12px 9px 0;border-bottom:1px solid var(--line-2);color:var(--body)}
+.scn-levels .lv{font-weight:600;color:var(--ink)}
+.scn-levels .num{font-family:'IBM Plex Mono',monospace}
+.scn-levels tr.at td{background:var(--panel)}
+.scn-levels tr.at .lv:before{content:"▸ ";color:var(--gold)}
+.scn-levels .up{color:var(--bull)}.scn-levels .down{color:var(--bear)}
 .scn-slider{margin-top:6px}
 .scn-slider input[type=range]{width:100%;display:block}
 .scn-ticks{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);margin-top:5px}
@@ -444,7 +444,7 @@ _DYNAMIC_CSS = r"""
    are held at what fits beneath the masthead alongside the reasoning. */
 /* The ladder and the plan cards are single figures; splitting one across a page
    boundary produces a page that opens on "2.00x" with no heading above it. */
-.tech-report .ladder-wrap,.tech-report .plan,.tech-report .rr{break-inside:avoid}
+.tech-report .af-grid,.tech-report .plan{break-inside:avoid}
 .tech-report #plan .sec-head{break-after:avoid}
 .general-brief .cc-col-top{gap:6px;margin-bottom:7px}
 .general-brief .cc-box{width:14px;height:14px;border-radius:4px;font-size:10px}
@@ -1024,6 +1024,43 @@ def _house_notes_html(result: ResearchResult) -> str:
     return "".join(blocks)
 
 
+def _action_figures(plan, entry_mid: float, current_price: float) -> str:
+    """The strategy as the numbers that decide it.
+
+    This replaced a level ladder and a reward-to-risk bar. Both drew the same
+    four prices the strip above them already stated, and the ladder in
+    particular spent a third of the page redrawing a number line. What an
+    advisor actually needs here is the arithmetic between those prices --
+    what is risked, what is sought, and how far today's price sits from the
+    zone -- so that is what is set out.
+    """
+    risk = max(0.0, entry_mid - plan.stop_level)
+    reward = max(0.0, plan.first_target - entry_mid)
+    to_entry = (entry_mid / current_price - 1) if current_price else 0.0
+    cells = (
+        ("Risked per share", f"&minus;{_money(risk)}",
+         f"Entry midpoint down to the {_money(plan.stop_level)} stop"),
+        ("Sought per share", f"+{_money(reward)}",
+         f"Midpoint up to the {_money(plan.first_target)} first target"),
+        ("Reward to risk", f"{plan.reward_risk:.2f}&times;",
+         "Sought divided by risked, before costs"),
+        ("Today versus entry", f"{to_entry:+.1%}",
+         "Where price sits against the entry midpoint"),
+    )
+    figures = "".join(
+        f'<div class="af"><div class="af-k">{label}</div>'
+        f'<div class="af-v num">{value}</div><div class="af-n">{note}</div></div>'
+        for label, value, note in cells
+    )
+    return (
+        f'<div class="af-grid">{figures}</div>'
+        f'<p class="af-note">A ${100_000:,.0f} position sized to this plan risks about '
+        f'{_money(100_000 * (risk / entry_mid) if entry_mid else 0)} to the stop and seeks about '
+        f'{_money(100_000 * (reward / entry_mid) if entry_mid else 0)} to the first target. '
+        "Illustrative, before costs and slippage.</p>"
+    )
+
+
 def _plan_line(plan, entry_mid: float) -> str:
     """The plan's four figures, in the metrics strip's own language.
 
@@ -1145,7 +1182,13 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
     # never drift from the score above them.
     # Two movements, rendered as two paragraphs: what the evidence agrees on,
     # then what the dissent costs. Run together they read as one wall.
-    checks_paragraphs = checklist_paragraphs(result.conviction_checklist, rating=result.lead_rating.value)
+    checks_paragraphs = checklist_paragraphs(
+        result.conviction_checklist,
+        rating=result.lead_rating.value,
+        # Seeded by the security and the analysis date: the wording varies
+        # between names and between days, and never within one note.
+        seed=f"{result.identity.ticker}|{result.as_of}",
+    )
     checks_narrative = " ".join(checks_paragraphs)
     checks_html = "".join(f'<p class="why-checks">{escape(part)}</p>' for part in checks_paragraphs)
 
@@ -1257,48 +1300,52 @@ def _tradingview_symbol(result: ResearchResult) -> str:
     return f"{exchange}:{result.identity.ticker}"
 
 
-def _scenario_scale(plan, current: float, lo: float, hi: float) -> tuple[str, str]:
-    """A slim scale showing where a tested price sits against the plan.
+def _scenario_levels(plan, current: float, entry_mid: float) -> tuple[str, str]:
+    """What a tested price is worth against each planned level.
 
-    This replaced a full profit-and-loss chart. The chart was accurate but it
-    dominated the panel and turned a quick "where does this price land" check
-    into the largest object on the page; the outcome figures below it already
-    state the consequence in numbers. What is wanted here is orientation, so
-    this is a 4px rail with the three zones tinted, the planned levels ticked,
-    and one marker.
+    Two pictures were tried in this panel -- a profit-and-loss curve and a zone
+    rail -- and both had the same fault: they used the panel's whole area to
+    redraw four prices already stated above, leaving the question actually being
+    asked ("what is this worth to me") in small type underneath. The rows are
+    the answer, so the rows are the panel.
 
-    Positions are written server-side as percentages, so print and a reader with
-    no JavaScript get the scale drawn correctly at today's price. Script moves
-    only the marker.
+    Built server-side at today's price, so print and a reader with no JavaScript
+    get a complete, correct table. Script rewrites two columns as the slider
+    moves; nothing appears or disappears.
     """
-    span = max(hi - lo, 1e-9)
-
-    def at(price: float) -> float:
-        return max(0.0, min(100.0, (price - lo) / span * 100.0))
-
-    stop, entry_low, entry_high = at(plan.stop_level), at(plan.entry_low), at(plan.entry_high)
-    target = at(plan.first_target)
-    marks = "".join(
-        f'<span class="scn-tick" style="left:{at(price):.2f}%"><i>{escape(label)}</i></span>'
-        for label, price in (
-            ("Stop", plan.stop_level),
-            ("Entry", (plan.entry_low + plan.entry_high) / 2),
-            ("Target", plan.first_target),
+    levels = (
+        ("Stop", plan.stop_level, "Plan invalidated"),
+        ("Entry zone low", plan.entry_low, "Lower edge of the zone"),
+        ("Entry midpoint", entry_mid, "Sizing reference"),
+        ("Entry zone high", plan.entry_high, "Upper edge of the zone"),
+        ("First target", plan.first_target, "Review risk and sizing"),
+        ("Second target", plan.second_target, "Re-underwrite"),
+    )
+    rows = []
+    for label, price, meaning in levels:
+        gap = (price / current - 1) if current else 0.0
+        rows.append(
+            f'<tr data-level="{price!r}"><td class="lv">{label}</td>'
+            f'<td class="num">{_money(price)}</td>'
+            f'<td class="num r gap {"up" if gap >= 0 else "down"}">{gap:+.1%}</td>'
+            f'<td class="num r pnl">{_signed_money(100_000 * gap)}</td>'
+            f'<td class="mean">{meaning}</td></tr>'
         )
+    table = (
+        '<table class="scn-levels"><thead><tr><th>Level</th><th>Price</th>'
+        '<th class="r">From test price</th><th class="r">On $100,000</th>'
+        '<th>If reached</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table>'
     )
-    html = (
-        '<div class="scn-scale">'
-        '<div class="scn-rail">'
-        f'<span class="scn-zone risk" style="left:0;width:{stop:.2f}%"></span>'
-        f'<span class="scn-zone entry" style="left:{entry_low:.2f}%;'
-        f'width:{max(0.6, entry_high - entry_low):.2f}%"></span>'
-        f'<span class="scn-zone reward" style="left:{target:.2f}%;width:{100 - target:.2f}%"></span>'
-        f'<span class="scn-pin" id="scnPin" style="left:{at(current):.2f}%"></span>'
-        "</div>"
-        f'<div class="scn-marks">{marks}</div></div>'
-    )
-    geometry = json.dumps({"lo": lo, "hi": hi}, separators=(",", ":"))
-    return html, geometry
+    geometry = json.dumps({"notional": 100_000.0}, separators=(",", ":"))
+    return table, geometry
+
+
+def _signed_money(value: float) -> str:
+    """A P&L figure. Cents are noise on a $100,000 position, so they are dropped."""
+    if abs(value) < 0.5:
+        return "$0"
+    return f"{'−' if value < 0 else '+'}${abs(value):,.0f}"
 
 
 def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
@@ -1310,7 +1357,13 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
     # both reports explain the rating against the same evidence in the same voice.
     # Two movements, rendered as two paragraphs: what the evidence agrees on,
     # then what the dissent costs. Run together they read as one wall.
-    checks_paragraphs = checklist_paragraphs(result.conviction_checklist, rating=result.lead_rating.value)
+    checks_paragraphs = checklist_paragraphs(
+        result.conviction_checklist,
+        rating=result.lead_rating.value,
+        # Seeded by the security and the analysis date: the wording varies
+        # between names and between days, and never within one note.
+        seed=f"{result.identity.ticker}|{result.as_of}",
+    )
     checks_narrative = " ".join(checks_paragraphs)
     checks_html = "".join(f'<p class="why-checks">{escape(part)}</p>' for part in checks_paragraphs)
     # Use the raw price-vs-average signal (not the full narrative summary) so this
@@ -1420,9 +1473,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
             ("Target 2", plan.second_target),
         )
     )
-    scenario_graph, scenario_geometry = _scenario_scale(
-        plan, result.current_price, slider_min, slider_max
-    )
+    scenario_graph, scenario_geometry = _scenario_levels(plan, result.current_price, entry_mid)
     scenario_panel = f'''<div class="evidence-panel" id="evidenceScenario" role="tabpanel" aria-labelledby="evidenceScenarioTab" hidden><div class="scn">
   <div class="scn-head">
     <div><div class="scn-k">Test price</div><div class="scn-price num" id="sPrice">{_money(result.current_price)}</div><div class="scn-delta" id="sDelta">At today\'s price</div></div>
@@ -1476,7 +1527,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
   {_house_strip(result)}{demo}
 </section>
 <section id="plan"><div class="sec-head"><h2>Action plan</h2><span class="verdict v-neu">{escape(plan.stance)}</span></div>
-  <div class="ladder-wrap"><div class="ladder" id="ladder"></div><div class="rr"><div class="rr-k">Reward to risk</div><div class="rr-big num">{plan.reward_risk:.2f}×</div><div class="rr-note">Entry midpoint {_money(entry_mid)} to first target {_money(plan.first_target)}, measured against a {_money(plan.stop_level)} stop.</div><div class="rrbar"><div class="up" style="flex:{max(plan.reward_risk, 0.01):.2f}"></div><div class="dn" style="flex:1"></div></div><div class="rrleg"><span>+{_money(max(0, plan.first_target-entry_mid))} upside</span><span>−{_money(max(0, entry_mid-plan.stop_level))} risk</span></div></div></div>
+  {_action_figures(plan, entry_mid, result.current_price)}
   <div class="plan" style="margin-top:.9em"><div class="pc"><div class="pc-k">Entry zone</div><div class="pc-v">{_money(plan.entry_low)} – {_money(plan.entry_high)}</div><div class="pc-n">{escape(plan.confirmation)}</div></div><div class="pc"><div class="pc-k">Stop / invalidation</div><div class="pc-v" style="color:var(--bear)">{_money(plan.stop_level)}</div><div class="pc-n">{plan.stop_pct:.1%} below entry midpoint. {escape(plan.invalidation)}</div></div><div class="pc"><div class="pc-k">Targets</div><div class="pc-v" style="color:var(--bull)">{_money(plan.first_target)} / {_money(plan.second_target)}</div><div class="pc-n">Planning references, not guaranteed outcomes.</div></div></div>
   <details><summary>Why these levels, and what invalidates them</summary><div class="det-body"><ul>{reasons}</ul></div></details>
   {f'<details class="adv"><summary>Options / hedging reference <span class="adv-flag">Advisor</span></summary><div class="det-body"><p>{escape(plan.options_strategy)} — {escape(plan.options_structure)}</p><p>{escape(plan.options_risk)}</p></div></details>' if plan.options_strategy else ''}
@@ -1493,7 +1544,16 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </div>
 </main></div>
 {_deck_html(result, request, _stated_question(request, result), checks_narrative, condense_reasoning(result.technical.summary), deck_charts)}"""
-    script = f"const PLAN={plan_json};\nconst TV_SYMBOL={json.dumps(tv_symbol)};\n" + _technical_script() + _deck_script()
+    # Every global the tester's script reads has to be defined here. SCN was
+    # computed and never emitted, so the panel stopped responding to the slider
+    # while a screenshot of its initial state still looked correct.
+    script = (
+        f"const PLAN={plan_json};\n"
+        f"const SCN={scenario_geometry};\n"
+        f"const TV_SYMBOL={json.dumps(tv_symbol)};\n"
+        + _technical_script()
+        + _deck_script()
+    )
     return _document(
         f"{result.identity.ticker} Technical Research — Technical Analyst Agent",
         "technical_research_base.html",
@@ -1601,46 +1661,27 @@ pageTabs.forEach(function(tab){tab.addEventListener('click',function(event){
 var adv=document.getElementById('advBtn');if(adv)adv.addEventListener('click',function(){var on=document.body.classList.toggle('advisor');adv.setAttribute('aria-pressed',String(on));adv.textContent='Advisor detail: '+(on?'on':'off')});
 function money(v){return '$'+v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
 function pct(v){return (v>=0?'+':'')+(v*100).toFixed(1)+'%'}
-// Shared by the static position/risk ladder and the scenario tester's live
-// version below -- passing a testPrice adds one more level (styled distinctly)
-// through the same declutter pass, so it never overlaps a fixed label either.
-function renderLadder(containerId,testPrice,height){
-  var container=document.getElementById(containerId);if(!container)return;
-  var H=height||238;
-  var levels=[{p:PLAN.target2,l:'Second target',c:'tgt'},{p:PLAN.target1,l:'First target',c:'tgt'},{p:PLAN.entryMid,l:'Entry midpoint',c:'entry'},{p:PLAN.stop,l:'Stop',c:'stop'}];
-  levels.push(testPrice==null?{p:PLAN.current,l:'Now',c:'now'}:{p:testPrice,l:'Test price',c:'test'});
-  var extremes=[PLAN.stop,PLAN.entryLow,PLAN.entryHigh,PLAN.target2,PLAN.current];
-  if(testPrice!=null)extremes.push(testPrice);
-  var lo=Math.min.apply(null,extremes),hi=Math.max.apply(null,extremes),pad=(hi-lo)*.08;lo-=pad;hi+=pad;
-  function y(p){return (1-(p-lo)/(hi-lo))*H}
-  var zTop=y(PLAN.entryHigh),zBottom=y(PLAN.entryLow);
-  var h='<div class="lzone" style="top:'+(zTop/H*100)+'%;height:'+((zBottom-zTop)/H*100)+'%"></div>';
-  // Declutter: labels for nearby price levels overlap when placed at their raw
-  // linear position, so push each one down just enough to clear the label above it.
-  var placed=levels.map(function(level){return {level:level,y:y(level.p)}}).sort(function(a,b){return a.y-b.y});
-  var minGap=26;
-  for(var i=1;i<placed.length;i++){
-    if(placed[i].y-placed[i-1].y<minGap)placed[i].y=placed[i-1].y+minGap;
-  }
-  placed.forEach(function(item){
-    var level=item.level;
-    var tag=level.c==='now'?'<span class="lnow-chip">Now</span>':level.c==='test'?'<span class="ltest-chip">Test price</span>':'<span class="ltag"><strong>'+level.l+'</strong></span>';
-    h+='<div class="lrow '+level.c+'" style="top:'+(item.y/H*100)+'%"><span class="lprice num">'+money(level.p)+'</span><span class="lrule"></span>'+tag+'</div>';
-  });
-  container.innerHTML=h;
-}
 // The tested price, not the slider, is the source of truth. A range input
 // quantizes to its step, so setting it to a planned level lands a fraction of a
 // cent short -- enough for "at the first target" to evaluate as "below the first
 // target" and print the wrong action. The slider still drives this variable when
 // dragged; it just no longer defines it.
 var testPrice=null;
-// The scale is drawn server-side, so print and a reader with no JavaScript get
-// it correct at today's price. All this does is move the one marker.
+// The table is rendered server-side at today's price, so print and a JS-less
+// reader get it complete. This rewrites only the two columns that depend on the
+// tested price, and marks the row the price has reached.
 function drawScenarioGraph(p){
-  var pin=document.getElementById('scnPin'); if(!pin||typeof SCN==='undefined') return;
-  var at=(Math.max(SCN.lo,Math.min(SCN.hi,p))-SCN.lo)/(SCN.hi-SCN.lo)*100;
-  pin.style.left=at.toFixed(2)+'%';
+  var rows=document.querySelectorAll('.scn-levels tbody tr');
+  if(!rows.length||typeof SCN==='undefined') return;
+  rows.forEach(function(row){
+    var level=Number(row.dataset.level), gap=p?level/p-1:0;
+    var gapCell=row.querySelector('.gap'), pnlCell=row.querySelector('.pnl');
+    gapCell.textContent=pct(gap);
+    gapCell.className='num r gap '+(gap>=0?'up':'down');
+    pnlCell.textContent=Math.abs(gap)<1e-9?'$0':(gap>0?'+':'−')+money(Math.abs(gap*SCN.notional)).replace(/\.\d\d$/,'');
+    // The level the tested price has actually reached, reading upward.
+    row.classList.toggle('at', Math.abs(level-p)<Math.max(0.005,p*0.0005));
+  });
 }
 function updateScenario(){
   var slider=document.getElementById('slider');if(!slider)return;
@@ -1672,7 +1713,6 @@ if(slider){
   });
   updateScenario();
 }
-renderLadder('ladder',null,238);
 """
 
 
@@ -1938,7 +1978,10 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
     # 1. Why -- the reasoning, condensed. The report's two-movement narrative
     #    leads; the analyst prose that follows it in the report is a third
     #    paragraph there and does not fit a slide.
-    paragraphs = checklist_paragraphs(checklist, rating=result.lead_rating.value) if checklist else ()
+    paragraphs = checklist_paragraphs(
+        checklist, rating=result.lead_rating.value,
+        seed=f"{result.identity.ticker}|{result.as_of}",
+    ) if checklist else ()
     if paragraphs:
         body = '<div class="s-why">'
         body += f'<p class="lead">{escape(_condense(paragraphs[0], 44))}</p>'

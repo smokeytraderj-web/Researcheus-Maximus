@@ -95,6 +95,7 @@ POLICY_VERSION and update this docstring in the same change.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 
 POLICY_VERSION = "2.2"
@@ -334,7 +335,32 @@ def _reliance(passed_keys: list[str]) -> list[str]:
     return parts
 
 
-def checklist_paragraphs(checklist: "ConvictionChecklist", *, rating: str = "") -> tuple[str, ...]:
+def _pick(seed: str, key: str, options: tuple[str, ...]) -> str:
+    """Choose one of several equivalent phrasings, deterministically.
+
+    Variation, not randomness. Every note used to open with the same sentence
+    frame, which made the reasoning read as a form letter and made two different
+    securities look like the same analysis. But a research note cannot reword
+    itself on re-read: the same evidence has to produce the same words, or a
+    reader who returns to a note finds a different one and two runs of one
+    result appear to disagree.
+
+    The seed is the security and the analysis date, so the wording varies across
+    names and across days while staying fixed for any one note. Options must be
+    interchangeable in meaning -- this varies how a finding is said, never what
+    is said.
+    """
+    if not options:
+        return ""
+    if not seed:
+        return options[0]
+    digest = hashlib.sha256(f"{seed}|{key}".encode("utf-8")).digest()
+    return options[digest[0] % len(options)]
+
+
+def checklist_paragraphs(
+    checklist: "ConvictionChecklist", *, rating: str = "", seed: str = ""
+) -> tuple[str, ...]:
     """How the five checks combine, as an analyst would actually put it.
 
     Two movements. The first reports the balance grouped by lens -- price
@@ -372,14 +398,25 @@ def checklist_paragraphs(checklist: "ConvictionChecklist", *, rating: str = "") 
     picture = _characterisation(checklist.passed_count, judged, partial)
     if not passed_keys:
         # "No support at all" after "not one confirms" is the same sentence twice.
-        opening = f"Not one of the {_word(judged).lower()} checks confirms"
+        opening = _pick(seed, "none", (
+            f"Not one of the {_word(judged).lower()} checks confirms",
+            f"None of the {_word(judged).lower()} checks confirms",
+            f"The checklist confirms nothing here: {_word(judged).lower()} checks, none of them met",
+        ))
     elif partial:
-        opening = (
+        opening = _pick(seed, "partial", (
             f"{_word(checklist.passed_count)} of the {_word(judged).lower()} that could be "
-            f"judged confirm — {picture}"
-        )
+            f"judged confirm — {picture}",
+            f"Of the {_word(judged).lower()} checks that could be judged, "
+            f"{_word(checklist.passed_count).lower()} confirm — {picture}",
+        ))
     else:
-        opening = f"{_word(checklist.passed_count)} of {_word(checklist.total_count).lower()} is {picture}"
+        count, total = _word(checklist.passed_count), _word(checklist.total_count).lower()
+        opening = _pick(seed, "score", (
+            f"{count} of {total} is {picture}",
+            f"{count} checks of {total} confirm — {picture}",
+            f"The checklist comes in at {count.lower()} of {total}, {picture}",
+        ))
 
     # Price evidence as a group. This paragraph carries what confirms; the
     # dissent paragraph carries what does not, at length. Spelling the failures
@@ -389,17 +426,20 @@ def checklist_paragraphs(checklist: "ConvictionChecklist", *, rating: str = "") 
     price_fail = [key for key in _PRICE_KEYS if key in failed_keys]
     price_said = [_NARRATIVE_PHRASES[key][0] for key in price_pass]
     if price_pass and not price_fail:
-        grouping = (
-            f"every price-based lens agrees: {_join(price_said)}"
-            if len(price_pass) > 1
-            else f"the price evidence agrees: {_join(price_said)}"
-        )
+        joined = _join(price_said)
+        grouping = _pick(seed, "price-agree", (
+            f"every price-based lens agrees: {joined}",
+            f"the price evidence points one way: {joined}",
+            f"nothing in the price evidence dissents: {joined}",
+        )) if len(price_pass) > 1 else f"the price evidence agrees: {joined}"
     elif price_pass and price_fail:
         names = _join([_RELIANCE[key] for key in price_fail])
-        grouping = (
-            f"the price evidence is split: {_join(price_said)}, "
-            f"while {names} {'do' if len(price_fail) > 1 else 'does'} not confirm"
-        )
+        verb = "do" if len(price_fail) > 1 else "does"
+        grouping = _pick(seed, "price-split", (
+            f"the price evidence is split: {_join(price_said)}, while {names} {verb} not confirm",
+            f"the price evidence pulls both ways: {_join(price_said)}, against {names}",
+            f"price is not of one mind: {_join(price_said)}, but {names} {verb} not follow",
+        ))
     elif price_fail:
         grouping = "no price-based lens supports it: " + _join(
             [_NARRATIVE_PHRASES[key][1] for key in price_fail]
@@ -420,7 +460,12 @@ def checklist_paragraphs(checklist: "ConvictionChecklist", *, rating: str = "") 
     # there is no dissent paragraph to hold the failures.
     business_pass = [key for key in _BUSINESS_KEYS if key in passed_keys]
     if business_pass:
-        first += f" On the business, {_join([_BUSINESS_PHRASES[key][0] for key in business_pass])}."
+        said = _join([_BUSINESS_PHRASES[key][0] for key in business_pass])
+        first += _pick(seed, "business", (
+            f" On the business, {said}.",
+            f" Away from the chart, {said}.",
+            f" The business side adds that {said}.",
+        ))
     elif not passed_keys:
         business_fail = [key for key in _BUSINESS_KEYS if key in failed_keys]
         if business_fail:
@@ -440,14 +485,18 @@ def checklist_paragraphs(checklist: "ConvictionChecklist", *, rating: str = "") 
         )
 
     paragraphs = [first]
-    second = _dissent_paragraph(passed_keys, failed_keys, figures, rating)
+    second = _dissent_paragraph(passed_keys, failed_keys, figures, rating, seed)
     if second:
         paragraphs.append(second)
     return tuple(paragraphs)
 
 
 def _dissent_paragraph(
-    passed_keys: list[str], failed_keys: list[str], figures: dict[str, str], rating: str
+    passed_keys: list[str],
+    failed_keys: list[str],
+    figures: dict[str, str],
+    rating: str,
+    seed: str = "",
 ) -> str:
     """The part a reader actually wants: what the disagreement costs them.
 
@@ -486,36 +535,48 @@ def _dissent_paragraph(
     counterweight = next(
         (figures[key] for key in _CONTRAST_ORDER if key in passed_keys and figures.get(key)), ""
     )
-    lead = (
-        "The one that does not confirm is the interesting one."
-        if len(failed_keys) == 1
-        else f"{_word(len(failed_keys))} do not confirm, and they are the interesting ones."
-    )
+    lead = _pick(seed, "dissent-lead", (
+        "The one that does not confirm is the interesting one.",
+        "The dissent is where the work is.",
+        "What does not confirm is the part worth reading.",
+    )) if len(failed_keys) == 1 else _pick(seed, "dissent-lead-many", (
+        f"{_word(len(failed_keys))} do not confirm, and they are the interesting ones.",
+        f"{_word(len(failed_keys))} dissent, and the dissent is where the work is.",
+        f"{_word(len(failed_keys))} do not confirm, which is the part worth reading.",
+    ))
     body = _join([_NARRATIVE_PHRASES[key][1] for key in failed_keys])
     text = f"{lead} {body[:1].upper()}{body[1:]}"
     text += f", while {counterweight}." if counterweight else "."
 
     if rating:
-        text += (
-            f" That is not on its own a reason to {contrary}, and the {rating} rating still stands."
-        )
+        text += _pick(seed, "not-a-reason", (
+            f" That is not on its own a reason to {contrary}, and the {rating} rating still stands.",
+            f" On its own it does not overturn the {rating} view, which still stands.",
+            f" It is not grounds to {contrary} by itself; the {rating} rating holds.",
+        ))
     # "and not momentum and relative strength" stacks two ands on one clause; the
     # dissent is a set of things the case does *not* rest on, which is an "or".
     dissent = " or ".join(_RELIANCE[key] for key in failed_keys if key in _RELIANCE)
     if reliance and dissent:
-        text += (
+        text += _pick(seed, "rests-on", (
             f" It is a reason to be precise about what the case rests on: {reliance}, "
-            f"and not on {dissent} — because that is what this evidence does not show."
-        )
+            f"and not on {dissent} — because that is what this evidence does not show.",
+            f" It does mean being clear about what is carrying this: {reliance}, "
+            f"not {dissent}, which the evidence does not support.",
+            f" What it changes is the footing: this rests on {reliance} rather than on "
+            f"{dissent}, and the difference matters if that is what you were relying on.",
+        ))
     watch = _join([_WOULD_CHANGE[key] for key in failed_keys if key in _WOULD_CHANGE])
     if watch:
         text += f" Watch for {watch}."
     return text
 
 
-def checklist_narrative(checklist: "ConvictionChecklist", *, rating: str = "") -> str:
+def checklist_narrative(
+    checklist: "ConvictionChecklist", *, rating: str = "", seed: str = ""
+) -> str:
     """The paragraphs as one string, for callers that render a single block."""
-    return " ".join(checklist_paragraphs(checklist, rating=rating))
+    return " ".join(checklist_paragraphs(checklist, rating=rating, seed=seed))
 
 
 def _trend(price: float, sma50: float, sma200: float | None) -> ConvictionCriterion:

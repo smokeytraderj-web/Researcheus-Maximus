@@ -125,9 +125,9 @@ class PrintLayoutTests(unittest.TestCase):
     def test_the_scenario_controls_do_not_print_but_its_conclusions_do(self):
         html = self._render("deep")
         self.assertIn(".tech-report .scn-chips,.tech-report .scn-slider{display:none!important}", html)
-        # The graph, the action zone and the outcome figures are static
+        # The levels table, the action zone and the outcome figures are static
         # conclusions and must survive into print.
-        for kept in ("scn-scale", 'id="zone"', "scn-out"):
+        for kept in ("scn-levels", 'id="zone"', "scn-out"):
             with self.subTest(kept=kept):
                 self.assertIn(kept, html)
 
@@ -338,3 +338,35 @@ class HorizonSplitReportTests(unittest.TestCase):
         html = self._render(Rating.SELL, Rating.BUY)
         self.assertIn(".general-brief #horizons .sec-head{display:none}", html)
         self.assertIn(".general-brief .hz-note{display:none}", html)
+
+
+class ScenarioScriptTests(unittest.TestCase):
+    """The tester's script reads globals the page has to define. One of them was
+    computed and never emitted, so the panel silently stopped responding to the
+    slider -- and a screenshot of its initial state looked correct."""
+
+    def _render(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            request = build_request("AXON", "deep")
+            result = DemoResearchProvider().run(request, Path(tmp))
+            target = Path(tmp) / "report.html"
+            build_research_html(result, request, target)
+            return target.read_text(encoding="utf-8")
+
+    def test_every_global_the_tester_reads_is_defined(self):
+        import re
+        html = self._render()
+        script = html[html.rindex("<script>"):]
+        for name in ("PLAN", "SCN", "TV_SYMBOL"):
+            with self.subTest(name=name):
+                self.assertTrue(
+                    re.search(rf"\bconst {name}\s*=", script),
+                    f"{name} is read by the tester but never defined",
+                )
+
+    def test_the_levels_table_is_rendered_server_side(self):
+        # Print and a reader with no JavaScript get a complete, correct table.
+        html = self._render()
+        self.assertIn('class="scn-levels"', html)
+        self.assertIn("data-level=", html)
+        self.assertIn("Second target", html)

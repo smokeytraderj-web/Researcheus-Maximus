@@ -311,3 +311,42 @@ class FigurePrecisionTests(unittest.TestCase):
         # It may not offer two identical numbers as proof one exceeds the other.
         self.assertNotIn("(2.6700 vs 2.6700)", detail)
         self.assertIn("by less than a rounding error", detail)
+
+
+class NarrativeVariationTests(unittest.TestCase):
+    """Every note opened with the same sentence frame, which made the reasoning
+    read as a form letter and two different securities look like one analysis.
+    Variation, though -- not randomness: a note cannot reword itself on re-read."""
+
+    def _text(self, seed):
+        from core.conviction_checklist import checklist_narrative
+        return checklist_narrative(
+            _base(eps_estimate_now=8.0, eps_estimate_prior=8.6), rating="Buy", seed=seed
+        )
+
+    def test_the_same_note_always_reads_the_same_way(self):
+        self.assertEqual(self._text("AAPL|2026-09-02"), self._text("AAPL|2026-09-02"))
+
+    def test_different_securities_do_not_read_identically(self):
+        seeds = [f"{t}|2026-09-02" for t in ("AAPL", "AVGO", "NVDA", "MSFT", "AXON")]
+        self.assertGreater(len({self._text(s) for s in seeds}), 1)
+
+    def test_the_same_security_reads_differently_on_a_different_day(self):
+        seeds = [f"AAPL|2026-{m:02d}-02" for m in range(1, 13)]
+        self.assertGreater(len({self._text(s) for s in seeds}), 1)
+
+    def test_variation_never_changes_the_finding(self):
+        # Wording varies; what the wording says does not.
+        for ticker in ("AAPL", "AVGO", "NVDA", "MSFT", "AXON", "TSLA", "META"):
+            text = self._text(f"{ticker}|2026-09-02")
+            with self.subTest(ticker=ticker):
+                self.assertIn("cutting next-year earnings estimates", text)
+                self.assertIn("Watch for estimates turning back up", text)
+                self.assertIn("Buy", text)
+
+    def test_an_unseeded_call_is_stable_for_callers_that_do_not_seed(self):
+        from core.conviction_checklist import checklist_narrative
+        base = _base(eps_estimate_now=8.0, eps_estimate_prior=8.6)
+        self.assertEqual(
+            checklist_narrative(base, rating="Buy"), checklist_narrative(base, rating="Buy", seed="")
+        )
