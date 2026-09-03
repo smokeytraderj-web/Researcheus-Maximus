@@ -143,7 +143,11 @@ class ReportIntegrationTests(unittest.TestCase):
         self.assertIn("Overweight", html)
         self.assertIn("$255.00", html)
         self.assertIn("A+", html)
-        self.assertIn("published 19 days ago", html)   # dated, not silently current
+        # Computed, not hardcoded: the age depends on today, and pinning a
+        # number made this fail the moment the clock moved past it.
+        import datetime as _dt
+        age = (_dt.date.today() - _dt.date(2026, 8, 14)).days
+        self.assertIn(f"published {age} days ago", html)   # dated, not silently current
 
     def test_every_house_figure_carries_the_house_name(self):
         # The figures are woven in among our own, so attribution has to travel

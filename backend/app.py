@@ -40,6 +40,7 @@ from backend.jobs import (
 from core.models import HouseNote, HouseView
 from core.request_builder import build_request
 from research import house_views
+from research.jpmm_paste import parse_jpmm_page
 from services.research_runner import ResearchRunner
 from services.technical_runner import TechnicalRunner
 
@@ -374,6 +375,26 @@ def save_house_view(body: HouseViewIn) -> dict:
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return {"saved": True, "house": view.house, "ticker": view.ticker.upper()}
+
+
+class PasteIn(BaseModel):
+    text: str = Field(default="", max_length=40_000)
+    house: str = Field(default="J.P. Morgan", max_length=80)
+
+
+@app.post("/api/house-views/parse")
+def parse_house_view(body: PasteIn) -> dict:
+    """Read a research page a reader has copied. Parses only -- never saves.
+
+    Nothing is stored from here: the parse comes back for a person to check and
+    correct, which is the same gate the rest of the app puts in front of
+    evidence. Fields the text does not contain are reported by name rather than
+    filled with something plausible.
+    """
+    if not body.text.strip():
+        raise HTTPException(400, "Paste the page first.")
+    parsed = parse_jpmm_page(body.text)
+    return {"fields": parsed.as_payload(body.house), "missing": parsed.missing}
 
 
 @app.get("/api/house-views")

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Research house views — Technical Analyst Agent</title>
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
+<script src="vendor/tailwind.js"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  colors: { ink:'#14213D', ink2:'#25324F', body:'#3E4759', muted:'#65758B',
+    brand:'#1A4F8B', brandDeep:'#123A69', brandSoft:'#EAF1FA', brandLine:'#C4D8EE',
+    gold:'#BFA054', line:'#DCE3EC', line2:'#EDF1F6', panel:'#F7F9FC',
+    pass:'#2C6A4F', fail:'#A0362F' },
+  fontFamily: { serif:['Source Serif 4','Georgia','serif'],
+    sans:['IBM Plex Sans','Segoe UI','system-ui','sans-serif'],
+    mono:['IBM Plex Mono','ui-monospace','monospace'] } } } }
+</script>
+<style>
+  html, body { height: 100%; }
+  body { background: radial-gradient(1100px 620px at 50% -12%, #E4EDF9 0%, rgba(228,237,249,0) 68%),
+                     linear-gradient(#FBFCFE, #F4F7FB); background-attachment: fixed; }
+  .font-serif { font-family:'Source Serif 4',Georgia,serif }
+  .font-mono { font-family:'IBM Plex Mono',ui-monospace,monospace }
+  .card { box-shadow: 0 1px 2px rgba(20,33,61,.05), 0 10px 28px -18px rgba(20,33,61,.32); }
+  .fld { width:100%; border:1px solid #DCE3EC; border-radius:8px; padding:8px 11px; font-size:13.5px;
+         background:#fff; color:#25324F; }
+  .fld:focus { outline:none; border-color:#1A4F8B; box-shadow:0 0 0 3px rgba(26,79,139,.10) }
+  .lbl { font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.12em;
+         text-transform:uppercase; color:#65758B; margin-bottom:5px; display:block }
+</style>
+</head>
+<body class="min-h-screen font-sans text-body antialiased">
+<div class="max-w-3xl mx-auto px-6 py-14">
+
+  <a href="/" class="inline-flex items-center gap-2 text-[12px] font-mono tracking-[0.14em] uppercase text-brand hover:text-brandDeep mb-9">&larr; Back</a>
+
+  <h1 class="font-serif text-[38px] font-semibold tracking-tight text-ink leading-tight">Research house views</h1>
+  <p class="mt-4 text-[15.5px] leading-relaxed">
+    Open the company page on J.P. Morgan Markets in your own session, select the rating block and the
+    Equity&nbsp;Profile, and paste it below. Nothing here reaches the portal &mdash; you read it under your
+    own entitlement, and this records what you copied.
+  </p>
+
+  <div class="card rounded-xl bg-white border border-line p-6 mt-8">
+    <label class="lbl" for="paste">Paste the page</label>
+    <textarea id="paste" rows="9" class="fld font-mono text-[12px] leading-relaxed"
+      placeholder="Axon (AXON US)&#10;Sector: Aerospace &amp; Defense   Region: North America&#10;Equity Rating:&#10;Overweight&#10;Price Target:&#10;$755.00   45.7% Upside&#10;End date 31 Dec 2027&#10;..."></textarea>
+    <div class="mt-4 flex items-center gap-3">
+      <button onclick="readPaste()" id="readBtn"
+        class="text-[13px] font-semibold text-white bg-ink rounded-lg px-5 py-2.5 hover:bg-ink2">Read it</button>
+      <span id="parseNote" class="text-[12.5px] text-muted"></span>
+    </div>
+  </div>
+
+  <form id="form" class="hidden card rounded-xl bg-white border border-line p-6 mt-5">
+    <div class="flex items-baseline justify-between mb-5">
+      <h2 class="font-serif text-[20px] font-semibold text-ink">Check before saving</h2>
+      <span class="text-[12px] text-muted">Correct anything the parse got wrong</span>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div><label class="lbl">House</label><input id="house" class="fld" value="J.P. Morgan"></div>
+      <div><label class="lbl">Ticker</label><input id="ticker" class="fld" placeholder="AXON"></div>
+      <div><label class="lbl">Equity rating</label><input id="equity_rating" class="fld" placeholder="Overweight"></div>
+      <div><label class="lbl">Price target</label><input id="price_target" class="fld" placeholder="755.00"></div>
+      <div><label class="lbl">Upside quoted</label><input id="upside_pct" class="fld" placeholder="0.457"></div>
+      <div><label class="lbl">Target horizon</label><input id="target_horizon" class="fld" placeholder="End date 31 Dec 2027"></div>
+      <div><label class="lbl">Credit rating</label><input id="credit_rating" class="fld" placeholder="A+"></div>
+      <div><label class="lbl">Credit scale</label><input id="credit_rating_scale" class="fld" placeholder="S&amp;P"></div>
+      <div><label class="lbl">Analyst</label><input id="analyst" class="fld"></div>
+      <div><label class="lbl">Published <span class="text-fail">required</span></label><input id="published" class="fld" placeholder="2026-08-06"></div>
+      <div><label class="lbl">Sector</label><input id="sector" class="fld"></div>
+      <div><label class="lbl">Region</label><input id="region" class="fld"></div>
+    </div>
+    <div class="mt-5"><label class="lbl">Latest note</label><input id="note_title" class="fld"></div>
+    <div class="mt-3"><label class="lbl">Note summary</label><textarea id="note_summary" rows="3" class="fld"></textarea></div>
+    <div class="grid sm:grid-cols-3 gap-4 mt-3">
+      <div><label class="lbl">Note kind</label><input id="note_kind" class="fld"></div>
+      <div><label class="lbl">Note published</label><input id="note_published" class="fld"></div>
+      <div><label class="lbl">Note authors</label><input id="note_authors" class="fld"></div>
+    </div>
+    <div class="mt-5">
+      <label class="lbl">Equity profile <span id="profileCount" class="text-muted"></span></label>
+      <div id="profile" class="rounded-lg border border-line divide-y divide-line2 text-[13px]"></div>
+    </div>
+    <div class="mt-6 flex items-center gap-3">
+      <button type="button" onclick="save()" id="saveBtn"
+        class="text-[13px] font-semibold text-white bg-brand rounded-lg px-5 py-2.5 hover:bg-brandDeep">Save this view</button>
+      <span id="saveNote" class="text-[12.5px]"></span>
+    </div>
+  </form>
+
+  <div class="mt-10">
+    <h2 class="font-serif text-[20px] font-semibold text-ink mb-3">Stored views</h2>
+    <div id="stored" class="text-[13.5px] text-muted">Loading&hellip;</div>
+  </div>
+
+  <p class="mt-12 pt-6 border-t border-line text-[12px] leading-relaxed text-muted">
+    Figures are recorded as published, attributed to the house, and shown in the report with the date
+    they carry. Each house's rating stays in that house's own words &mdash; an Overweight is not this
+    firm's Buy. Internal use only.
+  </p>
+</div>
+
+<script>
+var FIELDS = ['house','ticker','equity_rating','price_target','upside_pct','target_horizon',
+  'credit_rating','credit_rating_scale','analyst','published','sector','region',
+  'note_title','note_summary','note_kind','note_published','note_authors'];
+var profileRows = [];
+
+function el(id){ return document.getElementById(id); }
+
+function readPaste(){
+  var text = el('paste').value;
+  if (!text.trim()) { el('parseNote').textContent = 'Paste the page first.'; return; }
+  el('readBtn').disabled = true;
+  el('parseNote').textContent = 'Reading...';
+  fetch('/api/house-views/parse', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({text: text})})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      el('readBtn').disabled = false;
+      var f = d.fields || {};
+      FIELDS.forEach(function(k){
+        if (el(k) && f[k] !== undefined && f[k] !== null) { el(k).value = f[k]; }
+      });
+      // The house dates its note. The view's own date defaults to that rather
+      // than being invented, and stays editable.
+      if (!el('published').value && f.note_published) { el('published').value = f.note_published; }
+      profileRows = f.profile || [];
+      renderProfile();
+      el('form').classList.remove('hidden');
+      if (d.missing && d.missing.length) {
+        el('parseNote').innerHTML = '<span class="text-fail">Not found: ' + d.missing.join(', ') +
+          '</span> &mdash; fill those in below.';
+      } else {
+        el('parseNote').innerHTML = '<span class="text-pass">Everything found.</span> Check it, then save.';
+      }
+    })
+    .catch(function(){
+      el('readBtn').disabled = false;
+      el('parseNote').textContent = 'Could not read that.';
+    });
+}
+
+function renderProfile(){
+  el('profileCount').textContent = profileRows.length ? '(' + profileRows.length + ' rows)' : '(none found)';
+  el('profile').innerHTML = profileRows.map(function(row, i){
+    return '<div class="flex items-center gap-3 px-3 py-2">' +
+      '<span class="flex-1 text-muted">' + row[0] + '</span>' +
+      '<span class="font-mono text-ink">' + row[1] + '</span>' +
+      '<button type="button" onclick="dropRow(' + i + ')" class="text-muted hover:text-fail px-1">&times;</button>' +
+      '</div>';
+  }).join('');
+}
+
+function dropRow(i){ profileRows.splice(i, 1); renderProfile(); }
+
+function save(){
+  var payload = {profile: profileRows};
+  FIELDS.forEach(function(k){
+    var v = el(k) ? el(k).value.trim() : '';
+    if (v) { payload[k] = v; }
+  });
+  ['price_target','upside_pct'].forEach(function(k){
+    if (payload[k] !== undefined) {
+      payload[k] = Number(String(payload[k]).replace(/[$,%\s]/g, ''));
+    }
+  });
+  el('saveBtn').disabled = true;
+  el('saveNote').textContent = 'Saving...';
+  fetch('/api/house-views', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)})
+    .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, d: d}; }); })
+    .then(function(res){
+      el('saveBtn').disabled = false;
+      if (!res.ok) {
+        el('saveNote').innerHTML = '<span class="text-fail">' + (res.d.detail || 'Could not save.') + '</span>';
+        return;
+      }
+      el('saveNote').innerHTML = '<span class="text-pass">Saved &mdash; it will appear on every ' +
+        res.d.ticker + ' report.</span>';
+      loadStored();
+    })
+    .catch(function(){
+      el('saveBtn').disabled = false;
+      el('saveNote').textContent = 'Could not save.';
+    });
+}
+
+function loadStored(){
+  fetch('/api/house-views')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var views = d.views || [];
+      if (!views.length) { el('stored').textContent = 'Nothing stored yet.'; return; }
+      el('stored').innerHTML = views.map(function(v){
+        return '<div class="card rounded-lg bg-white border border-line px-4 py-3 mb-2 flex items-baseline gap-3">' +
+          '<span class="font-mono font-semibold text-ink">' + v.ticker + '</span>' +
+          '<span class="text-ink2">' + v.house + '</span>' +
+          '<span class="text-muted">' + (v.equity_rating || '') +
+          (v.price_target ? ' &middot; $' + v.price_target : '') + '</span>' +
+          '<span class="ml-auto text-[12px] text-muted">' + (v.published || '') + '</span>' +
+          '</div>';
+      }).join('');
+    })
+    .catch(function(){ el('stored').textContent = 'Could not load stored views.'; });
+}
+
+loadStored();
+</script>
+</body>
+</html>

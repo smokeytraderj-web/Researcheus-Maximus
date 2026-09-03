@@ -514,3 +514,59 @@ class FeedbackDeliveryTests(unittest.TestCase):
             self.assertEqual(feedback_store.flush(self.root), 0)
         post.assert_not_called()
         self.assertEqual(feedback_store.summarise(self.root)["awaiting_delivery"], 0)
+
+
+class HouseViewParseEndpointTests(unittest.TestCase):
+    """Parsing is not saving. The parse comes back for a person to check, which
+    is the same gate the rest of the app puts in front of evidence."""
+
+    def setUp(self) -> None:
+        from fastapi.testclient import TestClient
+        import backend.app
+        self._tmp = tempfile.TemporaryDirectory()
+        self._env = os.environ.get("RESEARCHEUS_DATA_DIR")
+        os.environ["RESEARCHEUS_DATA_DIR"] = self._tmp.name
+        self.client = TestClient(backend.app.app)
+        self.client.post("/api/unlock", json={"code": os.environ.get("RESEARCHEUS_ACCESS_CODE", "2003")})
+
+    def tearDown(self) -> None:
+        if self._env is None:
+            os.environ.pop("RESEARCHEUS_DATA_DIR", None)
+        else:
+            os.environ["RESEARCHEUS_DATA_DIR"] = self._env
+        self._tmp.cleanup()
+
+    PAGE = ("Axon (AXON US)\nSUBSCRIBE   Sector: Aerospace & Defense   Region: North America\n"
+            "Equity Rating:\nOverweight\nPrice Target:\n$755.00  45.7% Upside\n"
+            "Equity Profile\nPrice ($)      518.30\nMarket cap ($ mn)      42,748\n")
+
+    def test_a_pasted_page_comes_back_parsed(self) -> None:
+        response = self.client.post("/api/house-views/parse", json={"text": self.PAGE})
+        self.assertEqual(response.status_code, 200)
+        fields = response.json()["fields"]
+        self.assertEqual(fields["ticker"], "AXON")
+        self.assertEqual(fields["equity_rating"], "Overweight")
+        self.assertEqual(fields["price_target"], 755.0)
+
+    def test_parsing_stores_nothing(self) -> None:
+        self.client.post("/api/house-views/parse", json={"text": self.PAGE})
+        self.assertEqual(self.client.get("/api/house-views").json()["views"], [])
+
+    def test_an_empty_paste_is_refused_rather_than_parsed_into_nothing(self) -> None:
+        self.assertEqual(self.client.post("/api/house-views/parse", json={"text": "  "}).status_code, 400)
+
+    def test_the_parse_endpoint_is_behind_the_access_gate(self) -> None:
+        from fastapi.testclient import TestClient
+        import backend.app
+        stranger = TestClient(backend.app.app)
+        self.assertEqual(
+            stranger.post("/api/house-views/parse", json={"text": self.PAGE}).status_code, 401
+        )
+
+    def test_a_parsed_page_can_then_be_saved_and_reaches_the_report(self) -> None:
+        parsed = self.client.post("/api/house-views/parse", json={"text": self.PAGE}).json()["fields"]
+        parsed["published"] = "2026-08-06"
+        self.assertEqual(self.client.post("/api/house-views", json=parsed).status_code, 200)
+        stored = self.client.get("/api/house-views", params={"ticker": "AXON"}).json()["views"]
+        self.assertEqual(len(stored), 1)
+        self.assertEqual(stored[0]["equity_rating"], "Overweight")
