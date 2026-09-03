@@ -153,12 +153,13 @@ _DYNAMIC_CSS = r"""
 .af-note{font-size:12px;color:var(--body);line-height:1.55;margin-top:12px;max-width:76ch}
 /* Window selector for the relative comparison. The chart is the evidence; these
    only choose which span of it is shown. */
-.tf-tabs{display:flex;gap:6px;margin-bottom:12px}
-.tf-tab{font:inherit;font-size:11px;font-weight:600;letter-spacing:.04em;padding:5px 12px;
-  border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:20px;cursor:pointer;
-  transition:.14s}
-.tf-tab:hover{border-color:var(--ink);color:var(--ink)}
-.tf-tab.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.tf-tabs{display:flex;gap:22px;margin:0 0 14px;padding-bottom:9px;
+  border-bottom:1px solid var(--line-2)}
+.tf-tab{font:inherit;font-size:11.5px;font-weight:500;letter-spacing:.02em;padding:0 0 8px;
+  margin-bottom:-10px;border:0;background:none;color:var(--muted);cursor:pointer;
+  border-bottom:2px solid transparent;transition:color .14s,border-color .14s}
+.tf-tab:hover{color:var(--ink)}
+.tf-tab.on{color:var(--ink);font-weight:600;border-bottom-color:var(--gold)}
 .fund-figs{margin:16px 0 4px}
 /* Six figures read as two rows of three, not one crushed row of six. */
 .fund-figs .topline{grid-template-columns:repeat(3,1fr)}
@@ -1682,6 +1683,17 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 
 def _navigation_script() -> str:
     return r"""
+// Window selectors, scoped to their own group so two on a page do not drive
+// each other. Lives here rather than in the Technical script: the General
+// brief carries the same selector and was rendering the buttons dead.
+document.querySelectorAll('[data-tf]').forEach(function(group){
+  group.querySelectorAll('.tf-tab').forEach(function(tab){
+    tab.addEventListener('click',function(){
+      group.querySelectorAll('.tf-tab').forEach(function(t){t.classList.toggle('on',t===tab)});
+      group.querySelectorAll('.tf-panel').forEach(function(p){p.hidden=(p.dataset.i!==tab.dataset.i)});
+    });
+  });
+});
 document.querySelectorAll('.rail a').forEach(function(link){
   link.addEventListener('click',function(){document.querySelectorAll('.rail a').forEach(function(a){a.classList.remove('on')});link.classList.add('on')});
 });
@@ -1747,16 +1759,6 @@ function bindTabs(buttonSelector,panelSelector){
   })});
 }
 bindTabs('.evidence-tab','.evidence-panel');
-// Window selectors are scoped to their own group, so two on a page do not drive
-// each other.
-document.querySelectorAll('[data-tf]').forEach(function(group){
-  group.querySelectorAll('.tf-tab').forEach(function(tab){
-    tab.addEventListener('click',function(){
-      group.querySelectorAll('.tf-tab').forEach(function(t){t.classList.toggle('on',t===tab)});
-      group.querySelectorAll('.tf-panel').forEach(function(p){p.hidden=(p.dataset.i!==tab.dataset.i)});
-    });
-  });
-});
 (function(){
   var loaded=false,loading=false;
   function init(){
