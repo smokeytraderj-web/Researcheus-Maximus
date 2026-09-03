@@ -370,3 +370,59 @@ class ScenarioScriptTests(unittest.TestCase):
         self.assertIn('class="scn-levels"', html)
         self.assertIn("data-level=", html)
         self.assertIn("Second target", html)
+
+
+class TimeframeSelectorTests(unittest.TestCase):
+    """One window is one opinion. A name down over three months reads
+    differently if the year is up and differently again if five years are flat."""
+
+    def _render(self, extra):
+        import dataclasses
+        from core.models import ChartRecord
+        with tempfile.TemporaryDirectory() as tmp:
+            request = build_request("NFLX", "deep")
+            result = DemoResearchProvider().run(request, Path(tmp))
+            charts = tuple(
+                ChartRecord(title, result.chart_path, f"{title} reading.", ())
+                for title in extra
+            )
+            result = dataclasses.replace(result, chartbook=result.chartbook + charts)
+            target = Path(tmp) / "report.html"
+            build_research_html(result, request, target)
+            return target.read_text(encoding="utf-8")
+
+    WINDOWS = ("Relative performance — 1 year", "Relative performance — 3 years",
+               "Relative performance — 5 years", "Relative performance — Peers")
+
+    def test_each_window_becomes_a_button(self):
+        html = self._render(self.WINDOWS)
+        for label in ("Year to date", "1 year", "3 years", "5 years", "Peers"):
+            with self.subTest(label=label):
+                self.assertIn(f">{label}</button>", html)
+
+    def test_the_default_window_stays_first(self):
+        # The report's headline evidence must not move because options exist.
+        html = self._render(self.WINDOWS)
+        panel = html[html.index('class="tf-tabs"'):]
+        self.assertLess(panel.index("Year to date"), panel.index("5 years"))
+        self.assertIn('class="tf-tab on" data-i="0"', html)
+
+    def test_no_selector_appears_when_there_is_only_one_window(self):
+        html = self._render(())
+        self.assertNotIn('class="tf-tabs"', html)
+
+    def test_the_buttons_are_a_control_and_do_not_print(self):
+        html = self._render(self.WINDOWS)
+        self.assertIn(".tf-tabs{display:none!important}", html)
+
+    def test_print_keeps_every_window_in_technical_and_one_in_the_brief(self):
+        # Technical gives each chart its own page anyway; the brief is pinned to
+        # three pages and has room for its default only.
+        html = self._render(self.WINDOWS)
+        self.assertIn(".tech-report .tf-panel[hidden]{display:block!important}", html)
+        self.assertIn(".general-brief .tf-panel[hidden]{display:none!important}", html)
+
+    def test_each_window_is_scoped_to_its_own_group(self):
+        # Two selectors on one page must not drive each other.
+        html = self._render(self.WINDOWS)
+        self.assertIn("document.querySelectorAll('[data-tf]').forEach", html)

@@ -54,6 +54,57 @@ from research.ycharts_excel import METRICS as YCHARTS_METRICS, retrieve_ycharts_
 from security.certificates import verified_market_session
 
 
+# Windows offered alongside the default comparison. A year separates a drawdown
+# from a downtrend; three and five separate a downtrend from a cycle. The
+# feedback that prompted these asked for exactly 1, 3 and 5.
+RELATIVE_WINDOWS = ((1, "1 year"), (3, "3 years"), (5, "5 years"))
+
+
+def relative_timeframe_charts(
+    histories: dict,
+    workspace: "Path",
+    symbol: str,
+    benchmark: str,
+    rating,
+    end_date: str = "",
+) -> tuple[ChartRecord, ...]:
+    """The same comparison over one, three and five years.
+
+    One window is one opinion. A name down 23% over three months is a different
+    story if the year is up and another if five years are flat, and the report
+    could not previously tell those apart -- every chart was drawn on a single
+    range.
+
+    A window that the available history cannot cover is skipped rather than
+    drawn short: a chart labelled "5 years" showing eighteen months is worse
+    than no five-year chart.
+    """
+    charts: list[ChartRecord] = []
+    end = end_date or dt.date.today().isoformat()
+    end_on = dt.date.fromisoformat(end)
+    for years, label in RELATIVE_WINDOWS:
+        start = (end_on - dt.timedelta(days=round(365.25 * years))).isoformat()
+        try:
+            destination = workspace / f"relative-{years}y.png"
+            path = render_total_return_chart(
+                histories, destination, label, benchmark, start, end
+            )
+            insights = total_return_chart_insights(
+                histories, symbol, benchmark, label, rating, start, end
+            )
+        except Exception:  # noqa: BLE001 - a window the history cannot cover is simply not offered
+            continue
+        charts.append(
+            ChartRecord(
+                f"Relative performance — {label}",
+                str(path),
+                insights[0] if insights else "",
+                tuple(insights),
+            )
+        )
+    return tuple(charts)
+
+
 def _first_number(mapping: dict, *keys):
     for key in keys:
         value = mapping.get(key)
@@ -1283,6 +1334,25 @@ class LiveResearchProvider:
                         overview_histories["SPY"] = spy_history
                     except Exception:
                         comparison_failures.append("SPY: YTD benchmark history was unavailable")
+        # Five years fetched once, then sliced into the 1/3/5-year windows. The
+        # default comparison stays YTD; these are the alternatives beside it.
+        timeframe_histories: dict[str, object] = {}
+        if symbol != "SPY" and not request.custom_start:
+            five_years_ago = (dt.date.today() - dt.timedelta(days=round(365.25 * 5))).isoformat()
+            try:
+                timeframe_histories[symbol] = self._history(
+                    yf, ticker, symbol, self._market_session, five_years_ago, ""
+                )
+                timeframe_histories["SPY"] = self._history(
+                    yf,
+                    yf.Ticker("SPY", session=self._market_session),
+                    "SPY",
+                    self._market_session,
+                    five_years_ago,
+                    "",
+                )
+            except Exception:  # noqa: BLE001 - the alternatives are optional
+                timeframe_histories = {}
         primary_identity = SecurityIdentity(company, symbol, exchange, currency)
         portfolio_fit = _build_portfolio_fit(request, info, company)
         trade_cases = historical_trade_examples(history) if request.historical_trade_examples else ()
@@ -1604,6 +1674,47 @@ class LiveResearchProvider:
             if request.horizon is Horizon.ALL and not request.deep_analysis
             else ()
         )
+        timeframe_charts = (
+            relative_timeframe_charts(
+                timeframe_histories, workspace, symbol, "SPY", technical.rating
+            )
+            if timeframe_histories and workspace is not None
+            else ()
+        )
+        # The same comparison against the cohort rather than the index. A name
+        # can trail the market while leading its industry, or the reverse, and
+        # only one of those says something about the company.
+        if peers is not None and peers.usable and workspace is not None:
+            try:
+                peer_histories = {symbol: history}
+                for member in peers.members:
+                    peer_histories[member.ticker] = self._history(
+                        yf,
+                        yf.Ticker(member.ticker, session=self._market_session),
+                        member.ticker,
+                        self._market_session,
+                        request.custom_start,
+                        request.custom_end,
+                    )
+                peer_path = render_total_return_chart(
+                    peer_histories,
+                    workspace / "relative-peers.png",
+                    f"{peers.industry} peers",
+                    "",
+                    overview_start,
+                    overview_end,
+                )
+                timeframe_charts += (
+                    ChartRecord(
+                        "Relative performance — Peers",
+                        str(peer_path),
+                        f"{symbol} against its {peers.industry.lower()} cohort over the same dates. "
+                        + peers.standing().capitalize() + ".",
+                        (peers.selection_rule,),
+                    ),
+                )
+            except Exception:  # noqa: BLE001 - the peer chart is optional evidence
+                pass
         technical_plan = technical_action_plan(snapshot, technical.rating, quote_type)
         limitations = list(synthesis.limitations)
         limitations.extend(ycharts_errors)
@@ -2117,7 +2228,7 @@ class LiveResearchProvider:
                 if request.deep_analysis
                 else "Standard Research"
             ),
-            chartbook=tuple(chartbook),
+            chartbook=tuple(chartbook) + timeframe_charts,
             comparison=comparison_assessment,
             ycharts_status=ycharts_status,
             historical_trade_cases=tuple(trade_cases),

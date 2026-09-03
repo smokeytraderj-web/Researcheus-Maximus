@@ -151,6 +151,14 @@ _DYNAMIC_CSS = r"""
 .af-v{font-size:22px;font-weight:600;color:var(--ink);margin-top:6px}
 .af-n{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.45}
 .af-note{font-size:12px;color:var(--body);line-height:1.55;margin-top:12px;max-width:76ch}
+/* Window selector for the relative comparison. The chart is the evidence; these
+   only choose which span of it is shown. */
+.tf-tabs{display:flex;gap:6px;margin-bottom:12px}
+.tf-tab{font:inherit;font-size:11px;font-weight:600;letter-spacing:.04em;padding:5px 12px;
+  border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:20px;cursor:pointer;
+  transition:.14s}
+.tf-tab:hover{border-color:var(--ink);color:var(--ink)}
+.tf-tab.on{background:var(--ink);border-color:var(--ink);color:#fff}
 .house-line{margin-top:0}
 .hv-profiles{display:grid;grid-template-columns:repeat(2,1fr);gap:0 34px;margin-top:18px}
 .hv-list{display:grid;gap:14px}
@@ -331,6 +339,12 @@ _DYNAMIC_CSS = r"""
 /* The TradingView panel is a live embed: in print it is a 760px empty box that
    costs a whole blank page, so drop it and say where the live view lives. */
 .tech-report #evidenceTradingView{display:none!important}
+/* The window buttons are a control. Print keeps the Technical report's windows
+   as evidence -- each already gets its own page -- and holds the brief to its
+   default, which is what its three pinned pages have room for. */
+.tf-tabs{display:none!important}
+.tech-report .tf-panel[hidden]{display:block!important}
+.general-brief .tf-panel[hidden]{display:none!important}
 .tech-report #charts{break-inside:auto}
 .tech-report .p2-strip{break-after:avoid;break-inside:avoid}
 .tech-report .evidence-panel{break-inside:avoid;margin-top:14px}
@@ -930,6 +944,49 @@ def _peer_group_html(result: ResearchResult) -> str:
     )
 
 
+def _timeframe_set(result: ResearchResult, default: ChartRecord | None,
+                   default_label: str) -> tuple[tuple[str, ChartRecord], ...]:
+    """The default comparison plus any longer windows produced for it.
+
+    One window is one opinion: a name down over three months reads differently
+    if the year is up and differently again if five years are flat. The default
+    stays first so the report's headline evidence does not move.
+    """
+    windows = [
+        (chart.title.split("—")[-1].strip(), chart)
+        for chart in result.chartbook
+        if chart.title.startswith("Relative performance —")
+    ]
+    if not windows:
+        return ((default_label, default),) if default is not None else ()
+    ordered = [(default_label, default)] if default is not None else []
+    return tuple(ordered + windows)
+
+
+def _timeframe_chart_html(
+    charts: tuple[tuple[str, ChartRecord], ...],
+    element_prefix: str,
+    legend: tuple[tuple[str, str], ...] = (),
+) -> str:
+    """One chart with a window selector, or just the chart when there is one."""
+    usable = [(label, chart) for label, chart in charts if chart is not None]
+    if not usable:
+        return _chart_html(None, element_prefix)
+    if len(usable) == 1:
+        return _chart_html(usable[0][1], element_prefix, legend)
+    tabs = "".join(
+        f'<button type="button" class="tf-tab{" on" if index == 0 else ""}" '
+        f'data-i="{index}">{escape(label)}</button>'
+        for index, (label, _chart) in enumerate(usable)
+    )
+    panels = "".join(
+        f'<div class="tf-panel" data-i="{index}"{"" if index == 0 else " hidden"}>'
+        f'{_chart_html(chart, f"{element_prefix}{index}", legend)}</div>'
+        for index, (_label, chart) in enumerate(usable)
+    )
+    return f'<div class="tf" data-tf><div class="tf-tabs">{tabs}</div>{panels}</div>'
+
+
 def _house_strip(result: ResearchResult) -> str:
     """Each house's call, in the same strip language as the plan and the market.
 
@@ -1237,7 +1294,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
 <section id="evidence">
   <div class="sec-head"><h2>Evidence</h2><span class="verdict v-neu">One decision chart</span></div>
   <div class="ev-note"><b>Figures behind this view:</b> {key_figures}</div>
-  {_chart_html(_general_chart(result), 'generalEvidence')}
+  {_timeframe_chart_html(_timeframe_set(result, _general_chart(result), 'Year to date'), 'generalEvidence')}
 </section>
 <section id="data">
   <div class="sec-head"><h2>Essential data</h2></div>
@@ -1421,7 +1478,15 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
         for index, (label, panel_id, _chart, _legend) in enumerate(charts)
     )
     panels = "".join(
-        f'<div class="evidence-panel" id="{panel_id}" role="tabpanel" aria-labelledby="{panel_id}Tab"{("" if index == 0 else " hidden")}>{_chart_html(chart, panel_id + "Chart", legend)}</div>'
+        f'<div class="evidence-panel" id="{panel_id}" role="tabpanel" aria-labelledby="{panel_id}Tab"{("" if index == 0 else " hidden")}>'
+        + (
+            _timeframe_chart_html(
+                _timeframe_set(result, chart, "Year to date"), panel_id + "Chart", legend
+            )
+            if panel_id == "evidenceRelative"
+            else _chart_html(chart, panel_id + "Chart", legend)
+        )
+        + "</div>"
         for index, (_label, panel_id, chart, legend) in enumerate(charts)
     )
     reasons = "".join(f"<li>{escape(item)}</li>" for item in plan.rationale)
@@ -1629,6 +1694,16 @@ function bindTabs(buttonSelector,panelSelector){
   })});
 }
 bindTabs('.evidence-tab','.evidence-panel');
+// Window selectors are scoped to their own group, so two on a page do not drive
+// each other.
+document.querySelectorAll('[data-tf]').forEach(function(group){
+  group.querySelectorAll('.tf-tab').forEach(function(tab){
+    tab.addEventListener('click',function(){
+      group.querySelectorAll('.tf-tab').forEach(function(t){t.classList.toggle('on',t===tab)});
+      group.querySelectorAll('.tf-panel').forEach(function(p){p.hidden=(p.dataset.i!==tab.dataset.i)});
+    });
+  });
+});
 (function(){
   var loaded=false,loading=false;
   function init(){
