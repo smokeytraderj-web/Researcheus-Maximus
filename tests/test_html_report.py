@@ -426,3 +426,30 @@ class TimeframeSelectorTests(unittest.TestCase):
         # Two selectors on one page must not drive each other.
         html = self._render(self.WINDOWS)
         self.assertIn("document.querySelectorAll('[data-tf]').forEach", html)
+
+
+class DeckOrderTests(unittest.TestCase):
+    """A deck states the conclusion and then supports it, so the call comes
+    before the reasoning -- a reader has to know what the argument is for while
+    they are reading it."""
+
+    def _titles(self, mode):
+        import re
+        with tempfile.TemporaryDirectory() as tmp:
+            request = build_request("AXON", mode)
+            target = Path(tmp) / "report.html"
+            build_research_html(DemoResearchProvider().run(request, Path(tmp)), request, target)
+            html = target.read_text(encoding="utf-8")
+            deck = html[html.index('class="deck"'):]
+            return re.findall(r'class="s-title">([^<]+)<', deck)
+
+    def test_the_call_precedes_the_reasoning_in_both_reports(self):
+        for mode in ("general", "deep"):
+            with self.subTest(mode=mode):
+                titles = self._titles(mode)
+                self.assertLess(titles.index("The call"), titles.index("Why"))
+
+    def test_the_call_is_the_first_page_after_the_cover(self):
+        for mode in ("general", "deep"):
+            with self.subTest(mode=mode):
+                self.assertEqual(self._titles(mode)[0], "The call")

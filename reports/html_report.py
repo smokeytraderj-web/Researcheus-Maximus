@@ -2050,23 +2050,10 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
     plan = result.technical_plan
     pages: list[tuple[str, str, str]] = []  # (title, meta, body)
 
-    # 1. Why -- the reasoning, condensed. The report's two-movement narrative
-    #    leads; the analyst prose that follows it in the report is a third
-    #    paragraph there and does not fit a slide.
-    paragraphs = checklist_paragraphs(
-        checklist, rating=result.lead_rating.value,
-        seed=f"{result.identity.ticker}|{result.as_of}",
-    ) if checklist else ()
-    if paragraphs:
-        body = '<div class="s-why">'
-        body += f'<p class="lead">{escape(_condense(paragraphs[0], 44))}</p>'
-        for part in paragraphs[1:]:
-            body += f"<p>{escape(_condense(part, 62))}</p>"
-        body += "</div>"
-        pages.append(("Why", meta, body))
-
-    # 2. The call. The rating carries the page; the figures that qualify it sit
+    # 1. The call. The rating carries the page; the figures that qualify it sit
     #    beside it rather than under it, so neither competes for the eye.
+    #    Ahead of the reasoning: a deck states the conclusion and then supports
+    #    it, so a reader knows what the argument is for while reading it.
     judged = (checklist.total_count - checklist.unconfirmed_count) if checklist else 0
     cells = [
         ("Confidence", escape(result.confidence.value), "", ""),
@@ -2093,6 +2080,21 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
         f'<p class="s-rating {tone}">{escape(result.lead_rating.value)}</p>{stance}</div>'
         f'<div class="s-strip two">{strip}</div></div>',
     ))
+
+    # 2. Why -- the reasoning, condensed. The report's two-movement narrative
+    #    leads; the analyst prose that follows it in the report is a third
+    #    paragraph there and does not fit a slide.
+    paragraphs = checklist_paragraphs(
+        checklist, rating=result.lead_rating.value,
+        seed=f"{result.identity.ticker}|{result.as_of}",
+    ) if checklist else ()
+    if paragraphs:
+        body = '<div class="s-why">'
+        body += f'<p class="lead">{escape(_condense(paragraphs[0], 44))}</p>'
+        for part in paragraphs[1:]:
+            body += f"<p>{escape(_condense(part, 62))}</p>"
+        body += "</div>"
+        pages.append(("Why", meta, body))
 
     # 3. The checklist, in the same five cards the report page carries.
     if checklist is not None and checklist.criteria:
