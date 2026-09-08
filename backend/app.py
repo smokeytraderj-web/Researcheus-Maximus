@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -43,6 +43,7 @@ from research import house_views
 from research.jpmm_paste import SecretInPayload, parse_jpmm_page, parse_jpmm_payload
 from services.research_runner import ResearchRunner
 from services.technical_runner import TechnicalRunner
+from backend.portfolio import attach_portfolio_routes
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,7 @@ async def lifespan(_: FastAPI):
     if feedback_store.webhook_url():
         threading.Thread(target=feedback_store.flush, args=(REPORTS_ROOT,), daemon=True).start()
     yield
+    shutdown_portfolios()
     registry.shutdown()
     # Reports are temporary: leave nothing behind on the way out.
     discard_all_reports(REPORTS_ROOT)
@@ -96,7 +98,11 @@ def _is_exempt(path: str) -> bool:
 async def require_access_code(request: Request, call_next):
     """Hold everything except the exempt paths behind the shared access code."""
     if _is_exempt(request.url.path) or gate.token_valid(request.cookies.get(gate.COOKIE_NAME, "")):
-        return await call_next(request)
+        response = await call_next(request)
+        if request.url.path.startswith("/api/portfolio"):
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
     if request.url.path.startswith("/api/"):
         return JSONResponse({"detail": "Enter the access code to continue."}, status_code=401)
     # Serve the gate in place, so the address the reader typed still stands
@@ -479,6 +485,20 @@ def health() -> dict:
         "house_views_durable": house_views.is_durable(),
         **load_credentials().status(),
     }
+
+
+shutdown_portfolios = attach_portfolio_routes(app, REPORTS_ROOT, WEB_DIR, _provider, _run_slots)
+
+
+@app.get("/portfolio", include_in_schema=False)
+def portfolio_page() -> FileResponse:
+    """Portfolio research lives alongside the existing single-stock home page."""
+    return FileResponse(WEB_DIR / "portfolio.html", media_type="text/html")
+
+
+@app.get("/portfolio/", include_in_schema=False)
+def portfolio_page_redirect() -> RedirectResponse:
+    return RedirectResponse("/portfolio", status_code=307)
 
 
 # The frontend is served last so /api and /r win over the static mount.
