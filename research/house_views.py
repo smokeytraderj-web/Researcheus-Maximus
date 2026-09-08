@@ -101,6 +101,10 @@ def _to_view(record: dict) -> HouseView | None:
             price_target=record.get("price_target"),
             upside_pct=record.get("upside_pct"),
             profile=tuple(tuple(str(cell) for cell in row) for row in record.get("profile", ())),
+            estimates=tuple(
+                (str(metric), tuple(tuple(str(cell) for cell in pair) for pair in cells))
+                for metric, cells in record.get("estimates", ())
+            ),
             latest_note=note,
             notes=tuple(record.get("notes", ())),
         )
@@ -120,6 +124,7 @@ def save(view: HouseView, path: Path | None = None) -> None:
         data[_key(view.house, view.ticker)] = {
             **{field: getattr(view, field) for field in _FIELDS},
             "profile": [list(row) for row in view.profile],
+            "estimates": [[metric, [list(cell) for cell in cells]] for metric, cells in view.estimates],
             "latest_note": (
                 {f: getattr(view.latest_note, f) for f in _NOTE_FIELDS}
                 if view.latest_note is not None else None

@@ -289,3 +289,154 @@ class RenderedPageTests(unittest.TestCase):
 
     def test_a_complete_rendered_page_reports_nothing_missing(self):
         self.assertEqual(self.parsed.missing, [])
+
+
+# The strip exactly as /research/company/AXON.O/earning-strip returned it in the
+# advisor's own session. Note the trailing spaces on some labels, and that
+# "Price ($)" and "Price Target ($)" differ by one word.
+STRIP = [
+    {"label": "Equity Rating", "value": "Overweight", "currency": ""},
+    {"label": "Price ($)", "value": "515.67", "currency": "USD"},
+    {"label": "Date of price ", "value": "04 Sep 26", "currency": ""},
+    {"label": "Price Target ($)", "value": "755.00", "currency": "USD"},
+    {"label": "Price target end date ", "value": "31-Dec-27", "currency": ""},
+    {"label": "Shares O/S (mn)", "value": "82", "currency": ""},
+    {"label": "52-week range ($)", "value": "792.16-339.01", "currency": "USD"},
+    {"label": "Market cap ($ mn)", "value": "42,531.43", "currency": "USD"},
+    {"label": "Exchange rate ", "value": "1.00", "currency": ""},
+    {"label": "Free float (%) ", "value": "94.8%", "currency": ""},
+    {"label": "3M ADV (mn)", "value": "0.99", "currency": ""},
+    {"label": "3M ADV ($ mn)", "value": "529.5", "currency": "USD"},
+    {"label": "Volatility (90 Day) ", "value": "73", "currency": ""},
+    {"label": "Index ", "value": "RUSSELL 2000", "currency": ""},
+    {"label": "BBG ANR (Buy | Hold | Sell) ", "value": "19|1|0", "currency": ""},
+]
+
+ESTIMATES = [
+    {"displayName": " Revenue FY ($ mn)", "dataItems": {
+        "FY24A": {"displayValue": "2,084"}, "FY25A": {"displayValue": "2,780"},
+        "FY26E": {"displayValue": "3,720"}}},
+    {"displayName": " EBITDA margin FY ", "dataItems": {
+        "FY24A": {"displayValue": "24.9%"}, "FY26E": {"displayValue": "25.6%"}}},
+]
+
+
+class PayloadTests(unittest.TestCase):
+    """The portal states every figure already typed and labelled. Read that and
+    nothing has to be recovered from the shape of rendered text."""
+
+    def setUp(self):
+        from research.jpmm_paste import parse_jpmm_payload
+        self.parsed = parse_jpmm_payload(STRIP, ESTIMATES, RENDERED, ticker="AXON")
+
+    def test_the_call_comes_from_the_strip_not_the_text(self):
+        fields = self.parsed.fields
+        self.assertEqual(fields["equity_rating"], "Overweight")
+        self.assertEqual(fields["price_target"], 755.0)
+        self.assertEqual(fields["currency"], "USD")
+        self.assertEqual(fields["target_horizon"], "End date 31-Dec-27")
+
+    def test_the_strips_fresher_price_wins_over_the_rendered_one(self):
+        # The page had 506.98 cached; the strip answered 515.67. The strip is
+        # the source the page was a rendering of, so it wins.
+        rows = dict(self.parsed.profile)
+        self.assertEqual(rows["Price ($)"], "515.67")
+
+    def test_price_target_is_never_mistaken_for_price(self):
+        # They differ by one word, and the second is what the report compares
+        # against this analysis's own price.
+        rows = dict(self.parsed.profile)
+        self.assertNotIn("Price Target ($)", rows)
+        self.assertEqual(self.parsed.fields["price_target"], 755.0)
+        self.assertEqual(rows["Price ($)"], "515.67")
+
+    def test_every_profile_row_the_strip_carries_is_kept_with_its_label(self):
+        rows = dict(self.parsed.profile)
+        # 15 strip rows, less the three that are the view itself.
+        self.assertEqual(len(self.parsed.profile), 12)
+        self.assertEqual(rows["Market cap ($ mn)"], "42,531.43")
+        self.assertEqual(rows["Index"], "RUSSELL 2000")           # not on the page at all
+        self.assertEqual(rows["BBG ANR (Buy | Hold | Sell)"], "19|1|0")
+
+    def test_the_price_date_is_normalised_so_freshness_can_read_it(self):
+        self.assertEqual(dict(self.parsed.profile)["Date of price"], "2026-09-04")
+
+    def test_the_text_supplies_only_what_the_strip_does_not_carry(self):
+        fields = self.parsed.fields
+        self.assertEqual(fields["sector"], "Aerospace & Defense")
+        self.assertEqual(fields["analyst"], "Joseph Cardoso")
+        self.assertEqual(fields["published"], "2026-07-16")
+
+    def test_the_estimates_keep_their_periods_and_their_published_precision(self):
+        estimates = dict(self.parsed.estimates)
+        # The portal pads its metric names with a leading space; that is
+        # formatting, not the name, so it does not survive into the report.
+        revenue = dict(estimates["Revenue FY ($ mn)"])
+        self.assertEqual(revenue["FY24A"], "2,084")   # actual
+        self.assertEqual(revenue["FY26E"], "3,720")   # estimate, marked as one
+        self.assertEqual(dict(estimates["EBITDA margin FY"])["FY24A"], "24.9%")
+
+    def test_a_complete_payload_reports_nothing_missing(self):
+        self.assertEqual(self.parsed.missing, [])
+
+    def test_the_house_price_reaches_the_comparison(self):
+        from core.models import HouseView
+        view = HouseView(
+            house="J.P. Morgan", ticker="AXON", equity_rating="Overweight",
+            price_target=755.0, published="2026-07-16",
+            profile=tuple(tuple(row) for row in self.parsed.profile),
+        )
+        self.assertEqual(view.profile_price(), (515.67, "2026-09-04"))
+
+
+class PayloadRefusalTests(unittest.TestCase):
+    """The strip is not trusted more than the text was. What it does not carry
+    is still reported by name, and what it must never carry is refused."""
+
+    def test_a_strip_without_a_target_says_so_rather_than_inventing_one(self):
+        from research.jpmm_paste import parse_jpmm_payload
+        thin = [row for row in STRIP if "target" not in row["label"].casefold()]
+        parsed = parse_jpmm_payload(thin, (), "", ticker="AXON")
+        self.assertIn("price target", parsed.missing)
+        self.assertNotIn("price_target", parsed.fields)
+
+    def test_the_text_still_answers_for_a_figure_the_strip_lost(self):
+        # Degrading, not refusing: the page text is a worse source than the
+        # strip and a better one than nothing.
+        from research.jpmm_paste import parse_jpmm_payload
+        thin = [row for row in STRIP if "target" not in row["label"].casefold()]
+        parsed = parse_jpmm_payload(thin, (), RENDERED, ticker="AXON")
+        self.assertEqual(parsed.fields["price_target"], 755.0)
+        self.assertNotIn("price target", parsed.missing)
+
+    def test_a_payload_with_no_text_still_names_what_it_lacks(self):
+        # No text means no note, so no publication date -- and HouseView
+        # refuses an undated view, so it is named here rather than at the save.
+        from research.jpmm_paste import parse_jpmm_payload
+        parsed = parse_jpmm_payload(STRIP, (), "", ticker="AXON")
+        self.assertIn("publication date", parsed.missing)
+        self.assertEqual(parsed.fields["equity_rating"], "Overweight")
+
+    def test_an_empty_strip_yields_no_view(self):
+        from research.jpmm_paste import parse_jpmm_payload
+        parsed = parse_jpmm_payload([], (), "")
+        self.assertIn("ticker", parsed.missing)
+        self.assertIn("equity profile", parsed.missing)
+
+    def test_a_payload_carrying_session_material_is_refused_outright(self):
+        # Not stripped and passed on: a sender that included a credential is not
+        # the sender this was built for, so none of what it sent is read.
+        from research.jpmm_paste import SecretInPayload, parse_jpmm_payload
+        for poisoned in (
+            [{"label": "Equity Rating", "value": "Overweight", "cookie": "JSESSIONID=abc"}],
+            [{"label": "x", "value": "1", "meta": {"headers": {"Authorization": "Bearer ey."}}}],
+            [{"label": "x", "value": "1", "csrfToken": "zzz"}],
+        ):
+            with self.subTest(poisoned=poisoned):
+                with self.assertRaises(SecretInPayload):
+                    parse_jpmm_payload(poisoned, (), "")
+
+    def test_ordinary_evidence_is_not_mistaken_for_a_secret(self):
+        from research.jpmm_paste import parse_jpmm_payload
+        parsed = parse_jpmm_payload(STRIP, ESTIMATES, RENDERED, ticker="AXON")
+        self.assertEqual(parsed.fields["equity_rating"], "Overweight")

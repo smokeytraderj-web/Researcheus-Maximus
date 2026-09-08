@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Import from J.P. Morgan Markets — Technical Analyst Agent</title>
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
+<script src="vendor/tailwind.js"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  colors: { ink:'#14213D', ink2:'#25324F', body:'#3E4759', muted:'#65758B',
+    brand:'#1A4F8B', brandDeep:'#123A69', brandSoft:'#EAF1FA', brandLine:'#C4D8EE',
+    gold:'#BFA054', line:'#DCE3EC', line2:'#EDF1F6', panel:'#F7F9FC',
+    pass:'#2C6A4F', fail:'#A0362F' },
+  fontFamily: { serif:['Source Serif 4','Georgia','serif'],
+    sans:['IBM Plex Sans','Segoe UI','system-ui','sans-serif'],
+    mono:['IBM Plex Mono','ui-monospace','monospace'] } } } }
+</script>
+<style>
+  html, body { height: 100%; }
+  body { background: radial-gradient(1100px 620px at 50% -12%, #E4EDF9 0%, rgba(228,237,249,0) 68%),
+                     linear-gradient(#FBFCFE, #F4F7FB); background-attachment: fixed; }
+  .font-serif { font-family:'Source Serif 4',Georgia,serif }
+  .font-mono { font-family:'IBM Plex Mono',ui-monospace,monospace }
+  .card { box-shadow: 0 1px 2px rgba(20,33,61,.05), 0 10px 28px -18px rgba(20,33,61,.32); }
+  .lbl { font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.12em;
+         text-transform:uppercase; color:#65758B; margin-bottom:5px; display:block }
+  .step { counter-increment: step; }
+  .step::before { content: counter(step); font-family:'IBM Plex Mono',monospace; font-size:11px;
+    color:#1A4F8B; background:#EAF1FA; border:1px solid #C4D8EE; border-radius:999px;
+    width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center;
+    margin-right:10px; flex:none; }
+  ol.steps { counter-reset: step; }
+</style>
+</head>
+<body class="min-h-screen font-sans text-body antialiased">
+<div class="max-w-2xl mx-auto px-6 py-14">
+
+  <a href="house-views.html" class="inline-flex items-center gap-2 text-[12px] font-mono tracking-[0.14em] uppercase text-brand hover:text-brandDeep mb-9">&larr; House views</a>
+
+  <h1 class="font-serif text-[38px] font-semibold tracking-tight text-ink leading-tight">Import from J.P.&nbsp;Morgan Markets</h1>
+  <p class="mt-4 text-[15.5px] leading-relaxed">
+    A button for your bookmarks bar. On a company page it reads the rating, the price target, the
+    equity profile and the house's forward estimates, and hands them to this app for checking.
+  </p>
+
+  <div class="card rounded-xl bg-white border border-line p-6 mt-8">
+    <span class="lbl">Drag this to your bookmarks bar</span>
+    <a id="bm" href="#"
+       class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink rounded-lg px-5 py-3 cursor-move select-none hover:bg-ink2">
+      &#8615;&nbsp; Import to Analyst Agent
+    </a>
+    <p class="mt-3 text-[12.5px] text-muted">
+      Dragging is the only step &mdash; clicking it here does nothing, because there is no company page
+      to read. Press <span class="font-mono text-[12px]">Ctrl&nbsp;+&nbsp;Shift&nbsp;+&nbsp;B</span> if
+      your bookmarks bar is hidden.
+    </p>
+  </div>
+
+  <ol class="steps mt-8 space-y-4 text-[14.5px] leading-relaxed">
+    <li class="step flex"><span>Sign in to J.P. Morgan Markets as you normally do, in this browser.</span></li>
+    <li class="step flex"><span>Open the company page for the security you are researching.</span></li>
+    <li class="step flex"><span>Click <b>Import to Analyst Agent</b> in your bookmarks bar.</span></li>
+    <li class="step flex"><span>This app opens in a new tab with the figures filled in. Check them, correct anything wrong, and save.</span></li>
+  </ol>
+
+  <div class="mt-10 rounded-xl border border-line bg-panel px-5 py-4">
+    <h2 class="font-serif text-[17px] font-semibold text-ink">What it sends, and what it does not</h2>
+    <p class="mt-2.5 text-[13px] leading-relaxed">
+      It sends the figures: the rating, the target, the profile rows, the house's estimates, and the
+      text of the page for the analyst name and the latest note. It sends nothing else. No password,
+      cookie, token or session detail is read or forwarded &mdash; and the server refuses any import
+      that arrives carrying something shaped like one, rather than quietly cleaning it up.
+    </p>
+    <p class="mt-2.5 text-[13px] leading-relaxed">
+      You stay signed in under your own entitlement, in your own browser, reading a page already open
+      in front of you. This app holds no credential for the portal and needs none.
+    </p>
+    <p class="mt-2.5 text-[13px] leading-relaxed text-muted">
+      Nothing is recorded until you press save. Figures are stored as published, attributed to the
+      house and shown with the date they carry; a rating stays in that house's own words.
+    </p>
+  </div>
+
+  <p class="mt-8 text-[13px] leading-relaxed text-muted">
+    If the button does not work, the page will say why. You can always
+    <a href="house-views.html" class="text-brand underline decoration-brandLine underline-offset-2">paste the page</a>
+    instead &mdash; that route is unchanged.
+  </p>
+</div>
+
+<script>
+// The bookmarklet is built from web/jpmm-import.js, with this app's own origin
+// substituted in. Built here rather than shipped as a literal so the link is
+// addressed to whatever host is serving it -- localhost while developing, the
+// deployed origin in use -- and the hand-off can only ever reach that one.
+// Cache-busted: the button is copied into a bookmark once and then lives
+// there, so building it from a stale copy of the source would be a bug
+// the advisor keeps clicking long after the source was fixed.
+fetch('jpmm-import.js?v=' + Date.now())
+  .then(function(r){ return r.text(); })
+  .then(function(src){
+    // Every occurrence, not the first. The source names the placeholder in its
+    // own header comment, so a single replace substituted the comment and left
+    // the line that matters still holding the placeholder.
+    var code = src.replace(/%APP_ORIGIN%/g, window.location.origin);
+    document.getElementById('bm').setAttribute('href', 'javascript:' + encodeURIComponent(code));
+  })
+  .catch(function(){
+    document.getElementById('bm').textContent = 'Could not build the button — reload this page.';
+  });
+</script>
+</body>
+</html>

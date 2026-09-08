@@ -179,6 +179,15 @@ class HouseView:
     # as published rather than recomputed, so the figure matches their page.
     upside_pct: float | None = None
     profile: tuple[tuple[str, str], ...] = ()
+    # The house's own forward estimates, as (metric, ((period, value), ...)).
+    # Kept as the house published them, values included: they arrive already at
+    # the house's precision and units, and re-deriving those is how a margin
+    # becomes a ratio. The period carries the house's own actual/estimate
+    # marker -- "FY25A", "FY26E" -- so the report can show which figures are
+    # reported and which are forecast, the distinction the source hierarchy
+    # turns on. These are one house's numbers and never consensus, so nothing
+    # deterministic is computed from them.
+    estimates: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = ()
     latest_note: "HouseNote | None" = None
     notes: tuple[str, ...] = ()
 
@@ -202,6 +211,14 @@ class HouseView:
         for row in self.profile:
             if len(row) != 2 or not str(row[0]).strip():
                 raise ValueError("Each profile row must be a labelled value.")
+        for metric, cells in self.estimates:
+            if not str(metric).strip():
+                raise ValueError("Each estimate row must name the metric it states.")
+            for cell in cells:
+                # An unlabelled period is worse than a missing one: a figure
+                # with no period cannot be told from the year beside it.
+                if len(cell) != 2 or not str(cell[0]).strip():
+                    raise ValueError("Each estimate must carry the period it covers.")
         if self.latest_note is not None:
             self.latest_note.validate()
 

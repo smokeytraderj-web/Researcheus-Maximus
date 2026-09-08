@@ -37,10 +37,15 @@ tailwind.config = { theme: { extend: {
 
   <h1 class="font-serif text-[38px] font-semibold tracking-tight text-ink leading-tight">Research house views</h1>
   <p class="mt-4 text-[15.5px] leading-relaxed">
-    Open the company page on J.P. Morgan Markets in your own session, select the rating block and the
-    Equity&nbsp;Profile, and paste it below. Nothing here reaches the portal &mdash; you read it under your
-    own entitlement, and this records what you copied.
+    Open the company page on J.P. Morgan Markets in your own session and click the
+    <a href="jpmm-import.html" class="text-brand underline decoration-brandLine underline-offset-2 hover:text-brandDeep">import button</a>,
+    or paste the page below. Either way you read the portal under your own entitlement, in your own
+    session; nothing here holds a credential and none is needed.
   </p>
+
+  <div id="importing" class="hidden mt-8 rounded-xl border border-brandLine bg-brandSoft px-5 py-4">
+    <p class="text-[13.5px] leading-relaxed text-ink" id="importNote">Waiting for the company page&hellip;</p>
+  </div>
 
   <div class="card rounded-xl bg-white border border-line p-6 mt-8">
     <label class="lbl" for="paste">Paste the page</label>
@@ -72,7 +77,9 @@ tailwind.config = { theme: { extend: {
       <div><label class="lbl">Sector</label><input id="sector" class="fld"></div>
       <div><label class="lbl">Region</label><input id="region" class="fld"></div>
     </div>
-    <div class="mt-5"><label class="lbl">Latest note</label><input id="note_title" class="fld"></div>
+    <div class="mt-5"><label class="lbl">Source page</label>
+      <input id="locator" class="fld font-mono text-[12px]" placeholder="https://markets.jpmorgan.com/jpmm/research.browse.company?companyId=AXON.O"></div>
+    <div class="mt-3"><label class="lbl">Latest note</label><input id="note_title" class="fld"></div>
     <div class="mt-3"><label class="lbl">Note summary</label><textarea id="note_summary" rows="3" class="fld"></textarea></div>
     <div class="grid sm:grid-cols-3 gap-4 mt-3">
       <div><label class="lbl">Note kind</label><input id="note_kind" class="fld"></div>
@@ -82,6 +89,17 @@ tailwind.config = { theme: { extend: {
     <div class="mt-5">
       <label class="lbl">Equity profile <span id="profileCount" class="text-muted"></span></label>
       <div id="profile" class="rounded-lg border border-line divide-y divide-line2 text-[13px]"></div>
+    </div>
+    <div id="estimatesBlock" class="hidden mt-5">
+      <label class="lbl">House estimates <span id="estimatesCount" class="text-muted"></span></label>
+      <div class="overflow-x-auto rounded-lg border border-line">
+        <table id="estimates" class="w-full text-[12.5px] border-collapse"></table>
+      </div>
+      <p class="mt-2 text-[11.5px] leading-relaxed text-muted">
+        The house's own forecasts, as published. Periods keep their marker &mdash;
+        <span class="font-mono">A</span> reported, <span class="font-mono">E</span> estimated &mdash; and
+        these are one house's numbers, not consensus.
+      </p>
     </div>
     <div class="mt-6 flex items-center gap-3">
       <button type="button" onclick="save()" id="saveBtn"
@@ -111,12 +129,26 @@ tailwind.config = { theme: { extend: {
 </div>
 
 <script>
+// 'locator' is in this list because it is what the report cites as the page
+// these figures came off. Left out of it, the import set it and the save
+// silently dropped it, and the citation went missing on every imported view.
 var FIELDS = ['house','ticker','equity_rating','price_target','upside_pct','target_horizon',
-  'credit_rating','credit_rating_scale','analyst','published','sector','region',
+  'credit_rating','credit_rating_scale','analyst','published','sector','region','locator',
   'note_title','note_summary','note_kind','note_published','note_authors'];
 var profileRows = [];
+var estimateRows = [];
+
+// The one origin an import may arrive from. A message from anywhere else is
+// ignored: this page posts figures straight into a form a person then saves,
+// so what may speak to it is worth naming explicitly.
+var PORTAL_ORIGIN = 'https://markets.jpmorgan.com';
 
 function el(id){ return document.getElementById(id); }
+
+function esc(s){
+  return String(s === undefined || s === null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 function readPaste(){
   var text = el('paste').value;
@@ -128,22 +160,7 @@ function readPaste(){
     .then(function(r){ return r.json(); })
     .then(function(d){
       el('readBtn').disabled = false;
-      var f = d.fields || {};
-      FIELDS.forEach(function(k){
-        if (el(k) && f[k] !== undefined && f[k] !== null) { el(k).value = f[k]; }
-      });
-      // The house dates its note. The view's own date defaults to that rather
-      // than being invented, and stays editable.
-      if (!el('published').value && f.note_published) { el('published').value = f.note_published; }
-      profileRows = f.profile || [];
-      renderProfile();
-      el('form').classList.remove('hidden');
-      if (d.missing && d.missing.length) {
-        el('parseNote').innerHTML = '<span class="text-fail">Not found: ' + d.missing.join(', ') +
-          '</span> &mdash; fill those in below.';
-      } else {
-        el('parseNote').innerHTML = '<span class="text-pass">Everything found.</span> Check it, then save.';
-      }
+      applyParsed(d, el('parseNote'));
     })
     .catch(function(){
       el('readBtn').disabled = false;
@@ -151,12 +168,39 @@ function readPaste(){
     });
 }
 
+// Shared by the paste and the import: both produce the same {fields, missing},
+// and both end at the same review form, because the check before saving is the
+// gate -- not the route the figures took to get here.
+function applyParsed(d, note){
+  var f = d.fields || {};
+  FIELDS.forEach(function(k){
+    if (el(k) && f[k] !== undefined && f[k] !== null) { el(k).value = f[k]; }
+  });
+  // The house dates its note. The view's own date defaults to that rather
+  // than being invented, and stays editable.
+  if (!el('published').value && f.note_published) { el('published').value = f.note_published; }
+  profileRows = f.profile || [];
+  estimateRows = f.estimates || [];
+  renderProfile();
+  renderEstimates();
+  el('form').classList.remove('hidden');
+  if (d.missing && d.missing.length) {
+    note.innerHTML = '<span class="text-fail">Not found: ' + d.missing.join(', ') +
+      '</span> &mdash; fill those in below.';
+  } else {
+    note.innerHTML = '<span class="text-pass">Everything found.</span> Check it, then save.';
+  }
+  el('form').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
 function renderProfile(){
   el('profileCount').textContent = profileRows.length ? '(' + profileRows.length + ' rows)' : '(none found)';
+  // Escaped: these labels and values arrive from a page, and a value that
+  // happened to contain markup would otherwise be rendered as markup.
   el('profile').innerHTML = profileRows.map(function(row, i){
     return '<div class="flex items-center gap-3 px-3 py-2">' +
-      '<span class="flex-1 text-muted">' + row[0] + '</span>' +
-      '<span class="font-mono text-ink">' + row[1] + '</span>' +
+      '<span class="flex-1 text-muted">' + esc(row[0]) + '</span>' +
+      '<span class="font-mono text-ink">' + esc(row[1]) + '</span>' +
       '<button type="button" onclick="dropRow(' + i + ')" class="text-muted hover:text-fail px-1">&times;</button>' +
       '</div>';
   }).join('');
@@ -164,8 +208,66 @@ function renderProfile(){
 
 function dropRow(i){ profileRows.splice(i, 1); renderProfile(); }
 
+function renderEstimates(){
+  if (!estimateRows.length) { el('estimatesBlock').classList.add('hidden'); return; }
+  el('estimatesBlock').classList.remove('hidden');
+  el('estimatesCount').textContent = '(' + estimateRows.length + ' metrics)';
+  // Periods are collected across every metric so a metric missing one still
+  // lines up under the right column instead of shifting the row.
+  var periods = [];
+  estimateRows.forEach(function(row){
+    (row[1] || []).forEach(function(cell){
+      if (periods.indexOf(cell[0]) === -1) { periods.push(cell[0]); }
+    });
+  });
+  var head = '<thead><tr><th class="text-left font-normal text-muted px-3 py-2">Metric</th>' +
+    periods.map(function(p){
+      return '<th class="text-right font-mono font-normal text-muted px-3 py-2">' + esc(p) + '</th>';
+    }).join('') + '</tr></thead>';
+  var body = estimateRows.map(function(row){
+    var values = {};
+    (row[1] || []).forEach(function(cell){ values[cell[0]] = cell[1]; });
+    return '<tr class="border-t border-line2"><td class="px-3 py-2 text-ink2">' + esc(row[0]) + '</td>' +
+      periods.map(function(p){
+        return '<td class="px-3 py-2 text-right font-mono text-ink">' + esc(values[p] || '') + '</td>';
+      }).join('') + '</tr>';
+  }).join('');
+  el('estimates').innerHTML = head + '<tbody>' + body + '</tbody>';
+}
+
+// The hand-off from the bookmarklet. The app announces itself, the portal page
+// answers with the figures, and they land in the same review form a paste
+// does -- nothing is saved until a person presses the button.
+if (location.hash === '#import') {
+  el('importing').classList.remove('hidden');
+  window.addEventListener('message', function(event){
+    if (event.origin !== PORTAL_ORIGIN) { return; }
+    if (event.source !== window.opener) { return; }
+    var data = event.data;
+    if (!data || data.tag !== 'tag-import' || !data.payload) { return; }
+    el('importNote').textContent = 'Reading the page…';
+    fetch('/api/house-views/import', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(data.payload)})
+      .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, d: d}; }); })
+      .then(function(res){
+        if (!res.ok) {
+          el('importNote').innerHTML = '<span class="text-fail">' +
+            esc(res.d.detail || 'That import was refused.') + '</span>';
+          return;
+        }
+        el('importNote').innerHTML = 'Imported from J.P. Morgan Markets. Check it below, then save.';
+        applyParsed(res.d, el('parseNote'));
+      })
+      .catch(function(){ el('importNote').textContent = 'Could not read that import.'; });
+  });
+  // Sent only once the listener above is in place. It carries no data, so the
+  // wildcard target discloses nothing -- the page it reaches is whichever one
+  // opened this tab, and only a reply from the portal origin is acted on.
+  if (window.opener) { window.opener.postMessage({tag:'tag-import-ready'}, '*'); }
+}
+
 function save(){
-  var payload = {profile: profileRows};
+  var payload = {profile: profileRows, estimates: estimateRows};
   FIELDS.forEach(function(k){
     var v = el(k) ? el(k).value.trim() : '';
     if (v) { payload[k] = v; }
@@ -204,11 +306,11 @@ function loadStored(){
       if (!views.length) { el('stored').textContent = 'Nothing stored yet.'; return; }
       el('stored').innerHTML = views.map(function(v){
         return '<div class="card rounded-lg bg-white border border-line px-4 py-3 mb-2 flex items-baseline gap-3">' +
-          '<span class="font-mono font-semibold text-ink">' + v.ticker + '</span>' +
-          '<span class="text-ink2">' + v.house + '</span>' +
-          '<span class="text-muted">' + (v.equity_rating || '') +
-          (v.price_target ? ' &middot; $' + v.price_target : '') + '</span>' +
-          '<span class="ml-auto text-[12px] text-muted">' + (v.published || '') + '</span>' +
+          '<span class="font-mono font-semibold text-ink">' + esc(v.ticker) + '</span>' +
+          '<span class="text-ink2">' + esc(v.house) + '</span>' +
+          '<span class="text-muted">' + esc(v.equity_rating || '') +
+          (v.price_target ? ' &middot; $' + esc(v.price_target) : '') + '</span>' +
+          '<span class="ml-auto text-[12px] text-muted">' + esc(v.published || '') + '</span>' +
           '</div>';
       }).join('');
     })

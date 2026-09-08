@@ -23,7 +23,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from backend import feedback as feedback_store
 from backend import gate
@@ -40,7 +40,7 @@ from backend.jobs import (
 from core.models import HouseNote, HouseView
 from core.request_builder import build_request
 from research import house_views
-from research.jpmm_paste import parse_jpmm_page
+from research.jpmm_paste import SecretInPayload, parse_jpmm_page, parse_jpmm_payload
 from services.research_runner import ResearchRunner
 from services.technical_runner import TechnicalRunner
 
@@ -351,6 +351,8 @@ class HouseViewIn(BaseModel):
     # The house's own profile rows, label/value, exactly as the portal states
     # them -- units and all, so nothing is silently reinterpreted.
     profile: list[tuple[str, str]] = Field(default_factory=list, max_length=40)
+    # The house's own forward estimates, metric by metric, as published.
+    estimates: list[tuple[str, list[tuple[str, str]]]] = Field(default_factory=list, max_length=60)
     note_title: str = Field(default="", max_length=300)
     note_summary: str = Field(default="", max_length=2000)
     note_published: str = Field(default="", max_length=32)
@@ -366,7 +368,13 @@ def save_house_view(body: HouseViewIn) -> dict:
     note_fields = {k[5:]: fields.pop(k) for k in list(fields) if k.startswith("note_")}
     note = HouseNote(**note_fields) if note_fields.get("title", "").strip() else None
     view = HouseView(
-        **fields | {"profile": tuple(tuple(row) for row in fields.pop("profile", []))},
+        **fields | {
+            "profile": tuple(tuple(row) for row in fields.pop("profile", [])),
+            "estimates": tuple(
+                (metric, tuple(tuple(cell) for cell in cells))
+                for metric, cells in fields.pop("estimates", [])
+            ),
+        },
         latest_note=note,
         retrieved_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
     )
@@ -395,6 +403,54 @@ def parse_house_view(body: PasteIn) -> dict:
         raise HTTPException(400, "Paste the page first.")
     parsed = parse_jpmm_page(body.text)
     return {"fields": parsed.as_payload(body.house), "missing": parsed.missing}
+
+
+class ImportIn(BaseModel):
+    """A company page as the portal's own endpoints stated it.
+
+    The rows are typed loosely on purpose. They arrive shaped by the portal and
+    are checked by the parser, which refuses a payload carrying anything like
+    session material -- modelling each row strictly here would drop an
+    unexpected key before that check ever saw it, which is the opposite of what
+    is wanted. Extra keys at this level are forbidden for the same reason:
+    refused loudly rather than ignored quietly.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    house: str = Field(default="J.P. Morgan", max_length=80)
+    ticker: str = Field(default="", max_length=16)
+    company_id: str = Field(default="", max_length=40)
+    # The page the figures came off, cited in the report as their locator.
+    locator: str = Field(default="", max_length=500)
+    strip: list[dict] = Field(default_factory=list, max_length=60)
+    estimates: list[dict] = Field(default_factory=list, max_length=60)
+    text: str = Field(default="", max_length=40_000)
+
+
+@app.post("/api/house-views/import")
+def import_house_view(body: ImportIn) -> dict:
+    """Read a company page handed over by the browser. Parses only -- never saves.
+
+    No credential reaches this endpoint and none could be used if it did: the
+    advisor is signed in to the portal in their own browser, the figures are
+    read there in their own session, and what arrives here is the evidence
+    alone. A payload carrying anything shaped like session material is refused
+    outright rather than cleaned up and accepted.
+
+    Like the paste endpoint, this stores nothing. The parse goes back for a
+    person to check and correct, and the save is a separate, deliberate act.
+    """
+    if not body.strip and not body.text.strip():
+        raise HTTPException(400, "The import carried nothing to read.")
+    try:
+        parsed = parse_jpmm_payload(body.strip, body.estimates, body.text, body.ticker)
+    except SecretInPayload as exc:
+        raise HTTPException(400, str(exc)) from exc
+    fields = parsed.as_payload(body.house)
+    if body.locator:
+        fields["locator"] = body.locator
+    return {"fields": fields, "missing": parsed.missing}
 
 
 @app.get("/api/house-views")
