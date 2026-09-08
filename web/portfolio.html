@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Portfolio research powered by RM. Review your portfolio, then explore the evidence behind every holding.">
+  <title>Portfolio RM · Research workspace</title>
+  <link rel="stylesheet" href="/vendor/fonts/fonts.css">
+  <link rel="stylesheet" href="/portfolio.css">
+  <script src="/portfolio.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to research</a>
+  <header class="app-header">
+    <a class="wordmark" href="/" aria-label="Portfolio RM home"><span class="brand-mark" aria-hidden="true">RM</span><span>Portfolio <span class="wordmark-rm">/ RM</span></span></a>
+    <span class="firm">Gottfried &amp; Somberg Wealth Management</span>
+    <div class="header-actions">
+      <a href="/" class="button secondary" id="backToResearch">← Single-stock research</a>
+      <button id="editBtn" class="button secondary" hidden>Edit holdings</button>
+      <a id="downloadBtn" class="button primary" hidden>Download portfolio <span aria-hidden="true">↓</span></a>
+    </div>
+  </header>
+  <main id="main">
+    <div class="workspace-heading">
+      <div><p class="eyebrow">Research workspace</p><h1>Your portfolio, in focus.</h1></div>
+      <span id="connectionStatus" class="subtle">Connecting…</span>
+    </div>
+    <div id="notice" class="notice" role="status" hidden></div>
+    <div id="demoNotice" class="notice demo-notice" hidden>Demo mode · All prices, ratings and charts are synthetic. This is a workflow preview.</div>
+
+    <section id="intake" class="intake card" aria-labelledby="intakeTitle">
+      <div class="section-heading"><div><span class="eyebrow">01 / Portfolio</span><h2 id="intakeTitle">Start with your holdings.</h2></div><button id="closeIntake" class="text-button" hidden>Back to research</button></div>
+      <div class="intake-grid">
+        <div>
+          <div class="field-heading"><label for="holdingsText">Holdings</label><label class="text-button upload-label">Import CSV / TSV<input id="fileInput" type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" class="sr-only"></label></div>
+          <textarea id="holdingsText" rows="8" spellcheck="false" placeholder="Ticker, Weight&#10;AAPL, 25&#10;MSFT, 25&#10;NVDA, 20&#10;SPY, 25&#10;CASH, 5" aria-describedby="holdingsHint"></textarea>
+          <p id="holdingsHint" class="help">One ticker and amount per row. Up to 50 positions. Include only investment details.</p>
+          <div id="intakeError" class="error-message" role="alert" hidden></div>
+          <div id="holdingsPreview" hidden></div>
+        </div>
+        <div class="intake-options">
+          <div class="field"><label for="weighting">Amounts represent</label><select id="weighting"><option value="weight">Portfolio weight (%)</option><option value="value">Market value (USD)</option><option value="shares">Number of shares</option><option value="equal">Equal weight · tickers only</option></select><p id="weightingHint" class="help">Weights must total 100%. Use CASH for uninvested cash.</p></div>
+          <div class="field"><label for="researchMode">Research depth</label><select id="researchMode"><option value="deep">Full technical research</option><option value="general">General research brief</option></select><p class="help">The same RM research and report format, for each position.</p></div>
+          <div class="field"><label for="question">Research question <span class="optional">Optional</span></label><textarea id="question" rows="3" maxlength="2000" placeholder="What supports keeping these positions, and which need a closer look?"></textarea></div>
+          <div class="intake-buttons"><button id="reviewBtn" class="button secondary">Review holdings</button><button id="runBtn" class="button primary" disabled>Run research <span aria-hidden="true">→</span></button></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="results" hidden>
+      <section class="portfolio-summary card" aria-labelledby="portfolioTitle">
+        <div class="portfolio-call"><span class="eyebrow" id="portfolioTitle">Portfolio view</span><h2 id="portfolioRating">Researching</h2><span id="concentration" class="pill neutral">Pending evidence</span></div>
+        <div class="portfolio-narrative"><p id="portfolioSummary"></p><button class="text-button" id="methodBtn">How this view is calculated <span aria-hidden="true">↗</span></button></div>
+        <dl class="portfolio-figures"><div><dt>Coverage</dt><dd id="coverage">—</dd></div><div><dt>Largest holding</dt><dd id="largest">—</dd></div><div><dt id="thirdMetricLabel">Positions</dt><dd id="thirdMetric">—</dd></div></dl>
+      </section>
+      <section id="progressRegion" class="progress-region" aria-live="polite" hidden>
+        <div><span id="progressText">Preparing research</span><button id="cancelBtn" class="text-button">Cancel run</button></div>
+        <progress id="progress" max="100" value="0" aria-label="Portfolio research progress"></progress>
+      </section>
+      <div class="portfolio-nav">
+        <div class="segmented" role="tablist" aria-label="Portfolio workspace">
+          <button id="researchTab" role="tab" aria-selected="true" aria-controls="researchWorkspace">Position research</button>
+          <button id="holdingsTab" role="tab" aria-selected="false" aria-controls="holdingsWorkspace" tabindex="-1">All holdings</button>
+        </div>
+        <span id="reviewDate" class="metadata"></span>
+      </div>
+      <section id="holdingsWorkspace" role="tabpanel" aria-labelledby="holdingsTab" hidden></section>
+      <section id="researchWorkspace" role="tabpanel" aria-labelledby="researchTab">
+        <div class="position-switcher"><span class="eyebrow">Positions</span><div id="positionTabs" class="position-tabs" role="tablist" aria-label="Select a holding"></div></div>
+        <div id="selectedPosition" role="tabpanel"></div>
+      </section>
+    </div>
+    <footer class="workspace-footer"><span>Portfolio RM <span class="footer-separator">/</span> Powered by the RM research engine</span><a href="/" id="singleStockLink">Single-stock workspace ↗</a><span>Research for internal review</span></footer>
+  </main>
+  <dialog id="methodDialog" aria-labelledby="methodTitle">
+    <div class="dialog-heading"><h2 id="methodTitle">Portfolio methodology</h2><button id="closeMethod" class="text-button" aria-label="Close methodology">Close ×</button></div>
+    <p id="methodText"></p><p class="help">Per-position ratings, source timestamps, confidence and limitations remain available in each research note. No orders are placed.</p>
+  </dialog>
+  <noscript><p class="notice">Enable JavaScript to enter a portfolio and switch holdings.</p></noscript>
+</body>
+</html>

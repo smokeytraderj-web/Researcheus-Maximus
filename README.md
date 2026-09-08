@@ -1,5 +1,7 @@
 # Technical Analyst Agent
 
+**Portfolio research:** choose **Evaluate portfolio** on the home page, or open `/portfolio` on the same website. The portfolio dashboard shares this app's access code, research providers and report generator. See [Portfolio research](docs/portfolio.md) for inputs and report downloads.
+
 A Windows desktop application for client-ready, evidence-grounded investment research.
 
 **Primary General Research objective:** answer the user's exact question clearly and directly. Security data, ratings, charts, and technical plans must support that answer; they must never replace it with a generic stock report.

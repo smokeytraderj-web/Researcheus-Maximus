@@ -25,7 +25,7 @@ The main General Research workflow exists first to answer the user's stated inve
 
 ## Version-One Scope
 
-Version one supports only **Single Stock Research**.
+The website supports **Single Stock Research** at `/` and **Portfolio Research** at `/portfolio`. The portfolio workflow is the user-authorized integration of Portfolio RM; its holdings validation and weighted assessment are documented in `docs/portfolio.md` and `core/portfolio.py`. Both pages share the existing access gate, provider settings and report generator.
 
 Do not expose unfinished portfolio functionality in the interface. Preserve extension points for a later Portfolio Review workflow that can accept Excel, CSV, PDF, screenshots, and pasted holdings, screen positions with lighter research, show one-word ratings and correlation risks, and launch a full stock-research session from any holding.
 
@@ -598,7 +598,7 @@ Use synthetic or non-client position data for all automated and representative t
 
 The following are intentionally deferred beyond version one:
 
-- Portfolio Review UI and generation.
+- Additional portfolio imports beyond the implemented CSV/TSV and pasted-holdings workflow.
 - Persistent research history or saved dossiers.
 - Multi-user accounts and collaboration.
 - Centralized credential management.
