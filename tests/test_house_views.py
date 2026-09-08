@@ -281,3 +281,57 @@ class JpmmReportTests(ReportIntegrationTests):
         # The demo result prices AXON around $76, far from the profile's $518.
         html = self._render((_jpmm(ticker="AXON"),))
         self.assertIn("their upside is measured against their own price", html)
+
+
+class EstimateTests(unittest.TestCase):
+    """The house's own forecasts, carried as published and never recomputed."""
+
+    ESTIMATES = (
+        ("Revenue FY ($ mn)", (("FY24A", "2,084"), ("FY25A", "2,780"), ("FY26E", "3,720"))),
+        ("EBITDA margin FY", (("FY24A", "24.9%"), ("FY26E", "25.6%"))),
+    )
+
+    def _view(self, **over):
+        from core.models import HouseView
+        fields = {"estimates": self.ESTIMATES, **over}
+        return HouseView(
+            house="J.P. Morgan", ticker="AXON", equity_rating="Overweight",
+            price_target=755.0, published="2026-07-16", **fields
+        )
+
+    def test_estimates_survive_a_round_trip_through_the_store(self):
+        from research import house_views
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "views.json"
+            house_views.save(self._view(), path)
+            stored = house_views.for_ticker("AXON", path)[0]
+            self.assertEqual(dict(dict(stored.estimates)["Revenue FY ($ mn)"])["FY26E"], "3,720")
+            self.assertEqual(len(stored.estimates), 2)
+
+    def test_an_estimate_with_no_period_is_refused(self):
+        # A figure with no period cannot be told from the year beside it.
+        with self.assertRaises(ValueError):
+            self._view(estimates=(("Revenue", (("", "2,084"),)),)).validate()
+
+    def test_an_estimate_with_no_metric_is_refused(self):
+        with self.assertRaises(ValueError):
+            self._view(estimates=((" ", (("FY26E", "3,720"),)),)).validate()
+
+    def test_the_report_shows_them_with_their_periods(self):
+        html = ReportIntegrationTests._render(self, (self._view(),))
+        self.assertIn("Revenue FY ($ mn)", html)
+        self.assertIn("FY26E", html)
+        self.assertIn("3,720", html)
+        self.assertIn("FY24A", html)
+
+    def test_the_report_says_whose_forecasts_these_are(self):
+        # One house's numbers, never presented as consensus and never folded
+        # into this report's own conclusion.
+        html = ReportIntegrationTests._render(self, (self._view(),))
+        self.assertIn("not consensus", html)
+
+    def test_a_view_without_estimates_prints_no_empty_table(self):
+        # The stylesheet always ships; what must not appear is the block.
+        html = ReportIntegrationTests._render(self, (self._view(estimates=()),))
+        self.assertNotIn("Their estimates, as published", html)
+        self.assertNotIn('<table class="hv-est">', html)

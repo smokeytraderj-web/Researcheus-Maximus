@@ -570,3 +570,110 @@ class HouseViewParseEndpointTests(unittest.TestCase):
         stored = self.client.get("/api/house-views", params={"ticker": "AXON"}).json()["views"]
         self.assertEqual(len(stored), 1)
         self.assertEqual(stored[0]["equity_rating"], "Overweight")
+
+
+class HouseViewImportEndpointTests(unittest.TestCase):
+    """The browser hands over the portal's own figures. No credential comes
+    with them, none would be accepted, and nothing is saved without a person."""
+
+    STRIP = [
+        {"label": "Equity Rating", "value": "Overweight", "currency": ""},
+        {"label": "Price ($)", "value": "515.67", "currency": "USD"},
+        {"label": "Date of price ", "value": "04 Sep 26", "currency": ""},
+        {"label": "Price Target ($)", "value": "755.00", "currency": "USD"},
+        {"label": "Market cap ($ mn)", "value": "42,531.43", "currency": "USD"},
+    ]
+    TEXT = ("Axon (AXON US)\nEquity Analyst\nJoseph Cardoso\n"
+            "Latest Earnings-Related Note\nAxon: 2Q26 Review\n"
+            "Equity  16 Jul, 2026 | Joseph Cardoso\n")
+
+    def setUp(self) -> None:
+        from fastapi.testclient import TestClient
+        import backend.app
+        self._tmp = tempfile.TemporaryDirectory()
+        self._env = os.environ.get("RESEARCHEUS_DATA_DIR")
+        os.environ["RESEARCHEUS_DATA_DIR"] = self._tmp.name
+        self.client = TestClient(backend.app.app)
+        self.client.post("/api/unlock", json={"code": os.environ.get("RESEARCHEUS_ACCESS_CODE", "2003")})
+
+    def tearDown(self) -> None:
+        if self._env is None:
+            os.environ.pop("RESEARCHEUS_DATA_DIR", None)
+        else:
+            os.environ["RESEARCHEUS_DATA_DIR"] = self._env
+        self._tmp.cleanup()
+
+    def _body(self, **over) -> dict:
+        return {"ticker": "AXON", "strip": self.STRIP, "text": self.TEXT,
+                "locator": "https://markets.jpmorgan.com/jpmm/research.browse.company?companyId=AXON.O",
+                **over}
+
+    def test_the_strips_figures_come_back_parsed(self) -> None:
+        response = self.client.post("/api/house-views/import", json=self._body())
+        self.assertEqual(response.status_code, 200)
+        fields = response.json()["fields"]
+        self.assertEqual(fields["ticker"], "AXON")
+        self.assertEqual(fields["equity_rating"], "Overweight")
+        self.assertEqual(fields["price_target"], 755.0)
+        self.assertEqual(fields["currency"], "USD")
+        self.assertEqual(dict(map(tuple, fields["profile"]))["Price ($)"], "515.67")
+
+    def test_the_page_it_came_off_is_cited(self) -> None:
+        fields = self.client.post("/api/house-views/import", json=self._body()).json()["fields"]
+        self.assertIn("companyId=AXON.O", fields["locator"])
+
+    def test_importing_stores_nothing(self) -> None:
+        self.client.post("/api/house-views/import", json=self._body())
+        self.assertEqual(self.client.get("/api/house-views").json()["views"], [])
+
+    def test_an_empty_import_is_refused_rather_than_parsed_into_nothing(self) -> None:
+        response = self.client.post("/api/house-views/import", json={"strip": [], "text": " "})
+        self.assertEqual(response.status_code, 400)
+
+    def test_the_import_endpoint_is_behind_the_access_gate(self) -> None:
+        from fastapi.testclient import TestClient
+        import backend.app
+        stranger = TestClient(backend.app.app)
+        self.assertEqual(
+            stranger.post("/api/house-views/import", json=self._body()).status_code, 401
+        )
+
+    def test_a_payload_carrying_session_material_is_refused(self) -> None:
+        # The single most important test here. The advisor's entitlement stays
+        # in their browser; nothing shaped like it is accepted, cleaned up or
+        # logged, and the whole payload is refused rather than partly read.
+        for poisoned in (
+            [{"label": "Equity Rating", "value": "Overweight", "cookie": "JSESSIONID=abc"}],
+            [{"label": "Price ($)", "value": "1", "headers": {"Authorization": "Bearer ey."}}],
+            [{"label": "Price ($)", "value": "1", "csrfToken": "zzz"}],
+        ):
+            with self.subTest(poisoned=poisoned):
+                response = self.client.post(
+                    "/api/house-views/import", json=self._body(strip=poisoned, text="")
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(self.client.get("/api/house-views").json()["views"], [])
+
+    def test_an_unexpected_top_level_field_is_refused_not_ignored(self) -> None:
+        response = self.client.post(
+            "/api/house-views/import", json=self._body(sessionCookie="JSESSIONID=abc")
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_what_the_import_lacks_is_named_not_filled(self) -> None:
+        thin = [{"label": "Equity Rating", "value": "Overweight", "currency": ""}]
+        body = self.client.post(
+            "/api/house-views/import", json=self._body(strip=thin, text="")
+        ).json()
+        self.assertIn("price target", body["missing"])
+        self.assertIn("publication date", body["missing"])
+        self.assertNotIn("price_target", body["fields"])
+
+    def test_an_imported_view_can_then_be_saved_and_reaches_the_report(self) -> None:
+        fields = self.client.post("/api/house-views/import", json=self._body()).json()["fields"]
+        self.assertEqual(fields["published"], "2026-07-16")   # from the note's byline
+        self.assertEqual(self.client.post("/api/house-views", json=fields).status_code, 200)
+        stored = self.client.get("/api/house-views", params={"ticker": "AXON"}).json()["views"]
+        self.assertEqual(len(stored), 1)
+        self.assertEqual(stored[0]["equity_rating"], "Overweight")
+        self.assertEqual(stored[0]["price_target"], 755.0)

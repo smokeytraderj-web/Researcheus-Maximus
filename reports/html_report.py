@@ -172,6 +172,12 @@ _DYNAMIC_CSS = r"""
 .hv.stale{border-left:3px solid var(--gold)}
 .hv-top{display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin-bottom:10px}
 .hv-house{font-family:'Source Serif 4',serif;font-size:16px;font-weight:600;color:var(--ink)}
+.hv-est{width:100%;border-collapse:collapse;font-size:11px;margin-top:4px}
+.hv-est th{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:400;padding:3px 6px;border-bottom:1px solid var(--line)}
+.hv-est th:first-child{text-align:left}
+.hv-est td{padding:3px 6px;border-bottom:1px solid var(--line2);color:var(--ink2)}
+.hv-est td.num{text-align:right;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;color:var(--ink)}
+.hv-est-n{font-size:10px;line-height:1.5;color:var(--muted);margin-top:5px}
 .hv-age{font-size:11.5px;color:var(--muted)}
 .hv-figs{display:flex;flex-wrap:wrap;gap:0 34px;margin:0}
 .hv-figs dt{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
@@ -1084,6 +1090,32 @@ def _house_section_html(result: ResearchResult) -> str:
                 '<div class="hv-body"><div class="dl-h">Equity profile, as published</div>'
                 f'<dl class="dl hv-profile-dl">{rows}</dl></div>'
             )
+        estimates = ""
+        if view.estimates:
+            # Periods are collected across every metric so a metric missing one
+            # still sits under the right column rather than shifting the row.
+            periods: list[str] = []
+            for _metric, cells in view.estimates:
+                for period, _value in cells:
+                    if period not in periods:
+                        periods.append(period)
+            head = "".join(f"<th>{escape(str(period))}</th>" for period in periods)
+            body = "".join(
+                f"<tr><td>{escape(str(metric))}</td>"
+                + "".join(
+                    f'<td class="num">{escape(str(dict(cells).get(period, "")))}</td>'
+                    for period in periods
+                )
+                + "</tr>"
+                for metric, cells in view.estimates
+            )
+            estimates = (
+                '<div class="hv-body"><div class="dl-h">Their estimates, as published</div>'
+                f'<table class="hv-est"><thead><tr><th>Metric</th>{head}</tr></thead>'
+                f"<tbody>{body}</tbody></table>"
+                '<p class="hv-est-n">A marks a reported figure, E an estimate. These are '
+                "this house&rsquo;s own forecasts, not consensus.</p></div>"
+            )
         note_html = ""
         note = view.latest_note
         if note is not None:
@@ -1112,7 +1144,7 @@ def _house_section_html(result: ResearchResult) -> str:
             + (f'<div class="hv-ctx">{context}</div>' if context else "")
             + (f'<div class="topline house-line">{strip}</div>' if strip else "")
             + (f'<div class="hv-flag">{escape(" ".join(flags))}</div>' if flags else "")
-            + note_html + profile + "</div>"
+            + note_html + profile + estimates + "</div>"
         )
     houses = {view.house for view in views}
     heading = next(iter(houses)) if len(houses) == 1 else "Research house views"
