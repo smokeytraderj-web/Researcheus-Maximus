@@ -51,6 +51,17 @@ _DYNAMIC_CSS = r"""
    leaving the navigation rail flush against the window with no gutter -- which reads
    as the report being clipped on the left. */
 .shell{padding-left:26px;padding-right:26px;box-sizing:border-box}
+/* Fill the window. The approved template caps the shell at 1560px, which on a
+   wide screen left a broad grey gutter down both sides doing nothing -- the
+   report looked like a narrow column adrift in the page. The cap is lifted and
+   the rail widened to match; prose keeps its own measure (the copy blocks carry
+   their own max-width in ch), so what actually grows is the charts and tables,
+   which is where the room was wanted. */
+.shell{max-width:none;grid-template-columns:172px minmax(0,1fr);gap:0}
+.page{padding:46px 60px 44px}
+@media(min-width:1700px){.page{padding:52px 76px 48px}}
+@media(max-width:1100px){.shell{grid-template-columns:140px minmax(0,1fr)}.page{padding:38px 34px 34px}}
+.rail a.page-tab{padding-top:9px;padding-bottom:9px}
 .chart-image{display:block;width:100%;height:auto;max-height:800px;object-fit:contain}
 #charts .chart{padding:18px 20px 12px}
 .page-view[hidden]{display:none}
@@ -1367,14 +1378,45 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
         else "Supporting figures are listed under Essential data."
     )
 
+    # The rail is the only way between pages, so it has to name what is
+    # actually there. A brief with no house view must not offer a page that
+    # would open empty -- the numbering closes up instead.
+    house_html = _house_section_html(result)
+    houses = [view.house for view in result.house_views]
+    house_label = houses[0] if len(houses) == 1 else "Research houses"
+    pages = [("gpage1", "The answer")]
+    if house_html:
+        pages.append(("gpage_houses", house_label))
+    pages += [("gpage_evidence", "Evidence & data"), ("gpage_risks", "Risks & sources")]
+    rail_links = "".join(
+        f'<a href="#{pid}" class="page-tab{" on" if index == 0 else ""}" data-page="{pid}">'
+        f'{index + 1} &mdash; {escape(label)}</a>'
+        for index, (pid, label) in enumerate(pages)
+    )
+    # Pages after the first lose the masthead, so they carry a compact line
+    # saying which security and what the call was -- the reader should never
+    # have to page back to check what they are looking at.
+    page_strip = (
+        f'<div class="p2-strip"><span class="p2-co">{escape(result.identity.company_name)} '
+        f'<span class="num">{escape(result.identity.ticker)}</span></span>'
+        f'<span class="p2-px num">{_money(result.current_price)}</span>'
+        f'<span class="verdict {_tone(result.lead_rating)[0]}">{escape(result.lead_rating.value)}</span></div>'
+    )
+    house_page = (
+        f'<div class="page-view" id="gpage_houses" hidden>{page_strip}{house_html}</div>'
+        if house_html
+        else ""
+    )
+
     body = f"""
 <div class="shell">
-<nav class="rail" aria-label="Sections">
+<nav class="rail" aria-label="Report pages">
   <div class="rail-label">General Research</div>
-  <a href="#answer" class="on">The answer</a><a href="#action">What we should do</a><a href="#evidence">Evidence</a><a href="#data">Essential data</a><a href="#risks">Risks &amp; triggers</a><a href="#sources">Sources</a>
+  {rail_links}
   <div class="rail-tools"><button class="btn" id="deckBtn">Export slides</button><button class="btn" onclick="window.print()">Print / save PDF</button></div>
 </nav>
 <main class="page general-brief">
+<div class="page-view" id="gpage1">
 {_masthead(result, 'General Research', _masthead_subline(result))}
 {_conviction_checklist_html(result.conviction_checklist)}
 {_horizon_views_html(result)}
@@ -1398,6 +1440,10 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
   </div>
   <div class="action-grid">{action_html}</div>
 </section>
+</div>
+{house_page}
+<div class="page-view" id="gpage_evidence" hidden>
+{page_strip}
 <section id="evidence">
   <div class="sec-head"><h2>Evidence</h2><span class="verdict v-neu">One decision chart</span></div>
   <div class="ev-note"><b>Figures behind this view:</b> {key_figures}</div>
@@ -1407,7 +1453,9 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
   <div class="sec-head"><h2>Essential data</h2></div>
   {data_html}{_peer_group_html(result)}
 </section>
-{_house_section_html(result)}
+</div>
+<div class="page-view" id="gpage_risks" hidden>
+{page_strip}
 <section id="risks">
   <div class="sec-head"><h2>Risks and decision triggers</h2></div>
   <div class="grid3">
@@ -1432,6 +1480,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
   <p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing involves risk, including possible loss of principal. Firm compliance review is required before client distribution.</p>
   <footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer>
 </section>
+</div>
 </main></div>
 {_deck_html(result, request, question, checks_narrative, qualitative_summary, (("Evidence", _general_chart(result)),))}"""
     return _document(
@@ -1751,6 +1800,19 @@ document.querySelectorAll('[data-tf]').forEach(function(group){
 document.querySelectorAll('.rail a').forEach(function(link){
   link.addEventListener('click',function(){document.querySelectorAll('.rail a').forEach(function(a){a.classList.remove('on')});link.classList.add('on')});
 });
+// The rail switches pages rather than scrolling to them. One long column meant
+// the reader scrolled past the evidence to reach the risks and lost their place
+// between them; a page at a time keeps each part whole and makes the rail say
+// where you are. Print is unaffected -- it un-hides every page and breaks
+// between them, so the PDF is still the whole brief in order.
+var pageTabs=[].slice.call(document.querySelectorAll('.page-tab'));
+pageTabs.forEach(function(tab){tab.addEventListener('click',function(event){
+  event.preventDefault();
+  pageTabs.forEach(function(item){item.classList.remove('on')});
+  tab.classList.add('on');
+  document.querySelectorAll('.page-view').forEach(function(view){view.hidden=(view.id!==tab.dataset.page)});
+  window.scrollTo(0,0);
+})});
 """ + _hover_script()
 
 
