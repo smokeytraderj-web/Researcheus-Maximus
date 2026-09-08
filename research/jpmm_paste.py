@@ -35,6 +35,7 @@ _EMAIL = re.compile(r"\S+@\S+\.\S+")
 _MONEY = re.compile(r"\$\s*([\d,]+(?:\.\d+)?)")
 _PERCENT = re.compile(r"([-+]?\d+(?:\.\d+)?)\s*%")
 _RATINGS = ("overweight", "neutral", "underweight", "not rated", "not covered")
+_NOTE_KINDS = r"Equity|Credit|Economics|Strategy"
 
 
 @dataclass
@@ -106,6 +107,39 @@ def _after(lines: list[str], index: int) -> str:
     return lines[index + 1].strip() if index + 1 < len(lines) else ""
 
 
+def _is_label(line: str) -> bool:
+    """Whether a line is another label rather than a value belonging to one.
+
+    A bare label must never be read as the value of the label above it: that is
+    how "Shares O/S (mn)" becomes the market capitalisation.
+    """
+    low = line.casefold()
+    return line.rstrip().endswith(":") or any(low.startswith(label) for label in _PROFILE_LABELS)
+
+
+def _authors(parts: list[str]) -> str:
+    """Author names the page broke onto their own lines, rejoined.
+
+    The separators are lines in their own right there -- a "|" between date and
+    byline, a "," between each name -- so they are dropped rather than kept.
+    Nothing marks the end of the byline, so the separators do: every name after
+    the first is introduced by one. Two names running with nothing between them
+    means the byline ended at the first, and the second belongs to whatever
+    follows -- the profile table, which was being credited as a co-author.
+    """
+    names: list[str] = []
+    separated = True
+    for part in parts:
+        if part.strip(" ,|") == "":
+            separated = True
+            continue
+        if not separated:
+            break
+        names.append(part.strip(" ,|"))
+        separated = False
+    return ", ".join(names)
+
+
 def parse_jpmm_page(text: str) -> ParsedPage:
     """Read the company page as copied. Everything found is reported; nothing is invented."""
     lines = _clean(text)
@@ -115,9 +149,12 @@ def parse_jpmm_page(text: str) -> ParsedPage:
     for index, line in enumerate(lines):
         low = line.casefold()
 
-        # Ticker line: "Axon (AXON US)"
+        # Ticker line: "Axon (AXON US)". The name is optional because the
+        # rendered page sets the ticker chip on its own line beneath the name,
+        # where requiring one left the security unidentified -- the single field
+        # nothing downstream can proceed without.
         if "ticker" not in parsed.fields:
-            match = re.match(r"^(.{2,80}?)\s*\(([A-Z][A-Z0-9.\-]{0,9})\s+[A-Z]{2}\)\s*$", line)
+            match = re.match(r"^(.{0,80}?)\s*\(([A-Z][A-Z0-9.\-]{0,9})\s+[A-Z]{2}\)\s*$", line)
             if match:
                 parsed.fields["ticker"] = match.group(2)
 
@@ -125,8 +162,15 @@ def parse_jpmm_page(text: str) -> ParsedPage:
         # page reads "SUBSCRIBE  Sector: ...  Region: ..." on one line -- so
         # these are searched for anywhere, and stop at the next label.
         for name, label in (("sector", "Sector"), ("region", "Region")):
+            if name in parsed.fields:
+                continue
             found = _labelled(line, label)
-            if found and name not in parsed.fields:
+            # Copied off the page these read "Sector: Aerospace & Defense" on one
+            # line. Read out of the rendered page the label stands alone and the
+            # value is beneath it, exactly as "Equity Rating:" already does.
+            if not found and re.fullmatch(rf"{label}\s*:", line.strip(), re.IGNORECASE):
+                found = _after(lines, index)
+            if found:
                 parsed.fields[name] = found
 
         if low.startswith("equity rating"):
@@ -139,11 +183,15 @@ def parse_jpmm_page(text: str) -> ParsedPage:
             parsed.fields["analyst"] = _after(lines, index)
         elif low.startswith("price target"):
             value = line.split(":", 1)[1].strip() if ":" in line else _after(lines, index)
-            money = _MONEY.search(value) or _MONEY.search(_after(lines, index))
+            # Copied, the price and its upside share a line: "$755.00  45.7%
+            # Upside". Rendered, the label, the price and the upside are three
+            # separate lines -- so the two that follow are searched as well.
+            window = " ".join((value, _after(lines, index), _after(lines, index + 1)))
+            money = _MONEY.search(value) or _MONEY.search(window)
             if money:
                 parsed.fields["price_target"] = float(money.group(1).replace(",", ""))
-            upside = _PERCENT.search(value) or _PERCENT.search(_after(lines, index))
-            if upside and "upside" in (value + _after(lines, index)).casefold():
+            upside = _PERCENT.search(window)
+            if upside and "upside" in window.casefold():
                 parsed.fields["upside_pct"] = float(upside.group(1)) / 100
         elif low.startswith("end date"):
             parsed.fields["target_horizon"] = line.strip()
@@ -153,6 +201,13 @@ def parse_jpmm_page(text: str) -> ParsedPage:
             parts = re.split(r"\s{2,}|\t", line)
             if len(parts) >= 2 and parts[-1].strip():
                 parsed.profile.append((parts[0].strip(), parts[-1].strip()))
+            # Copying the table preserves its columns, so the value is the last
+            # whitespace-run on the label's own line. Reading the rendered page
+            # gives one value per line instead, and every row was being lost --
+            # taking the house's quoted price with it, which is the figure the
+            # report compares against this analysis's own.
+            elif (below := _after(lines, index)) and not _is_label(below):
+                parsed.profile.append((line.strip(), below))
 
     parsed.fields.update(_parse_note(lines, joined))
     # The page dates the note, not the rating. Defaulting the view's date to the
@@ -190,12 +245,14 @@ def _parse_note(lines: list[str], joined: str) -> dict:
         return note
     # Title is the first line after the heading; the byline is the first line
     # that opens with a category and a date; the abstract is what sits between.
-    body = lines[anchor + 1:anchor + 8]
+    # The window reaches past the byline because the rendered page spends a
+    # line on each author and each separator between them.
+    body = lines[anchor + 1:anchor + 14]
     if not body:
         return note
     note["note_title"] = body[0]
     summary: list[str] = []
-    for line in body[1:]:
+    for offset, line in enumerate(body[1:], start=1):
         byline = re.match(
             r"^(Equity|Credit|Economics|Strategy)\s+(\d{1,2}\s+\w+,?\s+\d{4})\s*\|?\s*(.*)$",
             line,
@@ -205,7 +262,20 @@ def _parse_note(lines: list[str], joined: str) -> dict:
             note["note_published"] = normalise_date(byline.group(2))
             note["note_authors"] = byline.group(3).strip()
             break
-        summary.append(line)
+        # The same byline, broken across lines by the rendered page. Without
+        # this the note carries no date, so the view inherits none either and
+        # every automatically read page arrives reported as stale.
+        if re.fullmatch(_NOTE_KINDS, line) and offset + 1 < len(body) and re.fullmatch(
+            r"\d{1,2}\s+\w+,?\s+\d{4}", body[offset + 1]
+        ):
+            note["note_kind"] = line
+            note["note_published"] = normalise_date(body[offset + 1])
+            note["note_authors"] = _authors(body[offset + 2:])
+            break
+        # Bounded independently of the window above: a page with no byline to
+        # stop at should not absorb the whole widened window as its abstract.
+        if len(summary) < 5:
+            summary.append(line)
     if summary:
         note["note_summary"] = " ".join(summary).strip()
     return note

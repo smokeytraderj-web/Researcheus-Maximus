@@ -166,3 +166,126 @@ class DateNormalisationTests(unittest.TestCase):
         age, stale = house_views.freshness(view, "2026-09-03")
         self.assertNotIn("not readable", age)
         self.assertFalse(stale)
+
+
+# The same page as the browser renders it, rather than as the clipboard hands
+# it over. Copying the Equity Profile preserves its columns; reading the page
+# itself gives one value per line, and the label/value pairing that the copied
+# form gets from whitespace has to come from the line order instead.
+RENDERED = """Axon 
+
+(AXON US)
+SUBSCRIBE
+
+Sector:
+ Aerospace & Defense
+Region: North America
+Equity Analyst
+Joseph Cardoso
+joseph.cardoso@jpmchase.com
+
+ COVERAGE
+Equity Rating:
+Overweight
+Price Target:
+$755.00
+40.3% Upside
+End date 31 Dec 2027
+Highlights
+Latest Earnings-Related Note
+Axon: 2Q26 Review: Raises Revenue Bar in Typical Fashion
+
+Revenue and EBITDA came in ahead of expectations.
+
+Equity
+
+16 Jul, 2026
+
+|
+
+Joseph Cardoso
+
+, 
+
+Manmohanpreet Singh
+
+Equity Profile
+Price ($)
+506.98
+Date of price
+02 Sep 26
+Market cap ($ mn)
+41,815
+Shares O/S (mn)
+82
+Free float (%)
+94.8%
+3M ADV ($ mn)
+534.4
+52-week range ($)
+792.16-339.01
+Volatility (90 Day)
+72
+BBG ANR (Buy | Hold | Sell)
+19|1|0
+"""
+
+
+class RenderedPageTests(unittest.TestCase):
+    """The same reader, the same entitlement, the same page -- read rather than
+    retyped. It has to yield the same view the copied form does, because a
+    half-read page is not a cheaper view, it is a wrong one."""
+
+    def setUp(self):
+        self.parsed = parse_jpmm_page(RENDERED)
+
+    def test_the_call_survives_the_line_per_value_layout(self):
+        fields = self.parsed.fields
+        self.assertEqual(fields["ticker"], "AXON")
+        self.assertEqual(fields["equity_rating"], "Overweight")
+        self.assertEqual(fields["price_target"], 755.0)
+        self.assertAlmostEqual(fields["upside_pct"], 0.403)
+        self.assertEqual(fields["target_horizon"], "End date 31 Dec 2027")
+
+    def test_a_label_whose_value_is_beneath_it_is_still_read(self):
+        # "Sector:" stands alone here; copied, it shares its line with the value.
+        self.assertEqual(self.parsed.fields["sector"], "Aerospace & Defense")
+        self.assertEqual(self.parsed.fields["region"], "North America")
+
+    def test_the_whole_profile_is_read_not_just_the_rows_that_fit_one_line(self):
+        rows = dict(self.parsed.profile)
+        self.assertEqual(len(self.parsed.profile), 9)
+        self.assertEqual(rows["Price ($)"], "506.98")
+        self.assertEqual(rows["Market cap ($ mn)"], "41,815")
+        self.assertEqual(rows["BBG ANR (Buy | Hold | Sell)"], "19|1|0")
+
+    def test_the_house_price_reaches_the_comparison_that_needs_it(self):
+        # Without the profile there is no house price, and the report's
+        # disagreement check silently never fires.
+        from core.models import HouseView
+        view = HouseView(
+            house="J.P. Morgan", ticker="AXON", equity_rating="Overweight",
+            price_target=755.0, published="2026-07-16",
+            profile=tuple(tuple(row) for row in self.parsed.profile),
+        )
+        price, dated = view.profile_price()
+        self.assertEqual(price, 506.98)
+        self.assertEqual(dated, "2026-09-02")
+
+    def test_a_byline_broken_across_lines_still_dates_the_note(self):
+        fields = self.parsed.fields
+        self.assertEqual(fields["note_kind"], "Equity")
+        self.assertEqual(fields["note_published"], "2026-07-16")
+        self.assertEqual(fields["published"], "2026-07-16")
+
+    def test_the_byline_ends_where_the_authors_do(self):
+        # Nothing marks its end, so read too far it credited the note to the
+        # profile table beneath: "Joseph Cardoso, ..., Price ($), 506.98".
+        authors = self.parsed.fields["note_authors"]
+        self.assertEqual(authors, "Joseph Cardoso, Manmohanpreet Singh")
+
+    def test_the_analyst_email_is_dropped_here_too(self):
+        self.assertNotIn("jpmchase", repr(self.parsed.fields))
+
+    def test_a_complete_rendered_page_reports_nothing_missing(self):
+        self.assertEqual(self.parsed.missing, [])
