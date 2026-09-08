@@ -24,6 +24,13 @@ from core.portfolio import parse_holdings, summarize, validate_holdings
 from services.portfolio_runner import PortfolioRunner
 
 logger = logging.getLogger(__name__)
+
+
+# The two tags the offline bundle inlines. Patterns rather than exact strings
+# because both carry a ?v= cache-busting query that changes; module-level so the
+# test guarding them and the code relying on them cannot drift apart.
+STYLE_TAG = re.compile(r'<link rel="stylesheet" href="/portfolio\.css(?:\?[^"]*)?">')
+SCRIPT_TAG = re.compile(r'<script src="/portfolio\.js(?:\?[^"]*)?" defer></script>')
 ID = re.compile(r"^[0-9a-f]{32}$")
 # Matplotlib has process-global state. Portfolio workers deliberately run one
 # holding at a time and serialize across portfolio jobs as well.
@@ -260,9 +267,27 @@ def attach_portfolio_routes(app, reports_root: Path, web_dir: Path, provider_fac
                     chart["url"] = f"position-{index}/{chart['file']}"
             html = (web_dir / "portfolio.html").read_text(encoding="utf-8")
             html = html.replace('href="/vendor/fonts/fonts.css"', 'href="fonts/fonts.css"')
-            html = html.replace('<link rel="stylesheet" href="/portfolio.css">', "<style>" + (web_dir / "portfolio.css").read_text(encoding="utf-8") + "</style>")
+            # Matched by pattern rather than by exact string. These two tags
+            # carry a ?v= cache-busting query, and an exact match silently did
+            # nothing once it appeared -- producing a bundle whose stylesheet
+            # and script still pointed at absolute paths that do not exist
+            # offline, and which carried no snapshot at all. A substitution
+            # that has to happen should fail loudly when it cannot.
+            html, styles = STYLE_TAG.subn(
+                lambda _: "<style>" + (web_dir / "portfolio.css").read_text(encoding="utf-8") + "</style>",
+                html,
+            )
             payload = json.dumps(snapshot, allow_nan=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-            html = html.replace('<script src="/portfolio.js" defer></script>', '<script>window.PORTFOLIO_SNAPSHOT=' + payload + ';</script><script>' + (web_dir / "portfolio.js").read_text(encoding="utf-8") + '</script>')
+            html, scripts = SCRIPT_TAG.subn(
+                lambda _: "<script>window.PORTFOLIO_SNAPSHOT=" + payload + ";</script><script>"
+                + (web_dir / "portfolio.js").read_text(encoding="utf-8") + "</script>",
+                html,
+            )
+            if not styles or not scripts:
+                raise RuntimeError(
+                    "The portfolio page no longer carries the stylesheet and script tags the "
+                    "offline bundle inlines; a downloaded portfolio would not open."
+                )
             with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as bundle:
                 bundle.writestr("Portfolio_RM.html", html)
                 for file in directory.glob("position-*/*"):

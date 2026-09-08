@@ -162,3 +162,31 @@ def test_combined_site_navigation_and_shared_access_cookie():
         assert client.get('/portfolio.css').status_code == 200
         assert client.get('/portfolio.js').status_code == 200
         assert client.post('/api/portfolio/parse',json={'text':'AAPL,100'}).status_code == 200
+
+
+def test_offline_bundle_still_recognises_the_tags_it_inlines():
+    """The bundle inlines the stylesheet and script by pattern.
+
+    They carry a ?v= cache-busting query, and when that was first added an exact
+    string match stopped matching without saying so -- producing a download whose
+    assets pointed at absolute paths that do not exist offline and which carried
+    no portfolio snapshot at all. The page and the patterns are pinned together
+    here so the next edit to either fails loudly.
+    """
+    from pathlib import Path
+    from backend.portfolio import SCRIPT_TAG, STYLE_TAG
+
+    html = Path("web/portfolio.html").read_text(encoding="utf-8")
+    assert STYLE_TAG.search(html), "portfolio.html no longer carries a stylesheet tag the bundle can inline"
+    assert SCRIPT_TAG.search(html), "portfolio.html no longer carries a script tag the bundle can inline"
+
+
+def test_the_tag_patterns_tolerate_a_version_query():
+    from backend.portfolio import SCRIPT_TAG, STYLE_TAG
+
+    assert STYLE_TAG.search('<link rel="stylesheet" href="/portfolio.css">')
+    assert STYLE_TAG.search('<link rel="stylesheet" href="/portfolio.css?v=2">')
+    assert SCRIPT_TAG.search('<script src="/portfolio.js" defer></script>')
+    assert SCRIPT_TAG.search('<script src="/portfolio.js?v=17" defer></script>')
+    # A different file is not this one.
+    assert not STYLE_TAG.search('<link rel="stylesheet" href="/other.css">')

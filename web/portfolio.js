@@ -212,7 +212,17 @@
       portfolio = window.PORTFOLIO_SNAPSHOT; $('intake').hidden = true; $('singleStockLink').hidden = true; $('backToResearch').hidden = true;
       document.querySelector('.wordmark').href = '#main'; render(); return;
     }
-    const id = remembered();
+    // A fresh arrival starts a fresh portfolio. The remembered job exists so
+    // that reloading mid-run reconnects to it rather than abandoning twenty
+    // minutes of research -- but clicking through to this page again is a
+    // request to evaluate a new set of holdings, and it was silently reopening
+    // the last one instead, with the intake form hidden and no way to tell why.
+    // Navigation type separates the two: a reload or a back/forward reconnects,
+    // anything else clears and starts clean.
+    const navigation = (performance.getEntriesByType('navigation')[0] || {}).type;
+    const reconnecting = navigation === 'reload' || navigation === 'back_forward';
+    if (!reconnecting) remember(null);
+    const id = reconnecting ? remembered() : null;
     try {
       const health = await api('/api/health'); configuredDemo = !health.live_research;
       $('connectionStatus').textContent = configuredDemo ? 'Synthetic demo mode' : 'Live research available';

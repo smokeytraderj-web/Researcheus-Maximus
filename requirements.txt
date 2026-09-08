@@ -12,3 +12,8 @@ openai>=1.100,<3
 mcp>=2.1,<3
 pywin32>=306; platform_system=="Windows"
 keyring
+
+# tests/test_portfolio*.py are written for pytest rather than unittest, so the
+# suite cannot be run in full without it. Declared here because "run the tests"
+# should not require knowing that.
+pytest>=8.0
