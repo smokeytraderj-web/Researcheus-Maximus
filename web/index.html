@@ -285,6 +285,69 @@ tailwind.config = {
     el('statusCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
+  // ---- J.P. Morgan import -------------------------------------------------
+  // The portal's figures can only be fetched from inside a browser signed in to
+  // it, so the extension does that and hands them here. It is entirely
+  // optional: without it, or signed out, the run proceeds and the report simply
+  // carries no view from that house.
+  var jpmmReady = false;
+  var jpmmSeq = 0;
+
+  window.addEventListener('message', function (event) {
+    if (event.source !== window || event.origin !== location.origin) { return; }
+    if (event.data && event.data.tag === 'jpmm-extension-ready') { jpmmReady = true; }
+  });
+
+  function askExtension(prompt) {
+    if (!jpmmReady) { return Promise.resolve(null); }
+    return new Promise(function (resolve) {
+      var id = ++jpmmSeq;
+      // Bounded: the extension opens the company page to read its note, and a
+      // slow portal must delay the report, not hold it forever.
+      var timer = setTimeout(function () { cleanup(); resolve(null); }, 45000);
+      function cleanup() {
+        clearTimeout(timer);
+        window.removeEventListener('message', onReply);
+      }
+      function onReply(event) {
+        if (event.source !== window || event.origin !== location.origin) { return; }
+        var d = event.data;
+        if (!d || d.tag !== 'jpmm-view-response' || d.id !== id) { return; }
+        cleanup();
+        resolve(d.reply || null);
+      }
+      window.addEventListener('message', onReply);
+      window.postMessage({ tag: 'jpmm-view-request', id: id, prompt: prompt }, location.origin);
+    });
+  }
+
+  // Fetch the house view and store it, so the run picks it up when it resolves
+  // the ticker. Always resolves: every failure here is a report without a
+  // J.P. Morgan section, never a failed run.
+  function refreshHouseView(prompt) {
+    return askExtension(prompt)
+      .then(function (reply) {
+        if (!reply || !reply.ok || !reply.payload) { return null; }
+        return fetch('/api/house-views/import', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reply.payload)
+        }).then(function (r) { return r.ok ? r.json() : null; });
+      })
+      .then(function (parsed) {
+        if (!parsed || !parsed.fields) { return null; }
+        var fields = parsed.fields;
+        // A view with no publication date is one HouseView refuses, and rightly:
+        // an undated rating reads as current. Skip the save rather than stamp it
+        // with today, which would make an old call look like this morning's.
+        if (!fields.published) { return null; }
+        return fetch('/api/house-views', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fields)
+        }).then(function (r) { return r.ok; });
+      })
+      .catch(function () { return null; });
+  }
+
   function start(mode, boxId) {
     // One run at a time -- a second job would run server-side with nothing
     // polling it -- but say so rather than swallowing the click. The flag is
@@ -304,24 +367,36 @@ tailwind.config = {
     setBusy(true);
     el('feedback').classList.add('hidden');
     resetStatus();
-    showRunning('Preparing evidence');
     startedAt = Date.now();
-    fetch('/api/research', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: text, mode: mode })
-    })
-    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
-    .then(function (res) {
-      if (!res.ok) {
-        var detail = res.body && res.body.detail;
-        // FastAPI validation errors arrive as a list of objects, not a string.
-        if (Array.isArray(detail)) { detail = detail.map(function (d) { return d.msg; }).join('; '); }
-        return showFailed(detail || 'Could not start the research run.');
-      }
-      poll(res.body.id);
-    })
-    .catch(function () { showFailed('Could not reach the research service. Make sure it is still running (scripts/run_web.sh).'); });
+
+    // The house view is fetched and stored BEFORE the run, because the run
+    // reads stored views the moment it resolves the ticker -- fetching it
+    // alongside would race the report it is meant to appear in. This step
+    // never fails the run: refreshHouseView resolves whatever happens, and a
+    // report without a J.P. Morgan section is a normal report.
+    var prepared = jpmmReady ? refreshHouseView(text) : Promise.resolve(null);
+    showRunning(jpmmReady ? 'Reading J.P. Morgan Markets' : 'Preparing evidence');
+
+    prepared
+      .then(function () {
+        showRunning('Preparing evidence');
+        return fetch('/api/research', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: text, mode: mode })
+        });
+      })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          var detail = res.body && res.body.detail;
+          // FastAPI validation errors arrive as a list of objects, not a string.
+          if (Array.isArray(detail)) { detail = detail.map(function (d) { return d.msg; }).join('; '); }
+          return showFailed(detail || 'Could not start the research run.');
+        }
+        poll(res.body.id);
+      })
+      .catch(function () { showFailed('Could not reach the research service. Make sure it is still running (scripts/run_web.sh).'); });
   }
 
   function poll(jobId) {

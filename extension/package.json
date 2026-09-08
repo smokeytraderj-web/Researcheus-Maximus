@@ -1,0 +1,6 @@
+{
+  "name": "jpmm-import-extension",
+  "private": true,
+  "type": "module",
+  "description": "Declares ES modules so node runs the selection tests the same way the extension's service worker loads select.js. Not published and not installed from."
+}

@@ -40,8 +40,37 @@ tailwind.config = { theme: { extend: {
 
   <h1 class="font-serif text-[38px] font-semibold tracking-tight text-ink leading-tight">Import from J.P.&nbsp;Morgan Markets</h1>
   <p class="mt-4 text-[15.5px] leading-relaxed">
-    A button for your bookmarks bar. On a company page it reads the rating, the price target, the
-    equity profile and the house's forward estimates, and hands them to this app for checking.
+    Two ways to bring a house view across. The extension is the one to install: after it, typing a
+    ticker and pressing <b>Generate&nbsp;Research</b> is the whole workflow &mdash; the rating, price
+    target, equity profile and forward estimates arrive on their own, refreshed on every run.
+  </p>
+
+  <div class="card rounded-xl bg-white border border-brandLine bg-brandSoft p-6 mt-8">
+    <div class="flex items-baseline justify-between mb-3">
+      <h2 class="font-serif text-[21px] font-semibold text-ink">The extension &mdash; nothing to click</h2>
+      <span class="text-[11px] font-mono uppercase tracking-[0.12em] text-brand">Recommended</span>
+    </div>
+    <ol class="steps space-y-3 text-[14px] leading-relaxed">
+      <li class="step flex"><span>Open <span class="font-mono text-[12.5px]">chrome://extensions</span> in this browser.</span></li>
+      <li class="step flex"><span>Turn on <b>Developer mode</b>, top right.</span></li>
+      <li class="step flex"><span>Press <b>Load unpacked</b> and choose the <span class="font-mono text-[12.5px]">extension</span> folder inside the project.</span></li>
+      <li class="step flex"><span>Reload this app. That is the whole setup.</span></li>
+    </ol>
+    <p class="mt-4 text-[13px] leading-relaxed text-ink">
+      From then on: type a ticker, press <b>Generate&nbsp;Research</b>, read the report. Nothing else.
+    </p>
+    <p class="mt-2.5 text-[12.5px] leading-relaxed text-muted">
+      Type a <b>ticker</b> rather than a company name where you can. <span class="font-mono text-[12px]">AAPL</span>
+      resolves to one security; &ldquo;Apple&rdquo; also matches Apple Hospitality REIT, and rather than
+      guess between them the import stands down and the report says the view was unavailable.
+    </p>
+  </div>
+
+  <h2 class="font-serif text-[21px] font-semibold text-ink mt-10">Or the bookmarklet &mdash; one click, no install</h2>
+  <p class="mt-2 text-[14px] leading-relaxed">
+    A button for your bookmarks bar. On a company page it reads the same figures and hands them here
+    for checking. Useful without the extension, and it also brings across the analyst and the latest
+    note when you are already on the page.
   </p>
 
   <div class="card rounded-xl bg-white border border-line p-6 mt-8">
@@ -77,8 +106,12 @@ tailwind.config = { theme: { extend: {
       in front of you. This app holds no credential for the portal and needs none.
     </p>
     <p class="mt-2.5 text-[13px] leading-relaxed text-muted">
-      Nothing is recorded until you press save. Figures are stored as published, attributed to the
-      house and shown with the date they carry; a rating stays in that house's own words.
+      With the bookmarklet nothing is recorded until you press save. The extension records the view
+      as part of the run, without that step &mdash; the figures come across already typed and
+      labelled by the portal, so there is no parse to check. Either way they are stored as published,
+      attributed to the house, and shown with the date they carry; a rating stays in that house's own
+      words. A view the portal did not date is not stored at all, because an undated rating reads as
+      a current one.
     </p>
   </div>
 
