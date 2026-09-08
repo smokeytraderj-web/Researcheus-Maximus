@@ -335,3 +335,35 @@ class EstimateTests(unittest.TestCase):
         html = ReportIntegrationTests._render(self, (self._view(estimates=()),))
         self.assertNotIn("Their estimates, as published", html)
         self.assertNotIn('<table class="hv-est">', html)
+
+
+class RetrievalDateTests(unittest.TestCase):
+    """Two clocks. The house's date says when they published; ours says how
+    fresh this copy is. Printing only the first leaves a reader unable to tell
+    a view pulled this morning from one pulled months ago."""
+
+    def _view(self, retrieved_at):
+        from core.models import HouseView
+        return HouseView(
+            house="J.P. Morgan", ticker="AXON", equity_rating="Overweight",
+            price_target=755.0, published="2026-07-08", retrieved_at=retrieved_at,
+        )
+
+    def test_the_report_says_when_this_copy_was_taken(self):
+        html = ReportIntegrationTests._render(self, (self._view("2026-09-08T14:03:11+00:00"),))
+        self.assertIn("read 8 Sep 2026", html)
+
+    def test_the_houses_own_age_still_stands_beside_it(self):
+        # Reading the page again must not make an old opinion look current.
+        html = ReportIntegrationTests._render(self, (self._view("2026-09-08T14:03:11+00:00"),))
+        self.assertIn("months ago", html)
+
+    def test_a_missing_stamp_prints_nothing_rather_than_a_guess(self):
+        html = ReportIntegrationTests._render(self, (self._view(""),))
+        self.assertNotIn("read ", html.split('class="hv-age"')[1][:120])
+
+    def test_an_unreadable_stamp_prints_nothing(self):
+        from reports.html_report import _house_read_on
+        self.assertEqual(_house_read_on("sometime last week"), "")
+        self.assertEqual(_house_read_on(""), "")
+        self.assertEqual(_house_read_on("2026-09-08T14:03:11+00:00"), "8 Sep 2026")

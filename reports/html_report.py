@@ -178,6 +178,7 @@ _DYNAMIC_CSS = r"""
 .hv-est td{padding:3px 6px;border-bottom:1px solid var(--line2);color:var(--ink2)}
 .hv-est td.num{text-align:right;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;color:var(--ink)}
 .hv-est-n{font-size:10px;line-height:1.5;color:var(--muted);margin-top:5px}
+.hv-read{color:var(--muted)}
 .hv-age{font-size:11.5px;color:var(--muted)}
 .hv-figs{display:flex;flex-wrap:wrap;gap:0 34px;margin:0}
 .hv-figs dt{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
@@ -1047,6 +1048,27 @@ def _fundamental_figures(result: ResearchResult) -> str:
     return f'<div class="fund-figs"><div class="topline">{figures}</div></div>'
 
 
+def _house_read_on(retrieved_at: str) -> str:
+    """When this copy was taken from the house, as a plain date.
+
+    The stamp is written in UTC at the second; a reader wants the day. An
+    unparseable or absent stamp yields nothing rather than a guess, because a
+    retrieval date the report invented would defeat the point of printing one.
+    """
+    import datetime as _dt
+
+    stamp = (retrieved_at or "").strip()
+    if not stamp:
+        return ""
+    try:
+        read = _dt.date.fromisoformat(stamp[:10])
+    except (ValueError, TypeError):
+        return ""
+    # Built by hand rather than with "%-d": that directive is not portable, and
+    # this renders on Windows as well as on the container.
+    return f"{read.day} {read.strftime('%b %Y')}"
+
+
 def _house_section_html(result: ResearchResult) -> str:
     """Everything a research house published, under that house's own heading.
 
@@ -1137,10 +1159,18 @@ def _house_section_html(result: ResearchResult) -> str:
             flags.append(
                 f"This view was {age}; confirm it still stands before relying on it."
             )
+        # Two clocks, and the reader needs both. The age is the house's own --
+        # when they last published -- and it does not move because we read the
+        # page again. Without the retrieval date beside it there is no way to
+        # tell a view pulled this morning from one pulled months ago, which is
+        # exactly the question a reader asks of a figure that reads "2 months".
+        read_on = _house_read_on(view.retrieved_at)
         blocks.append(
             f'<div class="hv{" stale" if stale else ""}">'
             f'<div class="hv-top"><span class="hv-house">{escape(view.house)}</span>'
-            f'<span class="hv-age">{escape(age)}</span></div>'
+            f'<span class="hv-age">{escape(age)}'
+            + (f'<span class="hv-read"> · read {escape(read_on)}</span>' if read_on else "")
+            + "</span></div>"
             + (f'<div class="hv-ctx">{context}</div>' if context else "")
             + (f'<div class="topline house-line">{strip}</div>' if strip else "")
             + (f'<div class="hv-flag">{escape(" ".join(flags))}</div>' if flags else "")
