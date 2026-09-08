@@ -12,14 +12,31 @@
 
 const TAG_REQUEST = "jpmm-view-request";
 const TAG_RESPONSE = "jpmm-view-response";
+const TAG_PING = "jpmm-extension-ping";
 const TAG_READY = "jpmm-extension-ready";
+
+function announce() {
+  window.postMessage({ tag: TAG_READY }, location.origin);
+}
 
 window.addEventListener("message", (event) => {
   // Same page only. A frame the app embedded, or anything posting in from
   // elsewhere, is not the app asking.
   if (event.source !== window || event.origin !== location.origin) return;
   const data = event.data;
-  if (!data || data.tag !== TAG_REQUEST) return;
+  if (!data) return;
+
+  // Answering a ping is what actually establishes contact. This script runs at
+  // document_start, before the page's own script has parsed, so an unsolicited
+  // announcement arrives while nothing is listening yet and is simply lost --
+  // which left the page believing no extension was installed no matter how many
+  // times it was reinstalled. The page asks; this answers; the race is gone.
+  if (data.tag === TAG_PING) {
+    announce();
+    return;
+  }
+
+  if (data.tag !== TAG_REQUEST) return;
 
   chrome.runtime.sendMessage(
     { tag: "jpmm-view", prompt: String(data.prompt || "") },
@@ -40,6 +57,8 @@ window.addEventListener("message", (event) => {
   );
 });
 
-// Announced once, so the page can tell an installed extension from an absent
-// one and stop waiting on a reply that is never coming.
-window.postMessage({ tag: TAG_READY }, location.origin);
+// Still announced unprompted, for the case where the page's listener is already
+// up -- a soft navigation, or this script injected into a live page. The ping
+// above is what makes it reliable; this only makes it faster.
+announce();
+document.addEventListener("DOMContentLoaded", announce);

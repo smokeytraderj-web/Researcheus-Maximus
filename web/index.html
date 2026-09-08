@@ -93,6 +93,7 @@ tailwind.config = {
           <span id="statusElapsed" class="font-mono text-[11px] text-muted"></span>
         </div>
         <div id="statusBar" class="bar-track"><div class="bar-fill"></div></div>
+        <p id="houseNote" class="hidden mt-2.5 text-[12px] leading-relaxed text-muted font-mono"></p>
         <div id="statusDone" class="hidden">
           <p id="statusSummary" class="text-[14px] text-body leading-relaxed"></p>
           <div class="flex flex-wrap items-center gap-3 mt-5">
@@ -243,6 +244,9 @@ tailwind.config = {
     el('statusError').textContent = '';
     el('statusBar').classList.remove('hidden');
     el('statusElapsed').textContent = '';
+    // Last run's house-view outcome must not linger over this one's.
+    var note = el('houseNote');
+    if (note) { note.classList.add('hidden'); note.textContent = ''; }
   }
 
   function showRunning(stage) {
@@ -298,8 +302,35 @@ tailwind.config = {
     if (event.data && event.data.tag === 'jpmm-extension-ready') { jpmmReady = true; }
   });
 
+  // Ask, rather than wait to be told. The extension's bridge announces itself at
+  // document_start -- before this script has parsed -- so a page that only
+  // listened caught nothing, decided no extension was installed, and silently
+  // skipped the import on every run. Pinging removes the race: whoever came up
+  // first, the answer arrives after this listener exists.
+  function extensionPresent() {
+    if (jpmmReady) { return Promise.resolve(true); }
+    return new Promise(function (resolve) {
+      var timer = setTimeout(function () { settle(false); }, 500);
+      function onReady(event) {
+        if (event.source !== window || event.origin !== location.origin) { return; }
+        if (!event.data || event.data.tag !== 'jpmm-extension-ready') { return; }
+        settle(true);
+      }
+      function settle(found) {
+        clearTimeout(timer);
+        window.removeEventListener('message', onReady);
+        if (found) { jpmmReady = true; }
+        resolve(found);
+      }
+      window.addEventListener('message', onReady);
+      window.postMessage({ tag: 'jpmm-extension-ping' }, location.origin);
+    });
+  }
+
+  // Asked once on load so the common case is decided before anyone clicks.
+  extensionPresent();
+
   function askExtension(prompt) {
-    if (!jpmmReady) { return Promise.resolve(null); }
     return new Promise(function (resolve) {
       var id = ++jpmmSeq;
       // Bounded: the extension opens the company page to read its note, and a
@@ -324,28 +355,60 @@ tailwind.config = {
   // Fetch the house view and store it, so the run picks it up when it resolves
   // the ticker. Always resolves: every failure here is a report without a
   // J.P. Morgan section, never a failed run.
+  // Why an import produced nothing, in the advisor's words. Silence was the
+  // worst part of the first cut: a skipped import looked exactly like a working
+  // one, so there was nothing to act on and nothing to report.
+  var JPMM_REASONS = {
+    'no-match': 'no single company matched — try the plain ticker',
+    'no-coverage': 'this house does not publish on that security',
+    'signed-out': 'not signed in to J.P. Morgan Markets',
+    'failed': 'the portal could not be reached'
+  };
+
+  function houseNote(text) {
+    var box = el('houseNote');
+    if (!box) { return; }
+    if (!text) { box.classList.add('hidden'); box.textContent = ''; return; }
+    box.textContent = text;
+    box.classList.remove('hidden');
+  }
+
   function refreshHouseView(prompt) {
     return askExtension(prompt)
       .then(function (reply) {
-        if (!reply || !reply.ok || !reply.payload) { return null; }
+        if (!reply) { houseNote('J.P. Morgan: the extension did not answer.'); return null; }
+        if (!reply.ok) {
+          houseNote('J.P. Morgan: ' + (JPMM_REASONS[reply.reason] || 'not retrieved') + '.');
+          return null;
+        }
+        if (!reply.payload) { houseNote('J.P. Morgan: nothing came back.'); return null; }
         return fetch('/api/house-views/import', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(reply.payload)
         }).then(function (r) { return r.ok ? r.json() : null; });
       })
       .then(function (parsed) {
-        if (!parsed || !parsed.fields) { return null; }
+        if (!parsed) { return null; }
+        if (!parsed.fields) { houseNote('J.P. Morgan: the figures could not be read.'); return null; }
         var fields = parsed.fields;
         // A view with no publication date is one HouseView refuses, and rightly:
         // an undated rating reads as current. Skip the save rather than stamp it
         // with today, which would make an old call look like this morning's.
-        if (!fields.published) { return null; }
+        if (!fields.published) {
+          houseNote('J.P. Morgan: found, but the portal gave no publication date, so it was not stored.');
+          return null;
+        }
         return fetch('/api/house-views', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(fields)
-        }).then(function (r) { return r.ok; });
+        }).then(function (r) {
+          houseNote(r.ok
+            ? 'J.P. Morgan: ' + fields.equity_rating + ', target ' + fields.price_target + ', published ' + fields.published + '.'
+            : 'J.P. Morgan: retrieved, but could not be stored.');
+          return r.ok;
+        });
       })
-      .catch(function () { return null; });
+      .catch(function () { houseNote('J.P. Morgan: the import failed.'); return null; });
   }
 
   function start(mode, boxId) {
@@ -374,8 +437,12 @@ tailwind.config = {
     // alongside would race the report it is meant to appear in. This step
     // never fails the run: refreshHouseView resolves whatever happens, and a
     // report without a J.P. Morgan section is a normal report.
-    var prepared = jpmmReady ? refreshHouseView(text) : Promise.resolve(null);
-    showRunning(jpmmReady ? 'Reading J.P. Morgan Markets' : 'Preparing evidence');
+    var prepared = extensionPresent().then(function (present) {
+      if (!present) { return null; }
+      showRunning('Reading J.P. Morgan Markets');
+      return refreshHouseView(text);
+    });
+    showRunning('Preparing evidence');
 
     prepared
       .then(function () {
