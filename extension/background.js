@@ -22,6 +22,10 @@ import { selectCompany, tickerFromPrompt } from "./select.js";
 
 const PORTAL = "https://markets.jpmorgan.com";
 
+// Longer than the portal's nav menu (~330 characters), far shorter than the
+// company panel (five figures). What separates "rendered" from "not yet".
+const PANEL_MIN = 2000;
+
 // The portal's own typeahead query, as its search box issues it.
 const SUGGEST = `query getSuggestions($userInput: String) {
   searchService {
@@ -65,12 +69,21 @@ async function resolveCompany(query) {
   return selectCompany(suggestions, query);
 }
 
-// Read inside the page, in every frame, by chrome.scripting. Declared as a
-// plain function because it is serialised and injected -- it closes over
-// nothing here and must not.
-function readPageText() {
-  const root = document.querySelector("main") || document.body;
-  return root ? root.innerText : "";
+// The tab this worker opened for an import, and the text its frames report.
+// reader.js runs in every J.P. Morgan frame the advisor ever opens; this is what
+// keeps it silent on all of them but this one. Pages they browse for themselves
+// are never read and never leave the tab.
+let awaited = null;   // { tabId, best, resolve }
+
+function readerHello(tabId) {
+  return { read: !!(awaited && awaited.tabId === tabId) };
+}
+
+function readerText(tabId, text) {
+  if (!awaited || awaited.tabId !== tabId) return;
+  // Frames report independently and the panel is much the longest.
+  if (text.length > awaited.best.length) awaited.best = text;
+  if (awaited.resolve) awaited.resolve(awaited.best);
 }
 
 /**
@@ -93,29 +106,22 @@ async function pageText(companyId) {
       url: `${PORTAL}/jpmm/research.browse.company?companyId=${encodeURIComponent(companyId)}`,
       active: false,   // opens behind whatever the advisor is looking at
     });
-    await new Promise((resolve) => {
-      const done = setTimeout(resolve, 20000);   // never hang the import on a slow page
-      const listener = (id, info) => {
-        if (id === tab.id && info.status === "complete") {
-          chrome.tabs.onUpdated.removeListener(listener);
-          clearTimeout(done);
-          // The panel renders after load, inside two nested frames.
-          setTimeout(resolve, 3500);
-        }
+    return await new Promise((resolve) => {
+      let settled = false;
+      const finish = (text) => {
+        if (settled) return;
+        settled = true;
+        awaited = null;
+        clearTimeout(timer);
+        resolve(text);
       };
-      chrome.tabs.onUpdated.addListener(listener);
+      // Bounded: a portal that never paints must cost the import its note, not
+      // the whole run.
+      const timer = setTimeout(() => finish(awaited ? awaited.best : ""), 35000);
+      awaited = { tabId: tab.id, best: "", resolve: finish };
     });
-    // allFrames because the top document carries none of the panel's text.
-    // The longest result is the company panel by a wide margin.
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id, allFrames: true },
-      func: readPageText,
-    });
-    return results
-      .map((r) => (r && typeof r.result === "string" ? r.result : ""))
-      .reduce((longest, text) => (text.length > longest.length ? text : longest), "")
-      .slice(0, 40000);   // the server's own cap
   } catch (error) {
+    awaited = null;
     return "";
   } finally {
     if (tab && tab.id) {
@@ -169,12 +175,24 @@ async function viewFor(query) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Only this extension's own bridge may ask, and the manifest runs that bridge
-  // only on the app's origins -- so the origin check lives there, in the one
-  // place a page can reach, rather than being restated here where it would
-  // drift out of step with it.
+  // Only this extension's own scripts may ask, and the manifest runs those only
+  // on the app's origins and the portal's -- so the origin check lives there, in
+  // the one place a page can reach, rather than being restated here where it
+  // would drift out of step with it.
   if (sender.id !== chrome.runtime.id) return false;
-  if (!message || message.tag !== "jpmm-view") return false;
+  if (!message) return false;
+
+  const tabId = sender.tab && sender.tab.id;
+  if (message.tag === "jpmm-reader-hello") {
+    sendResponse(readerHello(tabId));
+    return false;
+  }
+  if (message.tag === "jpmm-page-text") {
+    readerText(tabId, String(message.text || ""));
+    return false;
+  }
+
+  if (message.tag !== "jpmm-view") return false;
 
   viewFor(String(message.prompt || ""))
     .then(sendResponse)

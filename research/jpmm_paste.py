@@ -290,7 +290,13 @@ def _parse_note(lines: list[str], joined: str) -> dict:
             anchor = index
             break
     if anchor is None:
-        return note
+        # The portal renders two panels for the same company. One leads with a
+        # highlights block under that heading; the other leads with the research
+        # feed and has no heading at all. Reading only the first left every
+        # feed-rendered company undated, and an undated view is one the store
+        # refuses -- so the security came back with no house view and no stated
+        # reason. The feed is the same notes in the same order; read those.
+        return _parse_feed_note(lines)
     # Title is the first line after the heading; the byline is the first line
     # that opens with a category and a date; the abstract is what sits between.
     # The window reaches past the byline because the rendered page spends a
@@ -326,6 +332,46 @@ def _parse_note(lines: list[str], joined: str) -> dict:
             summary.append(line)
     if summary:
         note["note_summary"] = " ".join(summary).strip()
+    return note
+
+
+def _parse_feed_note(lines: list[str]) -> dict:
+    """The latest note, read off the research feed rather than a highlights block.
+
+    The feed repeats: title, abstract, kind, date, "|", then an author per line.
+    It is reverse-chronological and mixes desks, so the first *Equity* entry is
+    this house's most recent equity note on the security.
+
+    Today's entries show a clock time in place of a date ("02:00 AM EDT"), and
+    those are passed over rather than resolved to today. The convention is
+    plain enough to read, but this date is what the report's staleness warning
+    is computed from, and the cost of the two mistakes is not symmetric: dating
+    a view earlier than the truth makes a current note look older and invites a
+    check, while dating it later makes a stale one look current, which is the
+    single failure this whole path exists to prevent. So the most recent entry
+    carrying an explicit date wins.
+    """
+    note: dict = {}
+    date = re.compile(r"^\d{1,2}\s+\w+,?\s+\d{4}$")
+    for index, line in enumerate(lines):
+        if not re.fullmatch(_NOTE_KINDS, line) or line != "Equity":
+            continue
+        if index + 1 >= len(lines) or not date.fullmatch(lines[index + 1]):
+            continue   # a time, not a date: today's entry, passed over
+        note["note_kind"] = line
+        note["note_published"] = normalise_date(lines[index + 1])
+        # Authors follow a "|" separator, one per line with commas between.
+        after = lines[index + 2:]
+        if after and after[0] == "|":
+            after = after[1:]
+        note["note_authors"] = _authors(after)
+        # Title and abstract sit above the kind line, in that order.
+        if index >= 2:
+            note["note_title"] = lines[index - 2]
+            note["note_summary"] = lines[index - 1]
+        elif index >= 1:
+            note["note_title"] = lines[index - 1]
+        break
     return note
 
 

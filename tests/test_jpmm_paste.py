@@ -440,3 +440,58 @@ class PayloadRefusalTests(unittest.TestCase):
         from research.jpmm_paste import parse_jpmm_payload
         parsed = parse_jpmm_payload(STRIP, ESTIMATES, RENDERED, ticker="AXON")
         self.assertEqual(parsed.fields["equity_rating"], "Overweight")
+
+
+class FeedLayoutTests(unittest.TestCase):
+    """The portal renders two panels for the same company. One leads with a
+    highlights block; the other leads with the research feed and carries no
+    heading. Lines below are the NVDA feed as it actually rendered."""
+
+    FEED = "\n".join([
+        "NVIDIA Corporation(NVDA US)",
+        "Sector:", "Semiconductors", "Region: North America",
+        "Equity Analyst", "Harlan Sur", "harlan.sur@jpmorgan.com",
+        "FILTERS", "652 Results",
+        # Today's entry: a clock time where a date would be.
+        "Semiconductors: July WSTS: Seasonal M/M Downtick Skewed by Memory Lumpiness",
+        "The WSTS released its latest set of industry data late last week...",
+        "Equity", "02:00 AM EDT", "|", "Harlan Sur", ",", "Apoorva Kumar",
+        # The most recent entry carrying an explicit date.
+        "NVIDIA Corporation: Takeaways From Recent Meetings with Investors",
+        "Yesterday, we held a virtual NDR for investors...",
+        "Equity", "02 Sep, 2026", "|", "Harlan Sur", ",", "Mayur Ramdhani",
+        # A different desk, older.
+        "Investment Grade Technology: USD Note Documents",
+        "We are today publishing bond document details...",
+        "Credit", "31 Aug, 2026", "|", "Erica R Spear",
+    ])
+
+    def test_the_feed_supplies_a_publication_date(self):
+        parsed = parse_jpmm_page(self.FEED)
+        self.assertEqual(parsed.fields.get("published"), "2026-09-02")
+
+    def test_a_clock_time_is_not_resolved_to_today(self):
+        # Dating a view later than the truth makes a stale call look current.
+        # Passing over today's entry costs freshness, never overstates it.
+        parsed = parse_jpmm_page(self.FEED)
+        self.assertEqual(parsed.fields.get("note_published"), "2026-09-02")
+
+    def test_another_desk_does_not_supply_the_equity_date(self):
+        parsed = parse_jpmm_page(self.FEED)
+        self.assertEqual(parsed.fields.get("note_kind"), "Equity")
+        self.assertNotEqual(parsed.fields.get("note_published"), "2026-08-31")
+
+    def test_the_notes_title_and_authors_come_with_it(self):
+        parsed = parse_jpmm_page(self.FEED)
+        self.assertIn("Takeaways From Recent Meetings", parsed.fields.get("note_title", ""))
+        self.assertIn("Harlan Sur", parsed.fields.get("note_authors", ""))
+
+    def test_the_analyst_and_sector_still_read(self):
+        parsed = parse_jpmm_page(self.FEED)
+        self.assertEqual(parsed.fields.get("analyst"), "Harlan Sur")
+        self.assertEqual(parsed.fields.get("sector"), "Semiconductors")
+
+    def test_the_highlights_layout_is_unaffected(self):
+        # The heading path must still win where the heading exists.
+        parsed = parse_jpmm_page(RENDERED)
+        self.assertTrue(parsed.fields.get("published"))

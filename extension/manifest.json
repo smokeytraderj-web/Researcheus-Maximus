@@ -3,8 +3,9 @@
   "name": "Technical Analyst Agent — J.P. Morgan Markets import",
   "version": "1.0.0",
   "description": "Reads a company's published rating, price target, equity profile and estimates from J.P. Morgan Markets in your own signed-in session, for the Technical Analyst Agent report.",
-  "host_permissions": ["https://markets.jpmorgan.com/*"],
-  "permissions": ["scripting"],
+  "host_permissions": [
+    "https://markets.jpmorgan.com/*"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -16,8 +17,20 @@
         "https://gswmai.online/*",
         "http://localhost/*"
       ],
-      "js": ["bridge.js"],
+      "js": [
+        "bridge.js"
+      ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://markets.jpmorgan.com/*"
+      ],
+      "js": [
+        "reader.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
     }
   ]
 }
