@@ -161,18 +161,6 @@ tailwind.config = {
         </div>
       </div>
 
-      <div class="mt-6 flex flex-col sm:flex-row sm:items-center gap-3">
-        <input
-          id="quickBox"
-          type="text"
-          placeholder="MSFT, Microsoft&hellip;"
-          class="field flex-1 bg-panel border border-line rounded-lg text-[14px] text-ink placeholder:text-muted px-4 py-2.5"
-        >
-        <button id="quickBtn" onclick="start('technical', 'quickBox')" class="shrink-0 btn text-[13px] font-sans font-bold text-ink border border-line rounded-lg px-5 py-2.5 hover:bg-brandSoft hover:border-brandLine hover:text-brandDeep">
-          Quick Report &nbsp;&rarr;
-        </button>
-      </div>
-
       <div id="feedback" class="hidden mt-8 pt-6 border-t border-line2">
         <div class="font-mono text-[10px] tracking-[0.16em] text-muted uppercase mb-3">Feedback on that report</div>
         <div class="flex items-center gap-2 mb-3">
@@ -191,32 +179,13 @@ tailwind.config = {
         </div>
       </div>
 
-      <a href="methodology.html"
-         class="group mt-6 flex items-center justify-between gap-4 rounded-xl border border-line bg-white/70 hover:bg-white hover:border-brandLine px-5 py-4 transition-colors">
-        <span>
-          <span class="block font-serif text-[15px] font-semibold text-ink">How we reason</span>
-          <span class="block text-[12.5px] text-muted mt-0.5">The five checks behind every rating, why those five, and a worked example.</span>
-        </span>
-        <span class="shrink-0 font-mono text-[11px] tracking-[0.14em] uppercase text-brand group-hover:text-brandDeep">Read &rarr;</span>
-      </a>
-
-      <a href="house-views.html"
-         class="group mt-3 flex items-center justify-between gap-4 rounded-xl border border-line bg-white/70 hover:bg-white hover:border-brandLine px-5 py-4 transition-colors">
-        <span>
-          <span class="block font-serif text-[15px] font-semibold text-ink">Research house views</span>
-          <span class="block text-[12.5px] text-muted mt-0.5">Paste a J.P. Morgan Markets page; its rating, target and profile join every report on that name.</span>
-        </span>
-        <span class="shrink-0 font-mono text-[11px] tracking-[0.14em] uppercase text-brand group-hover:text-brandDeep">Add &rarr;</span>
-      </a>
-
-      <a href="how-it-works.html"
-         class="group mt-3 flex items-center justify-between gap-4 rounded-xl border border-line bg-white/70 hover:bg-white hover:border-brandLine px-5 py-4 transition-colors">
-        <span>
-          <span class="block font-serif text-[15px] font-semibold text-ink">How I work</span>
-          <span class="block text-[12.5px] text-muted mt-0.5">Where the evidence comes from, who reasons over it, and where the work stops rather than guessing.</span>
-        </span>
-        <span class="shrink-0 font-mono text-[11px] tracking-[0.14em] uppercase text-brand group-hover:text-brandDeep">Read &rarr;</span>
-      </a>
+      <div class="mt-6 pt-4 border-t border-line2 flex flex-wrap items-center gap-4 text-[11.5px] text-muted">
+        <a href="methodology.html" class="hover:text-ink">How we reason</a>
+        <span class="hidden sm:inline text-line2">·</span>
+        <a href="house-views.html" class="hover:text-ink">J.P. Morgan import</a>
+        <span class="hidden sm:inline text-line2">·</span>
+        <a href="how-it-works.html" class="hover:text-ink">How it works</a>
+      </div>
 
       <p id="modeNote" class="mt-5 text-center text-[12px] text-muted"></p>
 
@@ -264,7 +233,7 @@ tailwind.config = {
     el('statusElapsed').textContent = mins > 0 ? mins + 'm ' + (secs % 60) + 's' : secs + 's';
   }
 
-  var ACTIONS = ['generateBtn', 'deepBtn', 'quickBtn'];
+  var ACTIONS = ['generateBtn', 'deepBtn'];
 
   function setBusy(isBusy) {
     // While a run is in flight every action is disabled *visibly*. Silently
@@ -595,14 +564,13 @@ tailwind.config = {
   // out of the textarea, and a box-level listener then never fired -- Enter
   // simply did nothing. From anywhere on the page Enter runs Generate Research;
   // inside one of the other boxes it runs that box instead.
-  var BOX_MODES = { queryBox: 'general', deepBox: 'deep', quickBox: 'technical' };
+  var BOX_MODES = { queryBox: 'general', deepBox: 'deep' };
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) { return; }
     var id = e.target && e.target.id;
     // Let a real button keep its own Enter behaviour.
     if (e.target && e.target.tagName === 'BUTTON') { return; }
     var boxId = BOX_MODES[id] ? id : 'queryBox';
-    if (boxId === 'quickBox' && el('quickBox').disabled) { return; }
     e.preventDefault();
     start(BOX_MODES[boxId], boxId);
   });
@@ -626,14 +594,6 @@ tailwind.config = {
         '<b>Demonstration mode — values are synthetic, not client recommendations.</b><br>' +
         'General Research needs an API key: save one in the desktop app’s Settings, ' +
         'or start the server with <span class="font-mono">RESEARCHEUS_API_KEY</span> set.';
-    }
-    if (!h.technical_research) {
-      el('quickBox').disabled = true;
-      el('quickBox').placeholder = 'Quick report — needs a TV Remix key';
-      var btn = el('quickBtn');
-      btn.disabled = true;
-      btn.dataset.unavailable = '1';
-      btn.className = btn.className.replace('hover:bg-panel hover:border-muted', '') + ' opacity-40 cursor-not-allowed';
     }
   }).catch(function () {});
 </script>
