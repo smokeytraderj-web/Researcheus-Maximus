@@ -2,7 +2,7 @@
 (function () {
   let portfolio = null, selected = 0, detail = 'overview', chartIndex = 0;
   let workspace = 'research', prepared = null, timer = null, renderingKey = '';
-  let runBusy = false, configuredDemo = false;
+  let runBusy = false, configuredDemo = false, allocation = [];
   const offline = Boolean(window.PORTFOLIO_SNAPSHOT);
   const $ = id => document.getElementById(id);
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -97,6 +97,7 @@
     $('largest').innerHTML = a.largest ? escape(a.largest.ticker) + '<small>' + pct(a.largest.weight) + ' allocation</small>' : '—';
     $('thirdMetricLabel').textContent = a.total_value !== null ? 'Portfolio value' : 'Positions';
     $('thirdMetric').innerHTML = a.total_value !== null ? '$' + fmt(a.total_value, 0) + '<small>' + (portfolio.weighting === 'value' ? 'Provided values' : 'At research prices') + '</small>' : portfolio.positions.length + '<small>' + pct(a.cash_pct) + ' cash</small>';
+    renderAllocation();
     $('progressRegion').hidden = !running; $('progressText').textContent = portfolio.stage;
     $('progress').value = 100 * portfolio.finished_count / portfolio.positions.length;
     $('reviewDate').textContent = (offline ? 'Saved review · ' : 'Review started · ') + date(portfolio.created_at);
@@ -110,9 +111,47 @@
     const key = JSON.stringify([portfolio.status === 'cancelled', portfolio.positions[selected], detail, chartIndex, offline]);
     if (key !== renderingKey) { renderingKey = key; renderPosition(); }
   }
+  // A pie reads part-to-whole only while it has few parts: past five segments
+  // the smallest holdings fold into Other, and the holdings table keeps every one.
+  const SLICE_LIMIT = 5;
+  function allocationSlices() {
+    const held = portfolio.positions.filter(p => Number.isFinite(p.weight) && p.weight > 0).sort((a, b) => b.weight - a.weight);
+    const named = held.length > SLICE_LIMIT ? held.slice(0, SLICE_LIMIT - 1) : held;
+    const slices = named.map(p => ({ticker: p.ticker, name: p.company_name || '', weight: p.weight}));
+    const rest = held.slice(named.length);
+    if (rest.length) slices.push({ticker: 'Other', name: rest.length + ' smaller holdings', weight: rest.reduce((sum, p) => sum + p.weight, 0), count: rest.length, other: true});
+    return slices;
+  }
+  function slicePath(start, end) {
+    const at = (angle, radius) => (100 + radius * Math.sin(angle)).toFixed(2) + ' ' + (100 - radius * Math.cos(angle)).toFixed(2);
+    const large = end - start > Math.PI ? 1 : 0;
+    return 'M' + at(start, 94) + 'A94 94 0 ' + large + ' 1 ' + at(end, 94) + 'L' + at(end, 58) + 'A58 58 0 ' + large + ' 0 ' + at(start, 58) + 'Z';
+  }
+  function showSlice(index) {
+    const slice = index === null ? null : allocation[index];
+    $('allocation').classList.toggle('is-focused', Boolean(slice));
+    $('allocation').querySelectorAll('[data-slice]').forEach(el => el.classList.toggle('on', Number(el.dataset.slice) === index));
+    const held = allocation.reduce((sum, s) => sum + (s.count || 1), 0);
+    $('allocationCenter').innerHTML = slice ? '<b>' + pct(slice.weight) + '</b><span>' + escape(slice.ticker) + '</span>' : '<b>' + held + '</b><span>holdings</span>';
+  }
+  function renderAllocation() {
+    allocation = ['ready', 'partial'].includes(portfolio.status) ? allocationSlices() : [];
+    // Two slices tell a reader less than the figures above already do.
+    $('allocation').hidden = allocation.length < 3;
+    if ($('allocation').hidden) return;
+    const total = allocation.reduce((sum, s) => sum + s.weight, 0);
+    const fill = (s, i) => 'var(--slice-' + (s.other ? 'other' : i + 1) + ')';
+    let angle = 0;
+    $('allocationPie').innerHTML = allocation.map((s, i) => { const start = angle; angle += 2 * Math.PI * s.weight / total; return '<path data-slice="' + i + '" d="' + slicePath(start, angle) + '" style="fill:' + fill(s, i) + '"></path>'; }).join('');
+    $('allocationPie').setAttribute('aria-label', 'Allocation by weight: ' + allocation.map(s => s.ticker + ' ' + pct(s.weight)).join(', '));
+    $('allocationLegend').innerHTML = allocation.map((s, i) => '<li data-slice="' + i + '"><span class="allocation-swatch" style="background:' + fill(s, i) + '"></span><span class="allocation-ticker">' + escape(s.ticker) + '</span><span class="allocation-name" title="' + escape(s.name) + '">' + escape(s.name) + '</span><span class="allocation-weight">' + pct(s.weight) + '</span></li>').join('');
+    const other = allocation.find(s => s.other);
+    $('allocationNote').textContent = other ? 'By weight. The ' + (allocation.length - 1) + ' largest holdings are shown; the other ' + other.count + ' are grouped as Other.' : 'By weight.';
+    showSlice(null);
+  }
   function renderHoldings() {
-    const rows = portfolio.positions.map((p,i) => '<tr><td><button class="text-button" data-position="' + i + '">' + escape(p.ticker) + '</button><span class="company-cell">' + escape(p.company_name || (p.status === 'failed' ? 'Research unavailable' : 'Awaiting research')) + '</span></td><td class="number"><span class="weight-track"><span style="width:' + Math.min(100, Math.max(0,p.weight || 0)) + '%"></span></span>' + pct(p.weight) + '</td><td>' + pill(p.ticker === 'CASH' ? 'Cash' : p.rating || p.status) + '</td><td class="number">' + money(p.price) + '</td><td>' + escape(p.confidence || '—') + '</td><td class="metadata">' + escape(p.as_of ? date(p.as_of) : '—') + '</td></tr>').join('');
-    $('holdingsWorkspace').innerHTML = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Holding</th><th class="number">Allocation</th><th>RM rating</th><th class="number">Research price</th><th>Confidence</th><th>As of</th></tr></thead><tbody>' + rows + '</tbody></table></div><p class="holdings-footer">' + escape({weight:'Provided portfolio weights.',value:'Weights calculated from provided USD market values.',shares:'Weights calculated from shares × researched USD prices. Missing prices leave all weights pending.',equal:'Explicit equal weighting.'}[portfolio.weighting]) + ' Prices are research snapshots.</p></div>';
+    const rows = portfolio.positions.map((p,i) => '<tr><td><button class="text-button" data-position="' + i + '">' + escape(p.ticker) + '</button><span class="company-cell">' + escape(p.company_name || (p.status === 'failed' ? 'Research unavailable' : 'Awaiting research')) + '</span></td><td class="number"><span class="weight-track"><span style="width:' + Math.min(100, Math.max(0,p.weight || 0)) + '%"></span></span>' + pct(p.weight) + '</td><td>' + pill(p.ticker === 'CASH' ? 'Cash' : p.rating || p.status) + '</td><td class="number">' + money(p.price) + '</td><td class="metadata">' + escape(p.as_of ? date(p.as_of) : '—') + '</td></tr>').join('');
+    $('holdingsWorkspace').innerHTML = '<div class="card"><div class="table-wrap"><table><thead><tr><th>Holding</th><th class="number">Allocation</th><th>RM rating</th><th class="number">Research price</th><th>As of</th></tr></thead><tbody>' + rows + '</tbody></table></div><p class="holdings-footer">' + escape({weight:'Provided portfolio weights.',value:'Weights calculated from provided USD market values.',shares:'Weights calculated from shares × researched USD prices. Missing prices leave all weights pending.',equal:'Explicit equal weighting.'}[portfolio.weighting]) + ' Prices are research snapshots.</p></div>';
   }
   function nav() {
     const tabs = [['overview','Overview'],['charts','Charts'],['data','Key data & sources'],['report','Full RM report']];
@@ -206,6 +245,8 @@
     });
     $('results').addEventListener('change',event => { if (event.target.id === 'chartSelect') { chartIndex = Number(event.target.value); renderingKey = ''; render(); $('chartSelect')?.focus(); } });
     $('results').addEventListener('keydown',keyTabs);
+    $('allocation').addEventListener('pointerover', event => { const slice = event.target.closest('[data-slice]'); showSlice(slice ? Number(slice.dataset.slice) : null); });
+    $('allocation').addEventListener('pointerleave', () => showSlice(null));
     $('methodBtn').addEventListener('click',() => $('methodDialog').showModal());
     $('closeMethod').addEventListener('click',() => $('methodDialog').close());
     if (offline) {

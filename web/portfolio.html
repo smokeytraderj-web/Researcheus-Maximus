@@ -8,8 +8,8 @@
   <link rel="stylesheet" href="/vendor/fonts/fonts.css">
   <!-- Versioned so a deploy cannot leave a browser running last release's
        stylesheet or script against this release's markup. Bump on change. -->
-  <link rel="stylesheet" href="/portfolio.css?v=2">
-  <script src="/portfolio.js?v=2" defer></script>
+  <link rel="stylesheet" href="/portfolio.css?v=3">
+  <script src="/portfolio.js?v=3" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to research</a>
@@ -54,6 +54,10 @@
         <div class="portfolio-call"><span class="eyebrow" id="portfolioTitle">Portfolio view</span><h2 id="portfolioRating">Researching</h2><span id="concentration" class="pill neutral">Pending evidence</span></div>
         <div class="portfolio-narrative"><p id="portfolioSummary"></p><button class="text-button" id="methodBtn">How this view is calculated <span aria-hidden="true">↗</span></button></div>
         <dl class="portfolio-figures"><div><dt>Coverage</dt><dd id="coverage">—</dd></div><div><dt>Largest holding</dt><dd id="largest">—</dd></div><div><dt id="thirdMetricLabel">Positions</dt><dd id="thirdMetric">—</dd></div></dl>
+      </section>
+      <section id="allocation" class="allocation card" aria-labelledby="allocationTitle" hidden>
+        <div class="allocation-chart"><svg id="allocationPie" viewBox="0 0 200 200" role="img"></svg><div id="allocationCenter" class="allocation-center" aria-hidden="true"></div></div>
+        <div class="allocation-body"><span class="eyebrow" id="allocationTitle">Allocation</span><p id="allocationNote" class="metadata"></p><ul id="allocationLegend" class="allocation-legend"></ul></div>
       </section>
       <section id="progressRegion" class="progress-region" aria-live="polite" hidden>
         <div><span id="progressText">Preparing research</span><button id="cancelBtn" class="text-button">Cancel run</button></div>
