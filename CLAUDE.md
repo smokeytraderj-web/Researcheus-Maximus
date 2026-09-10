@@ -82,9 +82,9 @@ Both formats share one visual system: a white editorial page, narrow left naviga
 - The main goal is to answer the user's exact question. Preserve the question verbatim and resolve it before the first chart.
 - Use this order: security and rating; the Conviction Checklist; the exact question; concise reasoning; what the advisor would do; one decision-relevant chart; essential data; risks and decision triggers; sources, confidence and disclosure.
 - The rating, the checklist and the reasoning together are the answer. Do not reintroduce a separate restated-answer block above them.
-- Do not print a confidence line under the rating. Confidence belongs in the Sources section, where it qualifies the evidence; under the rating it reads as a second verdict competing with the one above it. The Lead Analyst still assigns it and it still governs the synthesis. Deep Technical states it alongside the stance instead, where the spec wants the whole call legible at a glance.
+- Do not print a confidence line under the rating. Confidence is a quiet muted line at the foot of the Sources section, where it qualifies the evidence; anywhere more prominent it reads as a second verdict competing with the rating. The Lead Analyst still assigns it and it still governs the synthesis. The same rule holds in Deep Technical, the slide deck and the portfolio workspace: confidence is never shown in a masthead, a call slide, a data table or a holdings table.
 - State the rating **once**, in the masthead beside the security identity. It was previously given there and again in a centred block below at the same size, so the top of the page read as two competing verdicts. The Conviction Checklist directly beneath is the piece that should command the space.
-- The masthead subline must say something the page does not already say. It used to read "Bullish setup · Positive fundamentals", repeating the metrics strip word for word; General Research states the horizon there, Deep Technical states confidence and stance.
+- The masthead subline must say something the page does not already say. It used to read "Bullish setup · Positive fundamentals", repeating the metrics strip word for word; General Research states the horizon there, Deep Technical states the stance.
 - Default to one chart. Select the chart that best supports the requested decision; use security-versus-SPY indexed total return when the user does not specify a chart.
 - Keep the data set compact and relevant to the question. General Research must not become a technical-analysis dump or a shortened copy of the technical report.
 - Add entry, stop, target, options, or other technical modules only when the user's request materially calls for them and the available evidence supports them.
@@ -93,7 +93,7 @@ Both formats share one visual system: a white editorial page, narrow left naviga
 ### Technical Research
 
 - Preserve the information order: security and rating; the call; position and risk plan; technical evidence; fundamentals; organized data; sources and disclosure.
-- Open with the call stated plainly: the final rating at display size, its confidence, the stance, and a single row carrying entry zone, stop, first target, and reward/risk. The reader must not have to hunt for the recommendation or the levels.
+- Open with the call stated plainly: the final rating at display size, the stance, and a single row carrying entry zone, stop, first target, and reward/risk. The reader must not have to hunt for the recommendation or the levels.
 - Preserve the interactive `Action plan` / `Scenario tester` control. The scenario tester updates selected price, change from current price, change from entry, stop distance, illustrative position impact, and plain-English action zone without changing the evidence.
 - Present the technical evidence as one tabbed `Charts` section. Lead with `Price structure`, then `Momentum`, `Relative strength`, and `Fibonacci`; additional validated views follow. The left rail navigates the report's pages, and the Charts page opens on the first tab.
 - A chart tab appears only when its evidence was actually produced. Never publish an empty or placeholder panel to keep a fixed tab count — a security with no usable volume simply has no volume-by-price tab.
@@ -299,7 +299,7 @@ Every report shows:
 - Fundamental Analyst rating.
 - Sentiment assessment.
 - Lead Analyst final rating.
-- High, Medium, or Low confidence. The General Research brief shows it in the Sources section rather than under the rating (see the General Research section).
+- High, Medium, or Low confidence, shown only as a quiet line in the Sources section, never beside the rating (see the General Research section).
 - A concise rationale.
 - Material disagreement.
 - Conditions that would change the rating.

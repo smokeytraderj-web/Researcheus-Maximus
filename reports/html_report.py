@@ -99,8 +99,7 @@ _DYNAMIC_CSS = r"""
 /* Confidence sits with the sources rather than under the rating: it qualifies
    the evidence, and under the rating it read as a second verdict competing with
    the one above it. */
-.conf-line{font-size:12px;color:var(--muted);margin:0 0 10px}
-.conf-line b{color:var(--ink);font-weight:600}
+.conf-line{font-size:11px;color:var(--muted);margin:12px 0 0}
 .pos-bar{display:flex;flex-wrap:wrap;gap:0;background:var(--panel);border-radius:7px;margin-bottom:22px;overflow:hidden}
 .pos-cell{flex:1 1 180px;padding:13px 18px;border-right:1px solid var(--line)}
 .pos-cell:last-child{border-right:none}
@@ -528,7 +527,7 @@ _DYNAMIC_CSS = r"""
 .general-brief #sources{margin-top:11px}
 .general-brief #sources .sec-head{break-after:avoid}
 .general-brief .sources{font-size:10px}
-.general-brief .conf-line{font-size:10px;margin-bottom:6px}
+.general-brief .conf-line{font-size:9px;margin-top:6px}
 /* Same orphan risk as the chart caption above: nothing stopped the disclosure
    paragraph or the firm footer from splitting onto a page of their own beneath
    an otherwise-full sources list. */
@@ -1489,8 +1488,8 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
 </section>
 <section id="sources">
   <div class="sec-head"><h2>Sources</h2></div>
-  <p class="conf-line">Confidence in this view: <b>{escape(result.confidence.value)}</b></p>
   <div class="sources">{_source_html(result)}</div>{_gaps_html(result)}
+  <p class="conf-line">Confidence in this view: {escape(result.confidence.value)}</p>
   <p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing involves risk, including possible loss of principal. Firm compliance review is required before client distribution.</p>
   <footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer>
 </section>
@@ -1738,7 +1737,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </nav>
 <main class="page tech-report">
 <div class="page-view" id="page1">
-{_masthead(result, 'Technical Research', f'Confidence {result.confidence.value} · {plan.stance}')}
+{_masthead(result, 'Technical Research', plan.stance)}
 <section id="call">
   <div class="sec-head"><h2>The read</h2></div>
   {_conviction_checklist_html(result.conviction_checklist)}
@@ -1775,7 +1774,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 <div class="page-view" id="page3" hidden>
 {page2_strip}
 <section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p>{_fundamental_figures(result)}{_house_section_html(result)}<details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*_fundamental_signals(result), *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div>{_peer_group_html(result)}</section>
-<section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div>{_gaps_html(result)}<p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
+<section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div>{_gaps_html(result)}<p class="conf-line">Confidence in this view: {escape(result.confidence.value)}</p><p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
 </div>
 </main></div>
 {_deck_html(result, request, _stated_question(request, result), checks_narrative, condense_reasoning(result.technical.summary), deck_charts)}"""
@@ -2240,11 +2239,10 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
     #    it, so a reader knows what the argument is for while reading it.
     judged = (checklist.total_count - checklist.unconfirmed_count) if checklist else 0
     cells = [
-        ("Confidence", escape(result.confidence.value), "", ""),
         ("Last price", _money(result.current_price), "", ""),
     ]
     if checklist:
-        cells.insert(1, ("Conviction", f"{checklist.passed_count} of {judged}", "", ""))
+        cells.insert(0, ("Conviction", f"{checklist.passed_count} of {judged}", "", ""))
     street = _find_metric(result, "analyst mean target", default="")
     if street and street != "n/a":
         cells.append(("Street target", escape(street), "",
