@@ -112,7 +112,7 @@ def relative_timeframe_charts(
             continue
         charts.append(
             ChartRecord(
-                f"Relative performance — {label}",
+                f"Relative performance: {label}",
                 str(path),
                 insights[0] if insights else "",
                 tuple(insights),
@@ -204,7 +204,7 @@ def _compound_subquestion_answers(request: ResearchRequest, plan: "TechnicalActi
         )
     if any(term in question for term in ("when should i", "good time to", "entry point", "when to buy", "wait for")):
         clauses.append(
-            f"On timing, the suggested entry zone is {_metric(plan.entry_low, money=True)}–{_metric(plan.entry_high, money=True)}. "
+            f"On timing, the suggested entry zone is {_metric(plan.entry_low, money=True)} to {_metric(plan.entry_high, money=True)}. "
             f"{plan.confirmation}"
         )
     if any(term in question for term in ("risk reward", "risk/reward", "reward to risk", "reward-to-risk", "worth the risk")):
@@ -318,7 +318,7 @@ def _direct_decision_answer_core(
     if request.decision_intent == "timing":
         if technical_plan is not None:
             return (
-                f"Timing answer: the evidence favours acting into ${technical_plan.entry_low:,.2f}–"
+                f"Timing answer: the evidence favours acting into ${technical_plan.entry_low:,.2f} to "
                 f"${technical_plan.entry_high:,.2f} rather than at the current price, with the {timing} setup "
                 f"needing this confirmation first: {technical_plan.confirmation}"
             )
@@ -1727,7 +1727,7 @@ class LiveResearchProvider:
                 )
                 timeframe_charts += (
                     ChartRecord(
-                        "Relative performance — Peers",
+                        "Relative performance: Peers",
                         str(peer_path),
                         f"{symbol} against its {peers.industry.lower()} cohort over the same dates. "
                         + peers.standing().capitalize() + ".",

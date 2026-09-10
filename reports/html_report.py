@@ -576,7 +576,7 @@ def _conviction_checklist_html(checklist) -> str:
         for item in checklist.criteria
     )
     score_class = "perfect" if checklist.is_perfect else ""
-    sub = "Five independent, deterministic criteria — supplementary evidence, not a rating."
+    sub = "Five independent, deterministic criteria. Supplementary evidence, not a rating."
     if checklist.unconfirmed_count:
         sub += f" {checklist.unconfirmed_count} could not be confirmed from the available evidence."
     return f"""<div class="cc-card">
@@ -612,7 +612,7 @@ def _metrics(result: ResearchResult) -> tuple[_Metric, ...]:
     )
 
 
-def _find_metric(result: ResearchResult, *terms: str, default: str = "—") -> str:
+def _find_metric(result: ResearchResult, *terms: str, default: str = "n/a") -> str:
     lowered = tuple(term.lower() for term in terms)
     for metric in _metrics(result):
         label = metric.label.lower()
@@ -745,7 +745,7 @@ def _price_chart_legend(result: ResearchResult, plan) -> tuple[tuple[str, str], 
     if sma50:
         items.append(("#5B7BA8", f"50-day avg {sma50}"))
     if plan is not None:
-        items.append(("var(--gold-soft)", f"Entry zone {_money(plan.entry_low)}–{_money(plan.entry_high)}"))
+        items.append(("var(--gold-soft)", f"Entry zone {_money(plan.entry_low)}-{_money(plan.entry_high)}"))
         items.append(("var(--bear)", f"Stop {_money(plan.stop_level)}"))
     return tuple(items)
 
@@ -782,8 +782,8 @@ def _relative_chart_legend(result: ResearchResult) -> tuple[tuple[str, str], ...
 def _volume_chart_legend(result: ResearchResult) -> tuple[tuple[str, str], ...]:
     return (
         ("var(--ink)", "Close"),
-        ("var(--gold)", "Point of control — most-traded price"),
-        ("#5378A5", "Value area — 70% of volume"),
+        ("var(--gold)", "Point of control: most-traded price"),
+        ("#5378A5", "Value area: 70% of volume"),
         ("var(--bear)", "Current price"),
     )
 
@@ -807,7 +807,7 @@ def _source_html(result: ResearchResult) -> str:
         supports = escape(source.supports)
         if source.locator.startswith(("https://", "http://")):
             name = f'<a class="source-link" href="{locator}" target="_blank" rel="noreferrer">{name}</a>'
-        rows.append(f"<div><b>{name}</b> — {supports}</div>")
+        rows.append(f"<div><b>{name}</b>: {supports}</div>")
     return "".join(rows)
 
 
@@ -899,7 +899,7 @@ def _horizon_views_html(result: ResearchResult) -> str:
     if len(ratings) == 1:
         return (
             '<p class="hz-agree">Short, medium and long term all read '
-            f'<b>{escape(views[0].rating.value)}</b> — the horizons agree, so the rating above '
+            f'<b>{escape(views[0].rating.value)}</b>: the horizons agree, so the rating above '
             "holds across all three.</p>"
         )
     # Only the weighting differs between the three, so the per-horizon rationale
@@ -937,14 +937,14 @@ def _peer_group_html(result: ResearchResult) -> str:
     rows = "".join(
         f'<tr><td class="pr-t">{escape(m.ticker)}</td><td>{escape(m.name)}</td>'
         f'<td class="num r {"pos" if (m.return_pct or 0) >= 0 else "neg"}">{m.return_pct:+.1%}</td>'
-        f'<td class="num r">{f"{m.forward_pe:.1f}x" if m.forward_pe else "&mdash;"}</td></tr>'
+        f'<td class="num r">{f"{m.forward_pe:.1f}x" if m.forward_pe else "n/a"}</td></tr>'
         for m in sorted(group.members, key=lambda m: -(m.return_pct if m.return_pct is not None else -9))
     )
     subject = (
         f'<tr class="pr-self"><td class="pr-t">{escape(result.identity.ticker)}</td>'
         f'<td>{escape(result.identity.company_name)}</td>'
         f'<td class="num r {"pos" if (group.subject_return_pct or 0) >= 0 else "neg"}">'
-        f'{group.subject_return_pct:+.1%}</td><td class="num r">&mdash;</td></tr>'
+        f'{group.subject_return_pct:+.1%}</td><td class="num r">n/a</td></tr>'
         if group.subject_return_pct is not None else ""
     )
     median = group.median_return()
@@ -977,9 +977,9 @@ def _timeframe_set(result: ResearchResult, default: ChartRecord | None,
     stays first so the report's headline evidence does not move.
     """
     windows = [
-        (chart.title.split("—")[-1].strip(), chart)
+        (chart.title.split(":")[-1].strip(), chart)
         for chart in result.chartbook
-        if chart.title.startswith("Relative performance —")
+        if chart.title.startswith("Relative performance:")
     ]
     if not windows:
         return ((default_label, default),) if default is not None else ()
@@ -1248,7 +1248,7 @@ def _plan_line(plan, entry_mid: float) -> str:
     upside = (plan.first_target / entry_mid - 1.0) if entry_mid else 0.0
     return f"""
 <div class="topline plan-line">
-  <div class="tl"><div class="tl-k">Entry zone</div><div class="tl-v num range">{_money(plan.entry_low)} – {_money(plan.entry_high)}</div><div class="tl-n">Midpoint {_money(entry_mid)}</div></div>
+  <div class="tl"><div class="tl-k">Entry zone</div><div class="tl-v num range">{_money(plan.entry_low)} - {_money(plan.entry_high)}</div><div class="tl-n">Midpoint {_money(entry_mid)}</div></div>
   <div class="tl"><div class="tl-k">Stop</div><div class="tl-v num neg">{_money(plan.stop_level)}</div><div class="tl-n">{plan.stop_pct:.1%} below the midpoint</div></div>
   <div class="tl"><div class="tl-k">First target</div><div class="tl-v num pos">{_money(plan.first_target)}</div><div class="tl-n">{upside:.1%} above the midpoint</div></div>
   <div class="tl"><div class="tl-k">Reward / risk</div><div class="tl-v num">{plan.reward_risk:.2f}×</div><div class="tl-n">Upside per unit of risk</div></div>
@@ -1309,7 +1309,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
     strategy = result.strategies[0] if result.strategies else None
     if plan:
         position_value = plan.stance
-        entry_value = f"{_money(plan.entry_low)} – {_money(plan.entry_high)}"
+        entry_value = f"{_money(plan.entry_low)} - {_money(plan.entry_high)}"
         stop_value = _money(plan.stop_level)
         actions = (
             ("Market condition", plan.market_condition),
@@ -1390,7 +1390,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
     pages += [("gpage_evidence", "Evidence & data"), ("gpage_risks", "Risks & sources")]
     rail_links = "".join(
         f'<a href="#{pid}" class="page-tab{" on" if index == 0 else ""}" data-page="{pid}">'
-        f'{index + 1} &mdash; {escape(label)}</a>'
+        f'{index + 1}. {escape(label)}</a>'
         for index, (pid, label) in enumerate(pages)
     )
     # Pages after the first lose the masthead, so they carry a compact line
@@ -1484,7 +1484,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
 </main></div>
 {_deck_html(result, request, question, checks_narrative, qualitative_summary, (("Evidence", _general_chart(result)),))}"""
     return _document(
-        f"{result.identity.ticker} General Research — Technical Analyst Agent",
+        f"{result.identity.ticker} General Research · Technical Analyst Agent",
         "general_research_base.html",
         body,
         _navigation_script() + _deck_script(),
@@ -1706,8 +1706,8 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
   <div class="zone" id="zone" aria-live="polite"></div>
   <div class="scn-out">
     <div class="scn-cell"><div class="scn-ck">Change from today</div><div class="scn-cv num" id="oChg">0.0%</div></div>
-    <div class="scn-cell"><div class="scn-ck">Vs. entry midpoint</div><div class="scn-cv num" id="oEntry">&mdash;</div></div>
-    <div class="scn-cell"><div class="scn-ck">Distance to stop</div><div class="scn-cv num" id="oStop">&mdash;</div></div>
+    <div class="scn-cell"><div class="scn-ck">Vs. entry midpoint</div><div class="scn-cv num" id="oEntry">n/a</div></div>
+    <div class="scn-cell"><div class="scn-ck">Distance to stop</div><div class="scn-cv num" id="oStop">n/a</div></div>
     <div class="scn-cell"><div class="scn-ck">On a $100,000 position</div><div class="scn-cv num" id="oPnl">$0</div></div>
   </div>
   <div class="scn-note">Illustrative only. Excludes dividends, commissions, taxes and execution differences.</div>
@@ -1717,9 +1717,9 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 <div class="shell">
 <nav class="rail" aria-label="Report pages">
   <div class="rail-label">Technical Research</div>
-  <a href="#page1" class="page-tab on" data-page="page1">1 — The call</a>
-  <a href="#page2" class="page-tab" data-page="page2">2 — Charts</a>
-  <a href="#page3" class="page-tab" data-page="page3">3 — Fundamentals</a>
+  <a href="#page1" class="page-tab on" data-page="page1">1. The call</a>
+  <a href="#page2" class="page-tab" data-page="page2">2. Charts</a>
+  <a href="#page3" class="page-tab" data-page="page3">3. Fundamentals</a>
   <div class="rail-tools"><button class="btn" id="advBtn" aria-pressed="false">Advisor detail: off</button><button class="btn" id="deckBtn">Export slides</button><button class="btn" onclick="window.print()">Print / save PDF</button></div>
 </nav>
 <main class="page tech-report">
@@ -1749,9 +1749,9 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </section>
 <section id="plan"><div class="sec-head"><h2>Action plan</h2><span class="verdict v-neu">{escape(plan.stance)}</span></div>
   {_action_figures(plan, entry_mid, result.current_price)}
-  <div class="plan" style="margin-top:.9em"><div class="pc"><div class="pc-k">Entry zone</div><div class="pc-v">{_money(plan.entry_low)} – {_money(plan.entry_high)}</div><div class="pc-n">{escape(plan.confirmation)}</div></div><div class="pc"><div class="pc-k">Stop / invalidation</div><div class="pc-v" style="color:var(--bear)">{_money(plan.stop_level)}</div><div class="pc-n">{plan.stop_pct:.1%} below entry midpoint. {escape(plan.invalidation)}</div></div><div class="pc"><div class="pc-k">Targets</div><div class="pc-v" style="color:var(--bull)">{_money(plan.first_target)} / {_money(plan.second_target)}</div><div class="pc-n">Planning references, not guaranteed outcomes.</div></div></div>
+  <div class="plan" style="margin-top:.9em"><div class="pc"><div class="pc-k">Entry zone</div><div class="pc-v">{_money(plan.entry_low)} - {_money(plan.entry_high)}</div><div class="pc-n">{escape(plan.confirmation)}</div></div><div class="pc"><div class="pc-k">Stop / invalidation</div><div class="pc-v" style="color:var(--bear)">{_money(plan.stop_level)}</div><div class="pc-n">{plan.stop_pct:.1%} below entry midpoint. {escape(plan.invalidation)}</div></div><div class="pc"><div class="pc-k">Targets</div><div class="pc-v" style="color:var(--bull)">{_money(plan.first_target)} / {_money(plan.second_target)}</div><div class="pc-n">Planning references, not guaranteed outcomes.</div></div></div>
   <details><summary>Why these levels, and what invalidates them</summary><div class="det-body"><ul>{reasons}</ul></div></details>
-  {f'<details class="adv"><summary>Options / hedging reference <span class="adv-flag">Advisor</span></summary><div class="det-body"><p>{escape(plan.options_strategy)} — {escape(plan.options_structure)}</p><p>{escape(plan.options_risk)}</p></div></details>' if plan.options_strategy else ''}
+  {f'<details class="adv"><summary>Options / hedging reference <span class="adv-flag">Advisor</span></summary><div class="det-body"><p>{escape(plan.options_strategy)}: {escape(plan.options_structure)}</p><p>{escape(plan.options_risk)}</p></div></details>' if plan.options_strategy else ''}
 </section>
 </div>
 <div class="page-view" id="page2" hidden>
@@ -1760,8 +1760,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 </div>
 <div class="page-view" id="page3" hidden>
 {page2_strip}
-<section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p>{_fundamental_figures(result)}<details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*_fundamental_signals(result), *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div>{_peer_group_html(result)}</section>
-{_house_section_html(result)}
+<section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p>{_fundamental_figures(result)}{_house_section_html(result)}<details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*_fundamental_signals(result), *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div>{_peer_group_html(result)}</section>
 <section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div><p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
 </div>
 </main></div>
@@ -1777,7 +1776,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
         + _deck_script()
     )
     return _document(
-        f"{result.identity.ticker} Technical Research — Technical Analyst Agent",
+        f"{result.identity.ticker} Technical Research · Technical Analyst Agent",
         "technical_research_base.html",
         body,
         script,
@@ -1849,7 +1848,7 @@ document.querySelectorAll('.chart-interactive').forEach(function(box){
     else{dot.style.display='block';dot.style.left=px+'px';dot.style.top=(top+point.y*(bottom-top))+'px';}
     var rows='';
     for(var s=0;s<names.length;s++){
-      rows+='<div class="ch-row"><span class="ch-k">'+names[s]+'</span><span class="ch-v">'+((point.values&&point.values[s])||'—')+'</span></div>';
+      rows+='<div class="ch-row"><span class="ch-k">'+names[s]+'</span><span class="ch-v">'+((point.values&&point.values[s])||'n/a')+'</span></div>';
     }
     readout.innerHTML='<div class="ch-date">'+point.label+'</div>'+rows;
     readout.style.display='block';
@@ -1936,7 +1935,7 @@ function updateScenario(){
   // Below a cent on a $100k position is zero, not a signed nothing.
   if(Math.abs(chg)<1e-7)chg=0; if(Math.abs(entry)<1e-7)entry=0; if(Math.abs(dist)<0.005)dist=0;
   document.getElementById('sPrice').textContent=money(p);document.getElementById('sDelta').textContent=Math.abs(chg)<.0001?"At today's price":pct(chg)+' from today';
-  document.getElementById('oChg').textContent=pct(chg);document.getElementById('oEntry').textContent=pct(entry);document.getElementById('oStop').textContent=dist===0?money(0)+' — at the stop':money(Math.abs(dist))+' '+(dist>0?'above':'below');document.getElementById('oPnl').textContent=chg===0?money(0):(chg>0?'+':'−')+money(Math.abs(chg*100000));
+  document.getElementById('oChg').textContent=pct(chg);document.getElementById('oEntry').textContent=pct(entry);document.getElementById('oStop').textContent=dist===0?money(0)+', at the stop':money(Math.abs(dist))+' '+(dist>0?'above':'below');document.getElementById('oPnl').textContent=chg===0?money(0):(chg>0?'+':'−')+money(Math.abs(chg*100000));
   var z=document.getElementById('zone');if(p<=PLAN.stop)z.innerHTML='<b>Invalidated.</b> Price is below the planned stop; the setup no longer qualifies.';else if(p<PLAN.entryLow)z.innerHTML='<b>Below the entry zone.</b> Wait for price to reclaim structure before considering an order.';else if(p<=PLAN.entryHigh)z.innerHTML='<b>Inside the entry zone.</b> Act only if the stated confirmation is present.';else if(p<PLAN.target1)z.innerHTML='<b>Above the entry zone.</b> Avoid chasing; reassess reward to risk.';else if(p<PLAN.target2)z.innerHTML='<b>First target reached.</b> Review risk, sizing and whether to trail the stop.';else z.innerHTML='<b>Second target reached.</b> Re-underwrite rather than assuming further upside.';
   drawScenarioGraph(p);
   // The chip matching the tested price reads as selected, so the preset levels
@@ -2233,7 +2232,7 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
     if checklist:
         cells.insert(1, ("Conviction", f"{checklist.passed_count} of {judged}", "", ""))
     street = _find_metric(result, "analyst mean target", default="")
-    if street and street != "—":
+    if street and street != "n/a":
         cells.append(("Street target", escape(street), "",
                       escape(_find_metric(result, "target implied upside", default=""))))
     strip = "".join(
@@ -2296,7 +2295,7 @@ def _deck_html(result: ResearchResult, request: ResearchRequest, question: str,
             "Action plan", meta,
             '<div class="s-strip four">'
             f'<div class="s-cell"><div class="s-k">Entry zone</div>'
-            f'<div class="s-v">{_money(plan.entry_low)}&ndash;{_money(plan.entry_high)}</div>'
+            f'<div class="s-v">{_money(plan.entry_low)}-{_money(plan.entry_high)}</div>'
             f'<div class="s-n">Midpoint {_money(entry_mid)}</div></div>'
             f'<div class="s-cell"><div class="s-k">Stop</div>'
             f'<div class="s-v down">{_money(plan.stop_level)}</div>'

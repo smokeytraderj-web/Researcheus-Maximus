@@ -391,8 +391,8 @@ class TimeframeSelectorTests(unittest.TestCase):
             build_research_html(result, request, target)
             return target.read_text(encoding="utf-8")
 
-    WINDOWS = ("Relative performance — 1 year", "Relative performance — 3 years",
-               "Relative performance — 5 years", "Relative performance — Peers")
+    WINDOWS = ("Relative performance: 1 year", "Relative performance: 3 years",
+               "Relative performance: 5 years", "Relative performance: Peers")
 
     def test_each_window_becomes_a_button(self):
         html = self._render(self.WINDOWS)

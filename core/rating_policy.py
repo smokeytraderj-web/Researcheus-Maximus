@@ -45,7 +45,7 @@ DEFINITIONS: dict[Rating, str] = {
     ),
     Rating.ADD: (
         "Constructive, but qualified. Supports increasing an existing position rather than "
-        "initiating one here — usually on a stated condition, such as a pullback into the "
+        "initiating one here, usually on a stated condition such as a pullback into the "
         "entry zone or the confirmation the note names."
     ),
     Rating.HOLD: (

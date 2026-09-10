@@ -383,7 +383,7 @@ class DemoResearchProvider:
                 ("Illustrative current price", f"${price:,.2f}"),
                 ("Technical setup", "Bullish"),
                 ("Fundamental outlook", "Balanced"),
-                ("Overall confidence", "Low — demo evidence"),
+                ("Overall confidence", "Low, demo evidence"),
                 (
                     "Fibonacci 38.2% / 50% / 61.8%",
                     f"${price * 0.94:,.2f} / ${price * 0.90:,.2f} / ${price * 0.86:,.2f}",

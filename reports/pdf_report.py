@@ -1158,7 +1158,7 @@ def _general_action_cards(result: ResearchResult, styles, *, include_options: bo
             [[
                 Paragraph("OPTIONS / HEDGE", styles["action_label"]),
                 Paragraph(
-                    f"<b>{_safe(plan.options_strategy)}</b> — {_safe(plan.options_structure)} "
+                    f"<b>{_safe(plan.options_strategy)}</b>: {_safe(plan.options_structure)} "
                     f"<b>Risk:</b> {_safe(plan.options_risk)}",
                     styles["action_detail"],
                 ),

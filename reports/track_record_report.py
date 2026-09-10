@@ -31,7 +31,7 @@ _EXTRA_CSS = r"""
 
 def _pct(value: float | None, signed: bool = True) -> str:
     if value is None:
-        return "—"
+        return "n/a"
     return f"{value:+.1%}" if signed else f"{value:.0%}"
 
 
@@ -63,13 +63,13 @@ def build_track_record_html(record, chart_path: str, as_of: str, output_path: Pa
 <div class="ticker-strip">{escape(as_of[:10])}</div></div></div>
 <section id="tr"><div class="tr-empty">
 The track record builds itself from finalised research. Every time a report is finalised with a
-buy-side rating &mdash; Strong Buy, Buy, or Add &mdash; that call is recorded with its date and price,
+buy-side rating (Strong Buy, Buy, or Add) that call is recorded with its date and price,
 and scored from then on against SPY over the same dates.
 <br><br>Nothing is shown here yet because no live call has been finalised.
 Past picks are never back-filled or simulated, so this page stays empty until the calls are real.
 </div></section>
 </main></div>"""
-        html = _document("Track Record — Technical Analyst Agent", "general_research_base.html", body, "", extra_css=_EXTRA_CSS)
+        html = _document("Track Record · Technical Analyst Agent", "general_research_base.html", body, "", extra_css=_EXTRA_CSS)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(html, encoding="utf-8")
         return output_path
@@ -95,7 +95,7 @@ Past picks are never back-filled or simulated, so this page stays empty until th
     if record.unscored:
         names = ", ".join(sorted({pick.ticker for pick in record.unscored}))
         unscored_note = (
-            f'<p class="tr-method"><b>Not scored:</b> {escape(names)} &mdash; a price needed to measure '
+            f'<p class="tr-method"><b>Not scored:</b> {escape(names)}: a price needed to measure '
             "these could not be resolved, so they are excluded rather than estimated.</p>"
         )
 
@@ -158,7 +158,7 @@ Past picks are never back-filled or simulated, so this page stays empty until th
   <footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {escape(as_of[:10])}</span></footer>
 </section>
 </main></div>"""
-    html = _document("Track Record — Technical Analyst Agent", "general_research_base.html", body, "", extra_css=_EXTRA_CSS)
+    html = _document("Track Record · Technical Analyst Agent", "general_research_base.html", body, "", extra_css=_EXTRA_CSS)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(html, encoding="utf-8")
     return output_path

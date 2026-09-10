@@ -81,7 +81,7 @@ def horizon_split_summary(views: Sequence[HorizonView]) -> str:
     parts = " · ".join(
         f"{view.horizon.value.replace(' Term', '')} {view.rating.value}" for view in views
     )
-    return f"The horizons disagree — {parts}."
+    return f"The horizons disagree: {parts}."
 
 
 def _combine_ratings(

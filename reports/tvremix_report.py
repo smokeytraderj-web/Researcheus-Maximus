@@ -112,7 +112,7 @@ def _gauge_panel(report: TVTechnicalReport) -> str:
 {_gauge_svg(gauge.rating_value)}
 <div class="tv-gauge-label">{escape(gauge.rating_label or "Neutral")}</div>
 <div class="tv-gauge-sub">Oscillators {escape(gauge.oscillators_label or "n/a")} &middot; Moving averages {escape(gauge.moving_averages_label or "n/a")}</div>
-<table class="tv-ind-table">{"".join(f'<tr><td>{escape(name)}</td><td class="num">{escape(value)}</td><td style="text-align:right"><span class="tv-tag {_tag_class(tag)}">{escape(tag or "—")}</span></td></tr>' for name, value, tag in gauge.indicators)}</table>
+<table class="tv-ind-table">{"".join(f'<tr><td>{escape(name)}</td><td class="num">{escape(value)}</td><td style="text-align:right"><span class="tv-tag {_tag_class(tag)}">{escape(tag or "n/a")}</span></td></tr>' for name, value, tag in gauge.indicators)}</table>
 </div>'''
         for index, gauge in enumerate(report.gauges)
     )
@@ -137,9 +137,9 @@ def _snapshot_panel(report: TVTechnicalReport) -> str:
     spark = f'<img class="tv-spark" src="{_image_data_url(report.sparkline_path)}" alt="Recent price trend">' if report.sparkline_path else ""
     targets = ""
     if report.price_target_avg is not None:
-        low = _money(report.price_target_low) if report.price_target_low is not None else "—"
-        high = _money(report.price_target_high) if report.price_target_high is not None else "—"
-        targets = f'<div class="tv-note">Analyst targets: {low} – {high}, average {_money(report.price_target_avg)}.</div>'
+        low = _money(report.price_target_low) if report.price_target_low is not None else "n/a"
+        high = _money(report.price_target_high) if report.price_target_high is not None else "n/a"
+        targets = f'<div class="tv-note">Analyst targets: {low} to {high}, average {_money(report.price_target_avg)}.</div>'
     stats = []
     if report.market_cap is not None:
         stats.append(("Market cap", _short_scale(report.market_cap)))
@@ -167,7 +167,7 @@ def _source_html(report: TVTechnicalReport) -> str:
         supports = escape(source.supports)
         if source.locator.startswith(("https://", "http://")):
             name = f'<a class="source-link" href="{locator}" target="_blank" rel="noreferrer">{name}</a>'
-        rows.append(f"<div><b>{name}</b> — {supports}</div>")
+        rows.append(f"<div><b>{name}</b>: {supports}</div>")
     return "".join(rows)
 
 
@@ -240,7 +240,7 @@ def build_tvremix_html(report: TVTechnicalReport, output_path: Path) -> Path:
 </section>
 </main></div>"""
     html = _document(
-        f"{report.resolved_symbol} Technical Analysis — Technical Analyst Agent",
+        f"{report.resolved_symbol} Technical Analysis · Technical Analyst Agent",
         "general_research_base.html",
         body,
         _TAB_SCRIPT,

@@ -117,11 +117,11 @@ _RELATIVE_STRENGTH_MARGIN = 0.03
 # what this security scored.  Fixed per key, versioned with the policy above;
 # `detail` on the criterion itself carries the security-specific evaluation.
 _EXPLANATIONS = {
-    "trend": "The stock's price relative to its own longer-run moving averages -- a measure of whether it sits in a sustained uptrend or downtrend.",
+    "trend": "The stock's price relative to its own longer-run moving averages: a measure of whether it sits in a sustained uptrend or downtrend.",
     "momentum": "The strength of short-term buying pressure: trending with participation, short of the overbought extreme where a pullback becomes likely.",
-    "relative_strength": "The stock's total return against the S&P 500 over the same period -- outperformance, not simply a rising price. It must lead by a clear margin, so that a dead heat is not read as strength.",
-    "quality": "How much profit the company earns on the money shareholders have invested in it -- a high figure means the business itself is genuinely profitable, not just growing.",
-    "revisions": "Whether analysts have raised or cut their earnings forecasts for next year over the past three months -- the direction expectations are moving, rather than where they stand.",
+    "relative_strength": "The stock's total return against the S&P 500 over the same period: outperformance, not simply a rising price. It must lead by a clear margin, so that a dead heat is not read as strength.",
+    "quality": "How much profit the company earns on the money shareholders have invested in it. A high figure means the business itself is genuinely profitable, not just growing.",
+    "revisions": "Whether analysts have raised or cut their earnings forecasts for next year over the past three months: the direction expectations are moving, rather than where they stand.",
 }
 
 
@@ -404,17 +404,20 @@ def checklist_paragraphs(
             f"The checklist confirms nothing here: {_word(judged).lower()} checks, none of them met",
         ))
     elif partial:
+        confirms = "confirms" if checklist.passed_count == 1 else "confirm"
         opening = _pick(seed, "partial", (
             f"{_word(checklist.passed_count)} of the {_word(judged).lower()} that could be "
-            f"judged confirm — {picture}",
+            f"judged {confirms}, {picture}",
             f"Of the {_word(judged).lower()} checks that could be judged, "
-            f"{_word(checklist.passed_count).lower()} confirm — {picture}",
+            f"{_word(checklist.passed_count).lower()} {confirms}, {picture}",
         ))
     else:
         count, total = _word(checklist.passed_count), _word(checklist.total_count).lower()
+        one = checklist.passed_count == 1
         opening = _pick(seed, "score", (
             f"{count} of {total} is {picture}",
-            f"{count} checks of {total} confirm — {picture}",
+            f"{count} {'check' if one else 'checks'} of {total} "
+            f"{'confirms' if one else 'confirm'}, {picture}",
             f"The checklist comes in at {count.lower()} of {total}, {picture}",
         ))
 
@@ -560,7 +563,7 @@ def _dissent_paragraph(
     if reliance and dissent:
         text += _pick(seed, "rests-on", (
             f" It is a reason to be precise about what the case rests on: {reliance}, "
-            f"and not on {dissent} — because that is what this evidence does not show.",
+            f"and not on {dissent}, because that is what this evidence does not show.",
             f" It does mean being clear about what is carrying this: {reliance}, "
             f"not {dissent}, which the evidence does not support.",
             f" What it changes is the footing: this rests on {reliance} rather than on "
@@ -641,7 +644,7 @@ def _momentum(rsi14: float, macd: float, macd_signal: float) -> ConvictionCriter
         if passed
         else f"MACD {reading}; RSI {rsi14:.1f} "
         f"({'below' if rsi14 < _RSI_FLOOR else 'above' if rsi14 > _RSI_CEILING else 'inside'} the "
-        f"{_RSI_FLOOR:.0f}-{_RSI_CEILING:.0f} range) -- momentum does not confirm both conditions."
+        f"{_RSI_FLOOR:.0f}-{_RSI_CEILING:.0f} range); momentum does not confirm both conditions."
     )
     return ConvictionCriterion(
         "momentum", "Momentum", passed, detail, figure=f"RSI sits at {rsi14:.0f}"
@@ -665,7 +668,7 @@ def _relative_strength(
     # owed the margin that decided it.
     detail = (
         f"Returned {security_return_pct:+.1%} versus {benchmark}'s {benchmark_return_pct:+.1%} "
-        f"over the same dates -- {'ahead by' if lead >= 0 else 'behind by'} {abs(lead):.1%}, "
+        f"over the same dates, {'ahead by' if lead >= 0 else 'behind by'} {abs(lead):.1%}, "
         f"{'clearing' if passed else 'short of'} the {_RELATIVE_STRENGTH_MARGIN:.0%} margin."
     )
     return ConvictionCriterion(
@@ -736,7 +739,7 @@ def _revisions(
         )
     detail = (
         f"Next-year consensus EPS {now_text} versus {prior_text} "
-        f"{window_days} days ago{change} -- {movement}."
+        f"{window_days} days ago{change}: {movement}."
     )
     return ConvictionCriterion(
         "revisions", "Revisions", passed, detail,
