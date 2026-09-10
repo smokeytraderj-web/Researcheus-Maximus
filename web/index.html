@@ -179,23 +179,22 @@ tailwind.config = {
         </div>
       </div>
 
-      <div class="mt-6 pt-4 border-t border-line2 flex flex-wrap items-center gap-4 text-[11.5px] text-muted">
-        <a href="methodology.html" class="hover:text-ink">How we reason</a>
-        <span class="hidden sm:inline text-line2">·</span>
-        <a href="house-views.html" class="hover:text-ink">J.P. Morgan import</a>
-        <span class="hidden sm:inline text-line2">·</span>
-        <a href="how-it-works.html" class="hover:text-ink">How it works</a>
-      </div>
-
-      <p id="modeNote" class="mt-5 text-center text-[12px] text-muted"></p>
+      <p id="modeNote" class="hidden mt-5 text-center text-[12px] text-muted"></p>
 
     </div>
   </div>
 
-  <div class="flex items-center justify-between px-8 py-4 border-t border-line2 font-mono text-[10.5px] text-ink/40">
-    <span>Technical Analyst Agent</span>
-    <span class="hidden sm:inline">Internal use only &mdash; not for client distribution</span>
-    <span id="footerMode"></span>
+  <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-8 py-4 border-t border-line2 font-mono text-[10.5px] text-ink/40">
+    <nav aria-label="About this app" class="flex flex-wrap items-center gap-x-5 gap-y-1">
+      <span>Technical Analyst Agent</span>
+      <a href="methodology.html" class="text-ink/60 hover:text-ink transition-colors">How we reason</a>
+      <a href="house-views.html" class="text-ink/60 hover:text-ink transition-colors">J.P. Morgan import</a>
+      <a href="how-it-works.html" class="text-ink/60 hover:text-ink transition-colors">How it works</a>
+    </nav>
+    <div class="flex items-center gap-x-5">
+      <span class="hidden md:inline">Internal use only, not for client distribution</span>
+      <span id="footerMode"></span>
+    </div>
   </div>
 
 </div>
@@ -583,15 +582,18 @@ tailwind.config = {
       ? (h.ai_synthesis ? 'Live research' : 'Live research · deterministic synthesis')
       : 'Demonstration mode';
     if (h.live_research) {
-      // Live is the normal state; do not spend a whole line on it.
-      el('modeNote').textContent = h.ai_synthesis
-        ? ''
-        : 'Reports use live market data with deterministic analysis. Save an API key in the desktop app’s Settings for AI-written narrative.';
+      // Live is the normal state, so it gets no line of its own: the footer
+      // label says it, and the detail waits behind a hover.
+      if (!h.ai_synthesis) {
+        el('footerMode').title = 'Reports use live market data with deterministic analysis. Save an API key in the desktop app’s Settings for AI-written narrative.';
+      }
     } else {
       // Say exactly what is missing. Silently producing synthetic output when
-      // the user expected real research is the worst possible failure here.
+      // the user expected real research is the worst possible failure here, so
+      // this one stays in the page rather than moving to the footer.
+      el('modeNote').classList.remove('hidden');
       el('modeNote').innerHTML =
-        '<b>Demonstration mode — values are synthetic, not client recommendations.</b><br>' +
+        '<b>Demonstration mode. Values are synthetic, not client recommendations.</b><br>' +
         'General Research needs an API key: save one in the desktop app’s Settings, ' +
         'or start the server with <span class="font-mono">RESEARCHEUS_API_KEY</span> set.';
     }
