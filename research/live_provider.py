@@ -1372,8 +1372,12 @@ class LiveResearchProvider:
                     five_years_ago,
                     today,
                 )
-            except Exception:  # noqa: BLE001 - the alternatives are optional
+            except Exception:  # noqa: BLE001 - the windows are optional; their absence is not
                 timeframe_histories = {}
+                comparison_failures.append(
+                    "SPY: one-, three- and five-year history was unavailable, so the longer "
+                    "relative-performance windows are not shown"
+                )
         primary_identity = SecurityIdentity(company, symbol, exchange, currency)
         portfolio_fit = _build_portfolio_fit(request, info, company)
         trade_cases = historical_trade_examples(history) if request.historical_trade_examples else ()
@@ -2243,6 +2247,7 @@ class LiveResearchProvider:
             provider_label=synthesis.provider_label,
             request_response=request_response,
             limitations=tuple(limitations),
+            data_gaps=tuple(comparison_failures),
             chart_path=chart_path,
             demo_mode=False,
             ycharts_audit=tuple(ycharts_audit),

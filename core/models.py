@@ -377,6 +377,8 @@ class ResearchResult:
     house_views: tuple[HouseView, ...] = ()
     horizon_views: tuple[HorizonView, ...] = ()
     peer_group: PeerGroup | None = None
+    # Retrieval gaps in client-ready words; `limitations` also holds raw provider errors.
+    data_gaps: tuple[str, ...] = ()
 
     def validate(self) -> None:
         if self.current_price <= 0:

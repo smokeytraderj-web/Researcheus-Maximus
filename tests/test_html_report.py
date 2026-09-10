@@ -31,6 +31,37 @@ class SpecialistStanceTests(unittest.TestCase):
         self.assertEqual(_stance(Rating.HOLD, Rating.SELL), ("partial", "Partial"))
 
 
+class DataGapTests(unittest.TestCase):
+    """Evidence that could not be fetched is named, not silently left out."""
+
+    GAP = ("SPY: one-, three- and five-year history was unavailable, so the longer "
+           "relative-performance windows are not shown")
+
+    def _body(self, mode, gaps):
+        import dataclasses
+        with tempfile.TemporaryDirectory() as tmp:
+            request = build_request("NFLX", mode)
+            result = DemoResearchProvider().run(request, Path(tmp))
+            result = dataclasses.replace(result, data_gaps=gaps)
+            target = Path(tmp) / "report.html"
+            build_research_html(result, request, target)
+            # The stylesheet always carries the rule; only the markup counts.
+            return target.read_text(encoding="utf-8").split("</style>", 1)[1]
+
+    def test_a_gap_is_named_in_the_sources_of_both_reports(self):
+        for mode in ("general", "deep"):
+            with self.subTest(mode=mode):
+                body = self._body(mode, (self.GAP,))
+                sources = body[body.index('id="sources"'):]
+                self.assertIn("Not available for this report", sources)
+                self.assertIn(self.GAP, sources)
+
+    def test_nothing_is_added_when_nothing_is_missing(self):
+        for mode in ("general", "deep"):
+            with self.subTest(mode=mode):
+                self.assertNotIn("src-gaps", self._body(mode, ()))
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -209,6 +209,9 @@ _DYNAMIC_CSS = r"""
 .hv-doc{margin-top:10px;font-size:11.5px;color:var(--muted)}
 .hv-stale{margin-top:9px;font-size:11.5px;color:#8A6D1F}
 .hv-note{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:12px}
+.src-gaps{margin-top:12px;padding-top:9px;border-top:1px solid var(--line-2);font-size:11.5px;color:var(--muted);line-height:1.5;break-inside:avoid}
+.src-gaps-h{font-weight:600;color:var(--ink-2);margin-bottom:3px}
+.src-gaps ul{margin:0;padding-left:16px}
 .action p{font-size:12.5px;line-height:1.5;color:var(--body);margin:0}
 .why-block{margin-top:20px;padding:20px 22px;border-left:3px solid var(--gold);background:var(--panel);border-radius:0 4px 4px 0}
 .why-block .why-k{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-weight:600;margin-bottom:9px}
@@ -809,6 +812,17 @@ def _source_html(result: ResearchResult) -> str:
             name = f'<a class="source-link" href="{locator}" target="_blank" rel="noreferrer">{name}</a>'
         rows.append(f"<div><b>{name}</b>: {supports}</div>")
     return "".join(rows)
+
+
+def _gaps_html(result: ResearchResult) -> str:
+    """Evidence sought and not retrieved, so its absence is not read as a finding."""
+    if not result.data_gaps:
+        return ""
+    items = "".join(f"<li>{escape(gap)}</li>" for gap in result.data_gaps)
+    return (
+        '<div class="src-gaps"><div class="src-gaps-h">Not available for this report</div>'
+        f"<ul>{items}</ul></div>"
+    )
 
 
 def _document(title: str, css_reference: str, body: str, script: str = "", extra_css: str = "") -> str:
@@ -1476,7 +1490,7 @@ def _general_report(result: ResearchResult, request: ResearchRequest) -> str:
 <section id="sources">
   <div class="sec-head"><h2>Sources</h2></div>
   <p class="conf-line">Confidence in this view: <b>{escape(result.confidence.value)}</b></p>
-  <div class="sources">{_source_html(result)}</div>
+  <div class="sources">{_source_html(result)}</div>{_gaps_html(result)}
   <p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Opinions and scenarios may change without notice. Investing involves risk, including possible loss of principal. Firm compliance review is required before client distribution.</p>
   <footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer>
 </section>
@@ -1761,7 +1775,7 @@ def _technical_report(result: ResearchResult, request: ResearchRequest) -> str:
 <div class="page-view" id="page3" hidden>
 {page2_strip}
 <section id="fundamentals"><div class="sec-head"><h2>Fundamentals and data</h2><span class="verdict v-neu">{escape(fundamental_outlook(result.fundamental.rating))}</span></div><p class="lede">{escape(result.fundamental.summary)}</p>{_fundamental_figures(result)}{_house_section_html(result)}<details><summary>Signals, risks and rating triggers</summary><div class="det-body"><ul>{''.join(f'<li>{escape(item)}</li>' for item in (*_fundamental_signals(result), *result.risks[:3], *result.change_conditions[:3]))}</ul></div></details><div class="grid3" style="margin-top:20px">{data_columns}</div>{_peer_group_html(result)}</section>
-<section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div><p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
+<section id="sources"><div class="sec-head"><h2>Sources</h2></div><div class="sources">{_source_html(result)}</div>{_gaps_html(result)}<p class="disc">This material is informational and reflects conditions as of the stated time. Sources are believed reliable but are not guaranteed. Scenarios may change without notice. Investing involves risk, including possible loss of principal. Options require separate suitability, approval and live-chain review. Firm compliance review is required before client distribution.</p><footer><span>Gottfried &amp; Somberg Wealth Management</span><span class="num">Prepared {_date_only(result.as_of)}</span></footer></section>
 </div>
 </main></div>
 {_deck_html(result, request, _stated_question(request, result), checks_narrative, condense_reasoning(result.technical.summary), deck_charts)}"""
