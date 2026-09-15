@@ -44,9 +44,7 @@ configured purely through the environment.
 | `RESEARCHEUS_MODEL` | Optional model override. |
 | `RESEARCHEUS_TVREMIX_KEY` | TV Remix key; required for Technical Quick Report. |
 | `RESEARCHEUS_DEMO` | Set to `1` to force synthetic output. |
-| `RESEARCHEUS_REPORTS_DIR` | Where reports are written (default: system temp). |
-| `RESEARCHEUS_KEEP_REPORTS` | Set to `1` to keep reports instead of deleting them. |
-| `RESEARCHEUS_REPORT_TTL_HOURS` | Report lifetime, default 6. |
+| `RESEARCHEUS_REPORTS_DIR` | Where reports are briefly held before delivery (default: system temp). Reports are never kept; see below. |
 
 The browser never sends a key and the API never accepts one — credentials must
 not cross this boundary. `/api/health` reports only *whether* each key was
@@ -63,8 +61,7 @@ for YCharts-backed runs.
 | --- | --- | --- |
 | `POST` | `/api/research` | Start a run. Body: `{"prompt": "...", "mode": "general\|deep\|comparison\|technical"}`. Returns a job id. |
 | `GET` | `/api/research/{id}` | Poll status: `running` / `ready` / `failed`. |
-| `GET` | `/r/{id}` | The finished report — this is the shareable link. |
-| `GET` | `/api/reports` | Finished reports, newest first. |
+| `GET` | `/r/{id}` | The finished report, for the browser that ran it. Add `?download=1` to save it. Deleted within the hour. |
 | `POST` | `/api/feedback` | Record a reader's feedback on a report. |
 | `GET` | `/api/feedback` | Read recorded feedback, newest first, with counts. |
 | `GET` | `/api/health` | Liveness, and which workflows are configured. |
@@ -76,21 +73,24 @@ exhausting the machine.
 
 ## Sessions and retention
 
-**Reports are temporary.** They are written to the system temp directory --
-never into the project -- expire after `RESEARCHEUS_REPORT_TTL_HOURS` (default
-6), and the whole directory is deleted when the server stops. Nothing
-accumulates, matching the desktop app's disposable-session rule.
+**Reports are never kept.** A finished report is held only long enough to reach
+the browser that ran it: it is deleted an hour after it is made, and every report
+is deleted when the server starts or stops. This is fixed in code; there is no
+setting to keep reports and no shareable link. To keep a report, the reader
+downloads it, prints it to PDF, or exports slides from inside it. A portfolio is
+kept with **Download portfolio**.
 
-The trade-off is deliberate: **a shared link is good for the life of the server,
-not forever.** For durable links, set `RESEARCHEUS_KEEP_REPORTS=1` and point
-`RESEARCHEUS_REPORTS_DIR` at a mounted volume (the Docker image does both).
+There used to be a `RESEARCHEUS_KEEP_REPORTS` switch. The Docker image turned it
+on, the kept reports filled the deployment's volume, and every run then failed
+with "No space left on device" as it saved its report. The variable is now
+ignored.
 
 Within that, two lifetimes are kept apart:
 
 * **Job records** are in-memory progress state, only so the browser can poll a
   run it just started. They expire after six hours.
-* **Report files** outlive the job record, so `/r/{id}` still resolves after the
-  run has been forgotten -- until the report expires or the server stops.
+* **Report files** can briefly outlive the job record, so `/r/{id}` still opens
+  a ready report after the record has gone -- until it is deleted.
 
 Temporary session data (working files, chart intermediates) is deleted as soon
 as a run ends, including on failure. The desktop app's exported HTML remains the
@@ -141,14 +141,12 @@ rest of the app rests on. Improvement happens by a person reading the feedback
 and changing the code or the rating policy — a reviewable change with a version
 behind it.
 
-Feedback follows the same retention rule as reports: temporary unless
-`RESEARCHEUS_KEEP_REPORTS=1`.
+Feedback is not a report and is kept. See below for making it survive a deploy.
 
 ## Not yet built
 
-Login and per-user history. Report URLs are unguessable but **unauthenticated** —
-anyone with the link can read the report until it expires. Treat that as public
-sharing, and don't put client-identifying material into a prompt.
+Per-user login. Reports sit behind the shared access code and are deleted within
+the hour. Still, don't put client-identifying material into a prompt.
 
 ## Logging feedback to a Google Doc
 

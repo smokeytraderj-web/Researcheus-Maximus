@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from backend.jobs import KEEP_REPORTS, REPORT_TTL, purge_expired_reports
+from backend.jobs import REPORT_TTL, purge_expired_reports
 from core.portfolio import parse_holdings, summarize, validate_holdings
 from services.portfolio_runner import PortfolioRunner
 
@@ -89,7 +89,7 @@ def attach_portfolio_routes(app, reports_root: Path, web_dir: Path, provider_fac
             job = jobs.get(job_id)
             if job and job["status"] == "running":
                 return _public(job)
-            if job and (KEEP_REPORTS or datetime.now(timezone.utc) - datetime.fromisoformat(job["created_at"]) <= REPORT_TTL):
+            if job and datetime.now(timezone.utc) - datetime.fromisoformat(job["created_at"]) <= REPORT_TTL:
                 return _public(job)
             jobs.pop(job_id, None)
         purge_expired_reports(reports_root)
@@ -152,8 +152,6 @@ def attach_portfolio_routes(app, reports_root: Path, web_dir: Path, provider_fac
                         temporary = directory / "portfolio.json.tmp"
                         temporary.write_text(json.dumps(data, allow_nan=False), encoding="utf-8")
                         temporary.replace(directory / "portfolio.json")
-                        # The existing startup cleanup preserves completed HTML jobs.
-                        (directory / "index.html").write_text("<!doctype html><title>Portfolio RM</title><p>Open this review in Portfolio RM.</p>", encoding="utf-8")
         except Exception:
             logger.warning("Portfolio job could not finish")
             with lock:

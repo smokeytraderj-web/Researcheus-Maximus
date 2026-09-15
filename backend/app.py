@@ -29,12 +29,10 @@ from backend import feedback as feedback_store
 from backend import gate
 from backend.credentials import load as load_credentials
 from backend.jobs import (
-    KEEP_REPORTS,
     default_reports_root,
     discard_all_reports,
     find_report,
     purge_expired_reports,
-    purge_incomplete,
     registry,
 )
 from core.models import HouseNote, HouseView
@@ -66,12 +64,12 @@ _run_slots = threading.Semaphore(MAX_CONCURRENT_RUNS)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     REPORTS_ROOT.mkdir(parents=True, exist_ok=True)
-    # Crash leftovers (directories with no finished report) always go. Expired
-    # reports go too unless the operator asked to keep them.
-    purge_incomplete(REPORTS_ROOT)
-    purge_expired_reports(REPORTS_ROOT)
+    # Reports are never kept, so anything on disk at startup is left over from
+    # before a restart or a deploy, and goes. This is also what frees a volume
+    # an older version filled by keeping every report.
+    discard_all_reports(REPORTS_ROOT)
     # Anything a restart interrupted mid-delivery goes to the Doc now. Feedback
-    # lives outside the reports directory, so the purge above never touches it.
+    # is not a report, so the discard above never touches it.
     if feedback_store.webhook_url():
         threading.Thread(target=feedback_store.flush, args=(REPORTS_ROOT,), daemon=True).start()
     yield
@@ -85,9 +83,9 @@ app = FastAPI(title="Technical Analyst Agent", lifespan=lifespan)
 
 
 # Paths that must answer before anyone has entered the code: the gate itself,
-# the assets it is drawn with, liveness, and the report links -- which are the
-# client-facing deliverable and are opened by people who do not have the code.
-GATE_EXEMPT_PREFIXES = ("/api/unlock", "/api/health", "/r/", "/vendor/", "/unlock.html")
+# the assets it is drawn with, and liveness. Reports are not among them: they are
+# never kept for sharing, only handed to the browser that ran them.
+GATE_EXEMPT_PREFIXES = ("/api/unlock", "/api/health", "/vendor/", "/unlock.html")
 
 
 def _is_exempt(path: str) -> bool:
@@ -292,17 +290,22 @@ def research_status(job_id: str) -> dict:
 
 
 @app.get("/r/{job_id}")
-def view_report(job_id: str) -> FileResponse:
-    """Serve the finished report -- this is the shareable link.
+def view_report(job_id: str, download: bool = False) -> FileResponse:
+    """Hand a finished report to the browser that ran it.
 
-    Resolved from disk rather than from the job registry, so a link keeps
-    working after the in-memory job has expired and across server restarts.
-    The id is validated as opaque hex before it reaches the filesystem.
+    The server does not keep it: the file is deleted REPORT_TTL after it is made
+    and on every restart. Keeping a copy is the reader's job, by downloading it
+    here, printing it to PDF, or exporting slides from inside the report. The id
+    is validated as opaque hex before it reaches the filesystem.
     """
     report = find_report(REPORTS_ROOT, job_id)
     if report is None:
-        raise HTTPException(404, "That report is no longer available.")
-    return FileResponse(report, media_type="text/html")
+        raise HTTPException(
+            404,
+            "That report is no longer on the server. Run the research again, and "
+            "download the report to keep a copy.",
+        )
+    return FileResponse(report, media_type="text/html", filename=report.name if download else None)
 
 
 @app.post("/api/feedback")
@@ -479,7 +482,6 @@ def health() -> dict:
     """
     return {
         "status": "ok",
-        "reports_retained": KEEP_REPORTS,
         # False means a recorded house view is lost at the next deploy. See
         # research/house_views.is_durable.
         "house_views_durable": house_views.is_durable(),

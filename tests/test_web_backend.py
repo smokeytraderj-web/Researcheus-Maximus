@@ -20,7 +20,6 @@ from backend.jobs import (
     is_valid_job_id,
     list_reports,
     purge_expired_reports,
-    purge_incomplete,
 )
 from backend import feedback as feedback_store
 from backend.credentials import SYNTHESIS_ENV, TVREMIX_ENV
@@ -95,8 +94,8 @@ class JobRegistryTests(unittest.TestCase):
         self.assertIsNone(self.registry.get("nope"))
 
 
-class SharedReportLinkTests(unittest.TestCase):
-    """A shared link must outlive the job record and the server process."""
+class ReportDeliveryTests(unittest.TestCase):
+    """Reports are delivered from disk and never kept past REPORT_TTL or a restart."""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -113,23 +112,42 @@ class SharedReportLinkTests(unittest.TestCase):
         return report
 
     def test_report_is_found_without_any_job_record(self) -> None:
-        # The registry is deliberately not involved: this is what makes a link
-        # survive job expiry and a server restart.
+        # The registry is not involved: a ready report still opens after its
+        # in-memory job record has gone.
         report = self._write_report("a1b2c3d4e5f6")
         self.assertEqual(find_report(self.root, "a1b2c3d4e5f6"), report)
 
     def test_missing_report_resolves_to_none(self) -> None:
         self.assertIsNone(find_report(self.root, "a1b2c3d4e5f6"))
 
-    def test_startup_purge_keeps_finished_reports(self) -> None:
-        self._write_report("a1b2c3d4e5f6")
-        purge_incomplete(self.root)
-        self.assertIsNotNone(find_report(self.root, "a1b2c3d4e5f6"))
+    def test_there_is_no_way_to_keep_reports(self) -> None:
+        # Keeping reports used to be an environment switch the deployment turned
+        # on. Every report was kept until the volume filled and every run failed
+        # as it saved. It is not a setting any more.
+        import backend.jobs as jobs
+        self.assertFalse(hasattr(jobs, "KEEP_REPORTS"))
+        self.assertEqual(REPORT_TTL, timedelta(hours=1))
+        stale = self._write_report("b" * 12)
+        old = (datetime.now(timezone.utc) - REPORT_TTL - timedelta(minutes=1)).timestamp()
+        os.utime(stale.parent, (old, old))
+        with mock.patch.dict(os.environ, {"RESEARCHEUS_KEEP_REPORTS": "1"}):
+            self.assertEqual(purge_expired_reports(self.root), 1)
+        self.assertFalse(stale.parent.exists())
 
-    def test_startup_purge_removes_crash_leftovers(self) -> None:
-        (self.root / "ffffffffffff").mkdir(parents=True)
-        purge_incomplete(self.root)
-        self.assertFalse((self.root / "ffffffffffff").exists())
+    def test_clean_up_only_ever_deletes_run_directories(self) -> None:
+        # The reports root sits on the deployment's volume, which may hold other
+        # data. Only directories named like a research or portfolio run go.
+        research = self._write_report("a" * 12)
+        portfolio = self.root / ("c" * 32)
+        portfolio.mkdir()
+        other = self.root / "house_views"
+        other.mkdir()
+        (self.root / "notes.json").write_text("{}", encoding="utf-8")
+        discard_all_reports(self.root)
+        self.assertFalse(research.parent.exists())
+        self.assertFalse(portfolio.exists())
+        self.assertTrue(other.exists())
+        self.assertTrue((self.root / "notes.json").exists())
 
     def test_job_ids_outside_the_hex_format_are_rejected(self) -> None:
         for bad in ("../../etc/passwd", "..", "a" * 13, "A1B2C3D4E5F6", "", "a1b2c3d4e5f/"):
@@ -200,7 +218,6 @@ class SharedReportLinkTests(unittest.TestCase):
 
     def test_report_purges_never_touch_the_feedback_directory(self) -> None:
         feedback_store.record(self.root, message="keep me", helpful=True)
-        purge_incomplete(self.root)           # feedback holds no .html
         purge_expired_reports(self.root)
         self.assertEqual(len(feedback_store.read_all(self.root)), 1)
 
@@ -514,6 +531,41 @@ class FeedbackDeliveryTests(unittest.TestCase):
             self.assertEqual(feedback_store.flush(self.root), 0)
         post.assert_not_called()
         self.assertEqual(feedback_store.summarise(self.root)["awaiting_delivery"], 0)
+
+
+class ReportRouteTests(unittest.TestCase):
+    """A finished report is handed over to open or to save, only past the gate."""
+
+    def setUp(self) -> None:
+        from fastapi.testclient import TestClient
+        import backend.app
+        self.job_id = "e" * 12
+        self.directory = backend.app.REPORTS_ROOT / self.job_id
+        self.directory.mkdir(parents=True, exist_ok=True)
+        (self.directory / "AXON_Deep_Technical_Analysis.html").write_text("<html>report</html>", encoding="utf-8")
+        self.client = TestClient(backend.app.app)
+        self.client.post("/api/unlock", json={"code": os.environ.get("RESEARCHEUS_ACCESS_CODE", "2003")})
+
+    def tearDown(self) -> None:
+        import shutil
+        shutil.rmtree(self.directory, ignore_errors=True)
+
+    def test_the_report_opens_in_the_browser(self) -> None:
+        response = self.client.get(f"/r/{self.job_id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("attachment", response.headers.get("content-disposition", ""))
+
+    def test_download_saves_it_under_its_own_name(self) -> None:
+        response = self.client.get(f"/r/{self.job_id}", params={"download": "1"})
+        self.assertEqual(response.status_code, 200)
+        disposition = response.headers.get("content-disposition", "")
+        self.assertIn("attachment", disposition)
+        self.assertIn("AXON_Deep_Technical_Analysis.html", disposition)
+
+    def test_a_report_is_not_reachable_without_the_access_code(self) -> None:
+        from fastapi.testclient import TestClient
+        import backend.app
+        self.assertEqual(TestClient(backend.app.app).get(f"/r/{self.job_id}").status_code, 401)
 
 
 class HouseViewParseEndpointTests(unittest.TestCase):

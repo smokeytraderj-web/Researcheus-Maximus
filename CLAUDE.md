@@ -488,6 +488,7 @@ Do not retain revision-chat history after finalization or cancellation.
 - Delete the same data on cancellation or closing an unfinished session.
 - On startup, purge abandoned sessions left by a crash.
 - The finalized self-contained HTML report is the retained research artifact. A PDF copy may be printed from the same approved layout.
+- The website never keeps a report. A finished report exists on the server only long enough to reach the browser that ran it: it is deleted an hour after it is made and on every restart, portfolio notes and bundles included. This is fixed in code, not a setting. The only way to keep a report is on the user's side: **Download report**, the report's **Print / save PDF** or **Export slides**, or **Download portfolio**. Do not reintroduce shareable links, report history or a retention option.
 - Never log user position details, company research text, financial values, credentials, cookies, or source content.
 
 ## AI Providers

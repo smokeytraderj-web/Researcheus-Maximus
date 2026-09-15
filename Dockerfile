@@ -31,9 +31,9 @@ COPY security/ ./security/
 COPY services/ ./services/
 COPY web/ ./web/
 
-# Reports are temporary by default and deleted when the server stops. A hosted
-# deployment usually wants the opposite -- links that survive a redeploy -- so
-# it points them at a mounted volume and opts into retention.
+# Reports are never kept: each is deleted an hour after it is made and on every
+# restart, and no setting changes that. The directory still sits on the mounted
+# volume because the feedback log lives beside it and must survive a redeploy.
 #
 # There is deliberately no VOLUME instruction: Railway rejects the whole
 # Dockerfile if it finds one ("docker VOLUME ... is not supported, use Railway
@@ -47,8 +47,7 @@ COPY web/ ./web/
 # Pointed at /app/reports it therefore erased the reports/ Python package, and
 # the server died on startup with "No module named 'reports.call_log'". Any
 # directory under /app that shares a name with a package here is the same trap.
-ENV RESEARCHEUS_REPORTS_DIR=/data/reports \
-    RESEARCHEUS_KEEP_REPORTS=1
+ENV RESEARCHEUS_REPORTS_DIR=/data/reports
 RUN mkdir -p /data/reports
 
 # Hosts that inject $PORT (Railway, Render, Fly) override this.

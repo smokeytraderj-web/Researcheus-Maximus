@@ -1,22 +1,19 @@
 """Research job tracking and finished-report storage for the web backend.
 
-Reports are **temporary by default**. They are written to the system temp
-directory -- never into the project -- expire after REPORT_TTL, and the whole
-directory is deleted when the server stops. Nothing accumulates, matching the
-desktop app's disposable-session rule, where the report the user deliberately
-exports is the only retained artifact.
-
-The consequence is deliberate and worth stating: a shared link is good for the
-lifetime of the server plus the TTL, not forever. Set RESEARCHEUS_KEEP_REPORTS=1
-to keep reports instead, which is what a hosted deployment with a mounted volume
-wants.
+Reports are **never kept**. A finished report sits on disk only long enough to
+reach the browser that ran it: it is deleted REPORT_TTL after it is made, every
+report is deleted when the server starts or stops, and there is no setting that
+changes either. The only way to keep one is on the reader's side: downloading
+it, printing it to PDF, or exporting slides from inside it. A switch to keep
+reports used to exist; the deployment turned it on, and the kept reports filled
+the volume until every run failed at the moment it saved its report.
 
 Two lifetimes are kept apart within that:
 
 * The **job record** is in-memory progress state, only so the browser can poll
   a run it just started.
-* The **report file** outlives the job record, so a link still resolves after
-  the run has been forgotten -- until it expires or the server stops.
+* The **report file** can briefly outlive the job record, so a ready report
+  still opens after the record has gone -- until it expires.
 """
 
 from __future__ import annotations
@@ -31,17 +28,18 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
-from backend import feedback
 
 JobStatus = Literal["running", "ready", "failed"]
 
 # How long a *job record* stays pollable. Not how long a report lives.
 JOB_TTL = timedelta(hours=6)
 
-# How long a finished report survives before it is deleted. Reports are
-# temporary unless RESEARCHEUS_KEEP_REPORTS is set.
-REPORT_TTL = timedelta(hours=int(os.environ.get("RESEARCHEUS_REPORT_TTL_HOURS", "6")))
-KEEP_REPORTS = os.environ.get("RESEARCHEUS_KEEP_REPORTS", "").strip().lower() in {"1", "true", "yes"}
+# How long a finished report stays on disk: long enough to open it, download it
+# and review a portfolio, never long enough to become storage. Fixed on purpose.
+REPORT_TTL = timedelta(hours=1)
+# Run directories: 12 hex characters for a research run, 32 for a portfolio.
+# Clean-up deletes only these, never anything else sharing the reports root.
+REPORT_DIR_PATTERN = re.compile(r"^(?:[0-9a-f]{12}|[0-9a-f]{32})$")
 
 
 def default_reports_root() -> Path:
@@ -49,8 +47,8 @@ def default_reports_root() -> Path:
 
     The system temp directory, not the project: a research tool should not
     silently accumulate client-question output inside the user's source tree.
-    A deployment that wants durable links overrides this with
-    RESEARCHEUS_REPORTS_DIR and mounts a volume there.
+    A deployment sets RESEARCHEUS_REPORTS_DIR to a mounted volume so the
+    feedback log kept beside the reports survives a redeploy.
     """
     override = os.environ.get("RESEARCHEUS_REPORTS_DIR", "").strip()
     if override:
@@ -58,14 +56,18 @@ def default_reports_root() -> Path:
     return Path(tempfile.gettempdir()) / "researcheus-reports"
 
 
+def _is_report_dir(entry: Path) -> bool:
+    return entry.is_dir() and bool(REPORT_DIR_PATTERN.match(entry.name))
+
+
 def purge_expired_reports(reports_root: Path) -> int:
     """Delete reports past REPORT_TTL. Returns how many went."""
-    if KEEP_REPORTS or not reports_root.is_dir():
+    if not reports_root.is_dir():
         return 0
     cutoff = datetime.now(timezone.utc) - REPORT_TTL
     removed = 0
     for entry in reports_root.iterdir():
-        if not entry.is_dir() or entry.name == feedback.FEEDBACK_DIRNAME:
+        if not _is_report_dir(entry):
             continue
         modified = datetime.fromtimestamp(entry.stat().st_mtime, timezone.utc)
         if modified < cutoff:
@@ -75,16 +77,16 @@ def purge_expired_reports(reports_root: Path) -> int:
 
 
 def discard_all_reports(reports_root: Path) -> None:
-    """Delete every report. Called on shutdown so nothing is left behind.
+    """Delete every report. Called at startup and shutdown so nothing is kept.
 
     Removes the report directories rather than the root itself: the root also
     holds the feedback log, which is not a report and is not temporary. This
     used to rmtree the whole root, which threw the feedback away with it.
     """
-    if KEEP_REPORTS or not reports_root.is_dir():
+    if not reports_root.is_dir():
         return
     for entry in reports_root.iterdir():
-        if entry.is_dir() and entry.name != feedback.FEEDBACK_DIRNAME:
+        if _is_report_dir(entry):
             shutil.rmtree(entry, ignore_errors=True)
 
 # Job ids are generated here and also arrive from the URL, where they index
@@ -111,9 +113,8 @@ def report_dir(reports_root: Path, job_id: str) -> Path | None:
 def find_report(reports_root: Path, job_id: str) -> Path | None:
     """Locate a finished report on disk, independent of the job registry.
 
-    This is what keeps a shared link alive: the report is found by looking in
-    the filesystem, so it still resolves once the in-memory job has expired or
-    the server has been restarted.
+    Found by looking in the filesystem, so a ready report still opens once its
+    in-memory job record has gone. It is only there until it expires.
     """
     directory = report_dir(reports_root, job_id)
     if directory is None or not directory.is_dir():
@@ -154,21 +155,6 @@ def list_reports(reports_root: Path, limit: int = 50) -> list[dict]:
         )
     found.sort(key=lambda item: item[0], reverse=True)
     return [item[1] for item in found[:limit]]
-
-
-def purge_incomplete(reports_root: Path) -> None:
-    """Remove crash leftovers: job directories holding no finished report.
-
-    Finished reports are deliberately preserved -- deleting them would break
-    every link already shared.
-    """
-    if not reports_root.is_dir():
-        return
-    for entry in reports_root.iterdir():
-        if entry.name == feedback.FEEDBACK_DIRNAME:
-            continue
-        if entry.is_dir() and not any(entry.glob("*.html")):
-            shutil.rmtree(entry, ignore_errors=True)
 
 
 @dataclass
