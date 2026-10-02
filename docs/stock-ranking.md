@@ -2,7 +2,9 @@
 
 Open **Portfolio → Rank Stocks**, or `/rank-stocks`. Paste 1–200 unique tickers
 or upload CSV, TSV, or XLSX (tickers in the first column, optional Ticker header,
-2 MB maximum). Ranking uses adjusted daily Yahoo Finance data and SPY as the
+2 MB maximum). Ranking prefers adjusted daily Yahoo Finance data, with direct chart access
+through two Yahoo hosts, a verified yfinance session, and a Nasdaq history
+fallback. SPY is the
 S&P 500 proxy. The dedicated ranking does not require an AI or TV Remix key.
 
 Results sort highest first with alphabetical tie breaking. Each row contains
@@ -23,7 +25,9 @@ are provisional. Results remain in process memory for one hour after completion,
 with at most ten completed/recent jobs. Restart/sleep removes them. A device-local
 job ID lets a browser restore a run while it exists; tickers/results are not
 stored in browser storage. CSV exports contain all indicators, component scores,
-source links, and model version. Print / PDF respects the current filter and
+source links, adjustment basis, actual data providers, and model version.
+Stock and SPY always use the same price basis; Nasdaq fallback is unadjusted
+and clearly labeled. Large discontinuities in raw Nasdaq prices are rejected. Print / PDF respects the current filter and
 expanded rows. Reset the filter and expand rows to include more evidence.
 
 ## Deployment

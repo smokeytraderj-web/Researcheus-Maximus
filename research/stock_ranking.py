@@ -4,7 +4,7 @@ import re
 import numpy as np
 import pandas as pd
 
-VERSION = '1.0'
+VERSION = '1.1'
 WEIGHTS = {'trend': .30, 'momentum': .20, 'relative_strength': .20, 'entry_risk': .20, 'volume': .10}
 
 def parse_tickers(text: str) -> list[str]:
@@ -71,4 +71,4 @@ def score_stock(ticker, frame, benchmark):
     components = dict(zip(WEIGHTS, map(float, [trend, momentum, strength, entry, volume])))
     score = round(1 + 9*sum(components[k]*WEIGHTS[k] for k in WEIGHTS)/100, 1)
     reason = ('Healthy uptrend' if trend >= 80 else 'Mixed trend' if trend >= 45 else 'Weak trend') + ('; outperforming SPY' if excess63 > 0 else '; lagging SPY') + ('; extended entry.' if extension > 5 else '; supported entry.' if entry >= 75 else '; entry risk needs review.')
-    return {'ticker':ticker, 'status':'ready', 'score':score, 'reason':reason, 'as_of':d.index[-1].date().isoformat(), 'price':round(price,2), 'rsi':round(rsi,1), 'macd_histogram':round(float(hist.iloc[-1]),4), 'ma20':round(float(ma20.iloc[-1]),2), 'ma50':round(float(ma50.iloc[-1]),2), 'ma200':round(float(ma200.iloc[-1]),2), 'atr_pct':round(atr_pct,2), 'extension_pct':round(extension,2), 'support':round(support,2), 'stop_reference':round(stop,2), 'stop_distance_pct':round(distance,2), 'volume_ratio':round(vol_ratio,2) if vol_ratio is not None else None, 'excess_21d':round(excess21,2), 'excess_63d':round(excess63,2), 'components':{k:round(v,1) for k,v in components.items()}, 'source':f'https://finance.yahoo.com/quote/{ticker}/history/'}
+    return {'ticker':ticker, 'status':'ready', 'score':score, 'reason':reason, 'as_of':d.index[-1].date().isoformat(), 'price':round(price,2), 'rsi':round(rsi,1), 'macd_histogram':round(float(hist.iloc[-1]),4), 'ma20':round(float(ma20.iloc[-1]),2), 'ma50':round(float(ma50.iloc[-1]),2), 'ma200':round(float(ma200.iloc[-1]),2), 'atr_pct':round(atr_pct,2), 'extension_pct':round(extension,2), 'support':round(support,2), 'stop_reference':round(stop,2), 'stop_distance_pct':round(distance,2), 'volume_ratio':round(vol_ratio,2) if vol_ratio is not None else None, 'excess_21d':round(excess21,2), 'excess_63d':round(excess63,2), 'components':{k:round(v,1) for k,v in components.items()}, 'source':frame.attrs.get('url', f'https://finance.yahoo.com/quote/{ticker}/history/'), 'data_provider':frame.attrs.get('source', 'Yahoo Finance'), 'price_basis':frame.attrs.get('basis', 'adjusted'), 'benchmark_provider':benchmark.attrs.get('source', 'Yahoo Finance')}

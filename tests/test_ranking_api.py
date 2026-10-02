@@ -14,7 +14,7 @@ def test_api_completes_partial_batch_and_exports_no_fake_score(monkeypatch):
         def history(self,**kwargs):
             if self.symbol=='MISSING': raise RuntimeError('network failure')
             return history(.0005 if self.symbol=='SPY' else .001)
-    monkeypatch.setattr(yfinance,'Ticker',Ticker)
+    monkeypatch.setattr('backend.ranking.fetch_history',lambda symbol,session,basis=None: Ticker(symbol).history())
     app=FastAPI();slots=threading.Semaphore(1);attach_ranking_routes(app,slots)
     with TestClient(app) as client:
         r=client.post('/api/ranking',json={'text':'AAPL MSFT MISSING AAPL'})
@@ -49,7 +49,7 @@ def test_fifty_plus_stocks_complete_with_independent_scores(monkeypatch):
     class Ticker:
         def __init__(self,symbol): self.symbol=symbol
         def history(self,**kwargs): return history(.0005 if self.symbol=='SPY' else .001)
-    monkeypatch.setattr(yfinance,'Ticker',Ticker)
+    monkeypatch.setattr('backend.ranking.fetch_history',lambda symbol,session,basis=None: Ticker(symbol).history())
     app=FastAPI();attach_ranking_routes(app,threading.Semaphore(1))
     with TestClient(app) as client:
         job=client.post('/api/ranking',json={'text':' '.join('T'+str(i) for i in range(60))}).json()
@@ -64,7 +64,7 @@ def test_fifty_plus_stocks_complete_with_independent_scores(monkeypatch):
 def test_benchmark_failure_is_explicit_and_releases_slot(monkeypatch):
     import yfinance
     def fail(*args,**kwargs): raise RuntimeError('benchmark unavailable')
-    monkeypatch.setattr(yfinance,'Ticker',fail)
+    monkeypatch.setattr('backend.ranking.fetch_history',fail)
     app=FastAPI();slots=threading.Semaphore(1);attach_ranking_routes(app,slots)
     with TestClient(app) as client:
         job=client.post('/api/ranking',json={'text':'AAPL'}).json()
@@ -88,3 +88,25 @@ def test_full_app_protects_ranking_and_serves_scorecard():
         assert 'Rank Stocks' in client.get('/portfolio').text
         response=client.get('/api/ranking/missing')
         assert response.status_code==404 and response.headers['cache-control']=='no-store'
+
+
+def test_raw_benchmark_fallback_requires_matching_stock_basis(monkeypatch):
+    calls=[]
+    def fetch(symbol,session,basis=None):
+        calls.append((symbol,basis))
+        if symbol!='SPY':assert basis=='unadjusted'
+        result=history(.0005 if symbol=='SPY' else .001)
+        result.attrs.update(basis='unadjusted',source='Nasdaq',url='https://www.nasdaq.com/')
+        return result
+    monkeypatch.setattr('backend.ranking.fetch_history',fetch)
+    app=FastAPI();attach_ranking_routes(app,threading.Semaphore(1))
+    with TestClient(app) as client:
+        job=client.post('/api/ranking',json={'text':'AAPL'}).json()
+        for _ in range(100):
+            job=client.get('/api/ranking/'+job['id']).json()
+            if job['status']!='running':break
+            time.sleep(.01)
+        assert job['status']=='complete'
+        assert job['rows'][0]['price_basis']=='unadjusted'
+        assert job['rows'][0]['data_provider']=='Nasdaq'
+        assert calls==[('SPY',None),('AAPL','unadjusted')]

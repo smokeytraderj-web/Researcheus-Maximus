@@ -1,12 +1,18 @@
 """Bounded, temporary ranking jobs using the existing shared access gate."""
 import copy
 import io
+import logging
 import secrets
 import threading
 import time
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from research.stock_ranking import parse_tickers, score_stock, clean_history, VERSION, WEIGHTS
+
+from research.ranking_data import fetch_history
+from security.certificates import verified_market_session
+
+logger = logging.getLogger(__name__)
 
 class RankingIn(BaseModel):
     text: str = Field(min_length=1, max_length=10000)
@@ -23,21 +29,32 @@ def attach_ranking_routes(app, slots):
         return out
     def worker(key):
         try:
-            import yfinance as yf
-            benchmark = clean_history(yf.Ticker('SPY').history(period='2y', auto_adjust=True, timeout=20))
+            session = verified_market_session()
+            benchmark = fetch_history('SPY', session)
+            benchmarks = {benchmark.attrs.get('basis', 'adjusted'): benchmark}
+            with lock:
+                jobs[key]['benchmark_source'] = benchmark.attrs.get('source', 'Market history')
             for ticker in jobs[key]['tickers']:
                 if stopping.is_set(): break
                 try:
-                    frame = yf.Ticker(ticker).history(period='2y', auto_adjust=True, timeout=20)
-                    row = score_stock(ticker, frame, benchmark)
-                except Exception:
+                    frame = fetch_history(ticker, session, basis='unadjusted' if benchmark.attrs.get('basis') == 'unadjusted' else None)
+                    basis = frame.attrs.get('basis', 'adjusted')
+                    if basis not in benchmarks:
+                        benchmarks[basis] = fetch_history('SPY', session, basis=basis)
+                    row = score_stock(ticker, frame, benchmarks[basis])
+                except Exception as exc:
+                    logger.warning("Ranking %s unavailable (%s)", ticker, type(exc).__name__)
                     row = {'ticker':ticker, 'status':'unavailable', 'reason':'Insufficient, stale, or unavailable market data. No score assigned.'}
                 with lock: jobs[key]['rows'].append(row)
             with lock: jobs[key]['status'] = 'complete' if not stopping.is_set() else 'cancelled'
-        except Exception:
+        except Exception as exc:
+            logger.warning("Ranking benchmark failed (%s)", type(exc).__name__)
             with lock:
                 jobs[key]['status'] = 'failed'; jobs[key]['error'] = 'SPY benchmark data is unavailable. Retry later; no scores were fabricated.'
         finally:
+            if 'session' in locals():
+                try: session.close()
+                except Exception: pass
             with lock: jobs[key]["started"] = time.time()
             slots.release()
     @router.post('/parse')
@@ -69,7 +86,7 @@ def attach_ranking_routes(app, slots):
             if len(jobs) >= 10: raise HTTPException(429, 'Too many recent ranking runs. Try later.')
             if not slots.acquire(blocking=False): raise HTTPException(429, 'Research is busy. Try again after the current run.')
             key=secrets.token_hex(16)
-            jobs[key]={'id':key,'started':time.time(),'status':'running','tickers':tickers,'rows':[],'version':VERSION,'weights':WEIGHTS,'horizon':'1–3 months','benchmark':'SPY','source':'Yahoo Finance adjusted daily OHLCV'}
+            jobs[key]={'id':key,'started':time.time(),'status':'running','tickers':tickers,'rows':[],'version':VERSION,'weights':WEIGHTS,'horizon':'1–3 months','benchmark':'SPY','source':'Verified daily OHLCV · Yahoo Finance / Nasdaq fallback'}
             try: threading.Thread(target=worker,args=(key,),daemon=True).start()
             except Exception:
                 jobs.pop(key); slots.release(); raise
