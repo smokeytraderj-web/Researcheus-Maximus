@@ -60,27 +60,27 @@ tailwind.config = {
   .bar-fill { position: absolute; top: 0; height: 100%; width: 35%; border-radius: 999px;
               background: linear-gradient(90deg, #2C6DB5, #14213D); animation: slide 1.15s ease-in-out infinite; }
 </style>
-<link rel="stylesheet" href="/workspace-theme.css?v=1">
-<link rel="stylesheet" href="/landing.css?v=2">
+<link rel="stylesheet" href="/workspace-theme.css?v=2">
+<link rel="stylesheet" href="/landing.css?v=3">
 </head>
 <body class="landing min-h-screen font-sans text-body antialiased">
 
 <div class="min-h-screen flex flex-col">
 
+  <header class="rm-header">
+    <a class="rm-firm" href="/" aria-label="GSWM / RM home">
+      <img src="/assets/gswm-logo.png" width="52" height="52" alt="" class="rm-firm-logo">
+      <span class="rm-firm-name"><span>Gottfried &amp; Somberg</span><small>Wealth Management</small></span>
+    </a>
+    <a class="rm-product" href="/" aria-label="Researcheus Maximus home"><strong>RM</strong><span aria-hidden="true">/</span><span>Research studio</span></a>
+  </header>
+
   <div class="landing-main">
     <div class="landing-content">
 
-      <div class="landing-hero text-center">
-        <!-- The product wordmark: previously it appeared only as faint footer
-             text, so the page never said what it was until you scrolled. -->
-        <div class="inline-flex items-center gap-2 rounded-full bg-brandSoft border border-brandLine px-3.5 py-1.5 mb-5">
-          <span class="h-1.5 w-1.5 rounded-full bg-brand"></span>
-          <span class="font-mono text-[10.5px] tracking-[0.18em] uppercase text-brandDeep">Technical Analyst Agent</span>
-        </div>
-        <h1 class="landing-title font-serif font-semibold text-ink">
-          Gottfried &amp; Somberg<br class="sm:hidden"> Wealth Management
-        </h1>
-        <div class="h-[3px] w-14 bg-gold mx-auto mt-5"></div>
+      <div class="landing-hero rm-page-heading">
+        <h1 class="landing-title">Researcheus Maximus</h1>
+        <p>Stock and portfolio research, in one workspace.</p>
       </div>
 
       <nav aria-label="Research workspaces" class="workspace-nav">

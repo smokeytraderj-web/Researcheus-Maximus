@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import base64
 import dataclasses
 import json
 import logging
@@ -264,7 +265,9 @@ def attach_portfolio_routes(app, reports_root: Path, web_dir: Path, provider_fac
                 for chart in position.get("charts", []):
                     chart["url"] = f"position-{index}/{chart['file']}"
             html = (web_dir / "portfolio.html").read_text(encoding="utf-8")
-            html = html.replace('<link rel="stylesheet" href="/workspace-theme.css?v=1">', '<style>' + (web_dir / 'workspace-theme.css').read_text(encoding='utf-8') + '</style>')
+            html = re.sub(r'<link rel="stylesheet" href="/workspace-theme\.css(?:\?[^"]*)?">', lambda _: '<style>' + (web_dir / 'workspace-theme.css').read_text(encoding='utf-8') + '</style>', html)
+            logo = base64.b64encode((web_dir / 'assets/gswm-logo.png').read_bytes()).decode('ascii')
+            html = html.replace('src="/assets/gswm-logo.png"', 'src="data:image/png;base64,' + logo + '"')
             html = html.replace('href="/vendor/fonts/fonts.css"', 'href="fonts/fonts.css"')
             # Matched by pattern rather than by exact string. These two tags
             # carry a ?v= cache-busting query, and an exact match silently did

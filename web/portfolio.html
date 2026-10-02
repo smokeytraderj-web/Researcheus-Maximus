@@ -10,22 +10,25 @@
        stylesheet or script against this release's markup. Bump on change. -->
   <link rel="stylesheet" href="/portfolio.css?v=4">
   <script src="/portfolio.js?v=3" defer></script>
-<link rel="stylesheet" href="/workspace-theme.css?v=1">
+<link rel="stylesheet" href="/workspace-theme.css?v=2">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to research</a>
-  <header class="app-header">
-    <a class="wordmark" href="/" aria-label="Portfolio RM home"><span class="brand-mark" aria-hidden="true">RM</span><span>Portfolio <span class="wordmark-rm">/ RM</span></span></a>
-    <span class="firm">Gottfried &amp; Somberg Wealth Management</span>
-    <div class="header-actions">
+  <header class="rm-header">
+    <a class="rm-firm" href="/" aria-label="GSWM / RM home">
+      <img src="/assets/gswm-logo.png" width="52" height="52" alt="" class="rm-firm-logo">
+      <span class="rm-firm-name"><span>Gottfried &amp; Somberg</span><small>Wealth Management</small></span>
+    </a>
+    <a class="rm-product" href="/" aria-label="Researcheus Maximus home"><strong>RM</strong><span aria-hidden="true">/</span><span>Research studio</span></a>
+  </header>
+    <div class="header-actions rm-toolbar">
       <a href="/rank-stocks" class="button secondary">Rank Stocks</a>
       <a href="/" class="button secondary" id="backToResearch">← Single-stock research</a>
       <button id="editBtn" class="button secondary" hidden>Edit holdings</button>
       <a id="downloadBtn" class="button primary" hidden>Download portfolio <span aria-hidden="true">↓</span></a>
     </div>
-  </header>
   <main id="main">
-    <div class="workspace-heading">
+    <div class="workspace-heading rm-page-heading">
       <div><p class="eyebrow">Research workspace</p><h1>Your portfolio, in focus.</h1></div>
       <span id="connectionStatus" class="subtle">Connecting…</span>
     </div>
