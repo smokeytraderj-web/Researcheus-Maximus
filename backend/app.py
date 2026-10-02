@@ -42,6 +42,7 @@ from research.jpmm_paste import SecretInPayload, parse_jpmm_page, parse_jpmm_pay
 from services.research_runner import ResearchRunner
 from services.technical_runner import TechnicalRunner
 from backend.portfolio import attach_portfolio_routes
+from backend.ranking import attach_ranking_routes
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ async def lifespan(_: FastAPI):
     if feedback_store.webhook_url():
         threading.Thread(target=feedback_store.flush, args=(REPORTS_ROOT,), daemon=True).start()
     yield
+    shutdown_rankings()
     shutdown_portfolios()
     registry.shutdown()
     # Reports are temporary: leave nothing behind on the way out.
@@ -97,7 +99,7 @@ async def require_access_code(request: Request, call_next):
     """Hold everything except the exempt paths behind the shared access code."""
     if _is_exempt(request.url.path) or gate.token_valid(request.cookies.get(gate.COOKIE_NAME, "")):
         response = await call_next(request)
-        if request.url.path.startswith("/api/portfolio"):
+        if request.url.path.startswith(("/api/portfolio", "/api/ranking")):
             response.headers["Cache-Control"] = "no-store"
             response.headers["X-Content-Type-Options"] = "nosniff"
         return response
@@ -487,6 +489,14 @@ def health() -> dict:
         "house_views_durable": house_views.is_durable(),
         **load_credentials().status(),
     }
+
+
+shutdown_rankings = attach_ranking_routes(app, _run_slots)
+
+
+@app.get("/rank-stocks", include_in_schema=False)
+def rank_stocks_page():
+    return FileResponse(WEB_DIR / "ranking.html")
 
 
 shutdown_portfolios = attach_portfolio_routes(app, REPORTS_ROOT, WEB_DIR, _provider, _run_slots)
