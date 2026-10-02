@@ -106,11 +106,17 @@ def build_ranking_pdf(job,analytics):
                 coordinates.append((p,p['return_1y'],p['score']))
         ax.margins(x=.12);fig.tight_layout(pad=1.5);label_points(fig,ax,coordinates);chart_image(fig,44,124,704,366)
         para('Higher points have stronger technical scores; points further right gained more over the past year. The shaded band marks scores of 8-10. Color identifies correlation groups and point size reflects score. Similar scores or yearly gains alone do not establish correlation.',44,105,704,9)
-        start('Correlation map',subtitle)
-        fig=Figure(figsize=(10,5));ax=fig.subplots();ax.set_aspect('equal',adjustable='datalim');ax.set_facecolor('#F7F9FC');ax.set_xticks([]);ax.set_yticks([])
-        for p in points:ax.scatter(p['x'],p['y'],s=40+p['score']*8,c=color(p),edgecolors='white',linewidth=1)
-        ax.margins(.25);fig.tight_layout(pad=1.5);label_points(fig,ax,[(p,p['x'],p['y']) for p in points]);chart_image(fig,44,124,704,366)
-        para(f"Nearby points have more similar daily-return patterns. Equal axis scales preserve relative distances. This 2D approximation shows {analytics['map_variance_explained']*100:.0f}% of positive embedding variance; verify exact relationships in the heatmap. Colors identify groups; gray stocks have no qualifying group.",44,105,704,9)
+        start('100-day vs. 200-day return',subtitle)
+        fig=Figure(figsize=(10,5));ax=fig.subplots();ax.spines[['top','right']].set_visible(False);ax.tick_params(colors=MUTED,labelsize=10);ax.grid(alpha=.15);ax.set_axisbelow(True)
+        ax.set_xlabel('100-trading-day return (%)',fontsize=11,color=MUTED);ax.set_ylabel('200-trading-day return (%)',fontsize=11,color=MUTED)
+        coordinates=[]
+        for p in points:
+            if p.get('return_100d') is not None and p.get('return_200d') is not None:
+                ax.scatter(p['return_100d'],p['return_200d'],s=40+p['score']*8,c=color(p),edgecolors='white',linewidth=1)
+                coordinates.append((p,p['return_100d'],p['return_200d']))
+        if not coordinates:ax.text(.5,.5,'100- and 200-day returns unavailable. Run a fresh ranking.',transform=ax.transAxes,ha='center',color=MUTED)
+        ax.margins(.12);fig.tight_layout(pad=1.5);label_points(fig,ax,coordinates);chart_image(fig,44,124,704,366)
+        para('Nearby stocks share similar performance over these windows. Color groups use daily-return correlation, not point proximity. The 100-day window is part of the 200-day window, so overlap can strengthen the relationship between the axes without proving stocks move together day to day. Returns remain actual stock returns when SPY exposure is removed from the groups.',44,105,704,8)
         grouped=[g for g in groups if len(g['members'])>1]
         if grouped:
             start('Correlated groups',f'{mode} / Every member pair must have correlation of at least 0.75')
@@ -121,20 +127,6 @@ def build_ranking_pdf(job,analytics):
                 if y-height<65:
                     start('Correlated groups / continued',mode);y=480
                 y-=para(line,44,y,704,10)+20
-        start('Correlation evidence',f"{mode} / {analytics['price_basis']} prices / Pairwise Pearson correlations / Cell labels rounded to two decimals")
-        fig=Figure(figsize=(8,5));ax=fig.subplots();n=len(points)
-        from matplotlib.colors import LinearSegmentedColormap
-        cmap=LinearSegmentedColormap.from_list('GSWM',['#AE5467','#F0F5FA',BLUE])
-        image=ax.imshow(analytics['matrix'],vmin=-1,vmax=1,cmap=cmap)
-        ax.set_xticks(range(n),analytics['tickers'],rotation=55,ha='right',fontsize=7 if n<=20 else 5)
-        ax.set_yticks(range(n),analytics['tickers'],fontsize=7 if n<=20 else 5)
-        if n<=20:
-            for i in range(n):
-                for j in range(n):
-                    value=analytics['matrix'][i][j];ax.text(j,i,f'{0 if abs(value)<.005 else value:.2f}',ha='center',va='center',fontsize=5.2,color='white' if abs(value)>.55 else NAVY)
-        fig.colorbar(image,ax=ax,shrink=.8,label='Correlation');fig.tight_layout();chart_image(fig,95,108,605,392)
-        excluded=', '.join(analytics['excluded']) or 'None'
-        para(f"All-pairs group threshold: 0.75. Excluded from this comparison: {excluded}. Correlation describes this historical window and does not establish causation or ensure future diversification.",44,80,704,8)
     ranked=[];rank=0
     for r in rows:
         if r['status']=='ready':rank+=1
@@ -157,7 +149,7 @@ def build_ranking_pdf(job,analytics):
     paragraphs=[
         'Scoring: trend 30%, momentum 20%, relative strength versus SPY 20%, entry/risk 20%, and directional volume 10%. Components range from 0 to 100; final score = 1 + 9 x weighted component total / 100. Scores are setup assessments, not return probabilities.',
         'Trend measures price relative to the 50/200-day moving averages and their slopes. Momentum combines RSI and MACD histogram direction. Relative strength uses 21/63-session excess returns versus SPY. Entry/risk considers extension above the 20-day average, support-based stop distance and ATR. Volume uses the last 20 sessions of directional volume.',
-        'Correlations use up to 252 overlapping daily percentage returns, with a minimum of 126. No missing returns are filled with zero. Remove market effect fits each stock daily return on an intercept and SPY return, then correlates the residuals. Each correlation group requires every pair to meet 0.75. The 2D map uses classical multidimensional scaling and is an approximation.',
+        'Correlations use up to 252 overlapping daily percentage returns, with a minimum of 126. No missing returns are filled with zero. Remove market effect fits each stock daily return on an intercept and SPY return, then correlates the residuals. Each correlation group requires every pair to meet 0.75. The 100-day and 200-day return windows overlap; their scatter shows similar performance rather than proving daily co-movement. Both scatter plots use actual stock returns even when SPY exposure is removed from the correlation groups.',
         'The 12-month chart uses 252 trading sessions and requires 253 prices. Yahoo adjusted history is preferred; verified Nasdaq fallback is unadjusted. Providers and price basis can vary. Stock/SPY scoring and each correlation comparison use a consistent price basis. Corporate actions can affect unadjusted indicators. Latest daily bars may be incomplete.',
         'Data quality: at least 220 valid recent daily sessions are required for scoring. Missing, stale, zero-volume or incompatible data receives no score. Stocks with a different price basis or insufficient return variation can be excluded from correlation analysis. Valuation, earnings-event risk and portfolio suitability are outside the model.',
     ]

@@ -52,3 +52,18 @@ def test_insufficient_common_data_and_incompatible_basis_are_explicit():
     output=analyze_correlations(rows,histories,benchmarks)
     assert output['available'] and output['excluded']==['OTHER']
     assert len(output['tickers'])==3
+
+
+def test_performance_windows_are_preserved_when_market_effect_is_removed():
+    rows,histories,benchmarks=fixture()
+    for row in rows:
+        prices=histories[row['ticker']]
+        row['return_100d']=round(float((prices.iloc[-1]/prices.iloc[-101]-1)*100),2)
+        row['return_200d']=round(float((prices.iloc[-1]/prices.iloc[-201]-1)*100),2)
+    raw=analyze_correlations(rows,histories,benchmarks)
+    adjusted=analyze_correlations(rows,histories,benchmarks,market_adjusted=True)
+    lookup={r['ticker']:r for r in rows}
+    for output in (raw,adjusted):
+        for point in output['points']:
+            for key in ('return_100d','return_200d'):
+                assert point[key]==lookup[point['ticker']][key]

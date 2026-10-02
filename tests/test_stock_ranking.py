@@ -48,3 +48,16 @@ def test_qualitative_summary_is_specific_to_the_measured_ticker():
     assert 'lagged SPY' in summary
     assert '63 trading sessions' in summary
     assert len(summary)<450
+
+
+@pytest.mark.parametrize('growth',[.001,-.001])
+def test_return_windows_use_exact_trading_session_offsets(growth):
+    frame=history(growth)
+    row=score_stock('WINDOWS',frame,history(.0005))
+    for sessions in (100,200):
+        expected=(frame.Close.iloc[-1]/frame.Close.iloc[-sessions-1]-1)*100
+        assert row[f'return_{sessions}d']==round(expected,2)
+    # The score's minimum history can supply both new windows without a full year.
+    row=score_stock('SHORT',frame.iloc[-220:],history(.0005).iloc[-220:])
+    assert row['return_1y'] is None
+    assert row['return_100d'] is not None and row['return_200d'] is not None
