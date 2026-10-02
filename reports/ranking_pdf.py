@@ -1,6 +1,7 @@
 """A temporary, vector-text scorecard PDF with verified data and chart images."""
 from __future__ import annotations
 import io
+import colorsys
 import math
 from datetime import datetime, timezone
 from html import escape
@@ -66,39 +67,60 @@ def build_ranking_pdf(job,analytics):
     text(44,397,'Highest-ranked setups',14,NAVY,DISPLAY);table(list(enumerate(ready[:10],1)),365)
     if analytics.get('available'):
         multi=[g for g in analytics['clusters'] if len(g['members'])>1]
-        largest=multi[0] if multi else None
+        largest=max(multi,key=lambda g:len(g['members'])) if multi else None
         finding=f"Top {analytics['requested']} comparison: {len(analytics['tickers'])} usable stocks; mean pair correlation {analytics['average_correlation']:.2f}. "
         finding+=f"Largest group: {', '.join(largest['members'])}; average {largest['average_correlation']:.2f}." if largest else 'No group meets the 0.75 all-pairs threshold.'
         para(finding,44,78,704,8)
     else:para('Correlation graphs unavailable: '+analytics.get('reason','Insufficient data.'),44,78,704,8)
     if analytics.get('available'):
         mode='SPY exposure removed' if analytics['market_adjusted'] else 'Overall daily-return correlation'
-        start('Patterns behind the rankings',f"Top {analytics['requested']} / {mode} / {analytics['sample_count']} returns / {analytics['start']} to {analytics['end']}")
         points=analytics['points'];groups=analytics['clusters']
-        def color(p):return PALETTE[p['cluster']%len(PALETTE)] if len(groups[p['cluster']]['members'])>1 else '#8A98A9'
-        fig=Figure(figsize=(10,4));axes=fig.subplots(1,2)
-        for ax in axes:
-            ax.spines[['top','right']].set_visible(False);ax.spines[['bottom','left']].set_color(LINE);ax.tick_params(colors=MUTED,labelsize=8);ax.grid(alpha=.15);ax.set_axisbelow(True)
-        axes[0].set_title('12-month return vs. technical score',loc='left',fontsize=12,color=NAVY,pad=15)
-        axes[0].set_xlabel('Trailing 252-session return (%)',fontsize=9,color=MUTED);axes[0].set_ylabel('Technical score / 10',fontsize=9,color=MUTED);axes[0].set_ylim(.7,10.5)
-        axes[1].set_title('Correlation map',loc='left',fontsize=12,color=NAVY,pad=15);axes[1].set_xticks([]);axes[1].set_yticks([])
+        def color(p):
+            if len(groups[p['cluster']]['members'])<=1:return '#8A98A9'
+            group=p['cluster']
+            if group<len(PALETTE):return PALETTE[group]
+            rgb=colorsys.hls_to_rgb((round(group*137.508)%360)/360,.42,.42)
+            return '#'+''.join(f'{round(channel*255):02x}' for channel in rgb)
+        def label_points(fig,ax,coordinates):
+            # Move labels only, preserving data coordinates and drawing leaders.
+            FigureCanvasAgg(fig);fig.canvas.draw();renderer=fig.canvas.get_renderer();occupied=[]
+            bounds=ax.get_window_extent(renderer)
+            for p,x,y in coordinates[:20 if len(coordinates)<=20 else 10]:
+                for distance in (12,24,36,48,60):
+                    placed=False
+                    for dx,dy in ((distance,distance),(distance,-distance),(-distance,distance),(-distance,-distance),(0,distance),(0,-distance)):
+                        label=ax.annotate(p['ticker'],(x,y),xytext=(dx,dy),textcoords='offset points',ha='left' if dx>=0 else 'right',fontsize=8,color=NAVY,bbox={'facecolor':'white','edgecolor':'none','alpha':.9,'pad':1.5})
+                        box=label.get_window_extent(renderer).expanded(1.08,1.15)
+                        if bounds.contains(box.x0,box.y0) and bounds.contains(box.x1,box.y1) and not any(box.overlaps(other) for other in occupied):
+                            occupied.append(box);ax.annotate('',(x,y),xytext=(dx,dy),textcoords='offset points',arrowprops={'arrowstyle':'-','color':color(p),'lw':.5});placed=True;break
+                        label.remove()
+                    if placed:break
+        subtitle=f"Top {analytics['requested']} / {mode} / {analytics['sample_count']} returns / {analytics['start']} to {analytics['end']}"
+        start('12-month return vs. technical score',subtitle)
+        fig=Figure(figsize=(10,5));ax=fig.subplots();ax.spines[['top','right']].set_visible(False);ax.tick_params(colors=MUTED,labelsize=10);ax.grid(alpha=.15);ax.set_axisbelow(True)
+        ax.set_xlabel('Trailing 12-month return (%)',fontsize=11,color=MUTED);ax.set_ylabel('Technical score / 10',fontsize=11,color=MUTED);ax.set_ylim(.7,10.5);ax.axhspan(8,10,color='#EAF1FA',zorder=0)
+        coordinates=[]
         for p in points:
             if p['return_1y'] is not None:
-                axes[0].scatter(p['return_1y'],p['score'],s=25+p['score']*6,c=color(p),edgecolors='white',linewidth=.7)
-                if points.index(p)<5:axes[0].annotate(p['ticker'],(p['return_1y'],p['score']),xytext=(5,10+points.index(p)*9),textcoords='offset points',fontsize=6,color=NAVY,arrowprops={'arrowstyle':'-','color':MUTED,'lw':.4})
-            axes[1].scatter(p['x'],p['y'],s=25+p['score']*6,c=color(p),edgecolors='white',linewidth=.7)
-
-        for group in groups:
-            if len(group['members'])>1:
-                members=[p for p in points if p['cluster']==group['id']]
-                x=sum(p['x'] for p in members)/len(members);y=sum(p['y'] for p in members)/len(members)
-                axes[1].annotate(f"Group {group['id']+1} / {len(members)} stocks",(x,y),xytext=(0,15),ha='center',textcoords='offset points',fontsize=8,color=NAVY)
-        axes[1].margins(.2)
-        fig.tight_layout(pad=2);chart_image(fig,44,179,704,310)
-        explanation=f"Colors identify correlation groups, not sectors. Point size reflects the technical score. The 2D map represents {analytics['map_variance_explained']*100:.0f}% of positive embedding variance; distances are approximate. Verify relationships in the heatmap. Return/score similarity alone does not establish correlation."
-        para(explanation,44,153,704,9)
-        groups_text=' | '.join(f"{', '.join(g['members'])}: avg {g['average_correlation']:.2f}" for g in groups if len(g['members'])>1)
-        para('Groups: '+(groups_text or 'None meet the 0.75 threshold.'),44,100,704,8)
+                ax.scatter(p['return_1y'],p['score'],s=40+p['score']*8,c=color(p),edgecolors='white',linewidth=1)
+                coordinates.append((p,p['return_1y'],p['score']))
+        ax.margins(x=.12);fig.tight_layout(pad=1.5);label_points(fig,ax,coordinates);chart_image(fig,44,124,704,366)
+        para('Higher points have stronger technical scores; points further right gained more over the past year. The shaded band marks scores of 8-10. Color identifies correlation groups and point size reflects score. Similar scores or yearly gains alone do not establish correlation.',44,105,704,9)
+        start('Correlation map',subtitle)
+        fig=Figure(figsize=(10,5));ax=fig.subplots();ax.set_aspect('equal',adjustable='datalim');ax.set_facecolor('#F7F9FC');ax.set_xticks([]);ax.set_yticks([])
+        for p in points:ax.scatter(p['x'],p['y'],s=40+p['score']*8,c=color(p),edgecolors='white',linewidth=1)
+        ax.margins(.25);fig.tight_layout(pad=1.5);label_points(fig,ax,[(p,p['x'],p['y']) for p in points]);chart_image(fig,44,124,704,366)
+        para(f"Nearby points have more similar daily-return patterns. Equal axis scales preserve relative distances. This 2D approximation shows {analytics['map_variance_explained']*100:.0f}% of positive embedding variance; verify exact relationships in the heatmap. Colors identify groups; gray stocks have no qualifying group.",44,105,704,9)
+        grouped=[g for g in groups if len(g['members'])>1]
+        if grouped:
+            start('Correlated groups',f'{mode} / Every member pair must have correlation of at least 0.75')
+            y=480
+            for group in grouped:
+                line=f"Group {group['id']+1}: {', '.join(group['members'])}. Average correlation {group['average_correlation']:.2f}; lowest pair {group['minimum_correlation']:.2f}."
+                measure=Paragraph(escape(line),paragraph);_,height=measure.wrap(704,500)
+                if y-height<65:
+                    start('Correlated groups / continued',mode);y=480
+                y-=para(line,44,y,704,10)+20
         start('Correlation evidence',f"{mode} / {analytics['price_basis']} prices / Pairwise Pearson correlations / Cell labels rounded to two decimals")
         fig=Figure(figsize=(8,5));ax=fig.subplots();n=len(points)
         from matplotlib.colors import LinearSegmentedColormap

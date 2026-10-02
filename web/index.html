@@ -61,31 +61,32 @@ tailwind.config = {
               background: linear-gradient(90deg, #2C6DB5, #14213D); animation: slide 1.15s ease-in-out infinite; }
 </style>
 <link rel="stylesheet" href="/workspace-theme.css?v=1">
+<link rel="stylesheet" href="/landing.css?v=2">
 </head>
-<body class="min-h-screen font-sans text-body antialiased">
+<body class="landing min-h-screen font-sans text-body antialiased">
 
 <div class="min-h-screen flex flex-col">
 
-  <div class="flex-1 flex items-center justify-center px-6 py-16">
-    <div class="w-full max-w-3xl">
+  <div class="landing-main">
+    <div class="landing-content">
 
-      <div class="text-center mb-9">
+      <div class="landing-hero text-center">
         <!-- The product wordmark: previously it appeared only as faint footer
              text, so the page never said what it was until you scrolled. -->
         <div class="inline-flex items-center gap-2 rounded-full bg-brandSoft border border-brandLine px-3.5 py-1.5 mb-5">
           <span class="h-1.5 w-1.5 rounded-full bg-brand"></span>
           <span class="font-mono text-[10.5px] tracking-[0.18em] uppercase text-brandDeep">Technical Analyst Agent</span>
         </div>
-        <h1 class="font-serif text-[34px] sm:text-[46px] font-semibold tracking-tight text-ink leading-[1.12]">
+        <h1 class="landing-title font-serif font-semibold text-ink">
           Gottfried &amp; Somberg<br class="sm:hidden"> Wealth Management
         </h1>
         <div class="h-[3px] w-14 bg-gold mx-auto mt-5"></div>
       </div>
 
-      <nav aria-label="Research workspaces" class="flex flex-wrap items-center justify-center gap-3 mb-7">
-        <span aria-current="page" class="text-[14px] font-sans font-semibold text-ink px-4 py-2.5">Single-stock research</span>
-        <a href="/portfolio" class="btn btn-primary rounded-lg text-white font-sans font-semibold text-[14px] px-5 py-2.5">Evaluate portfolio <span aria-hidden="true">&rarr;</span></a>
-        <a href="/rank-stocks" class="btn rounded-lg border border-brandLine bg-white text-brandDeep font-sans font-semibold text-[14px] px-5 py-2.5 hover:bg-brandSoft">Rank Stocks <span aria-hidden="true">&rarr;</span></a>
+      <nav aria-label="Research workspaces" class="workspace-nav">
+        <span aria-current="page" class="workspace-current">Single-stock research</span>
+        <a href="/portfolio" class="btn workspace-link">Evaluate portfolio <span aria-hidden="true">&rarr;</span></a>
+        <a href="/rank-stocks" class="btn workspace-link">Rank Stocks <span aria-hidden="true">&rarr;</span></a>
       </nav>
 
       <!-- Progress / result panel. Hidden until a run starts. -->
@@ -117,52 +118,33 @@ tailwind.config = {
         <p id="statusError" class="hidden text-[14px] text-[#A0362F] leading-relaxed"></p>
       </div>
 
-      <div class="card rounded-xl bg-white border border-line border-t-[3px] border-t-brand p-6 sm:p-7">
-        <div class="flex items-center gap-2 mb-4">
-          <span class="font-serif text-[15px] font-semibold text-ink/45">01</span>
-          <span class="font-serif text-[19px] font-semibold text-ink">Rating</span>
+      <section class="research-workspace card" aria-label="Single-stock research">
+        <div class="research-tabs" role="tablist" aria-label="Research type">
+          <button id="ratingTab" type="button" role="tab" aria-selected="true" aria-controls="ratingPanel" tabindex="0" onclick="selectResearch('general')">Rating &amp; research</button>
+          <button id="technicalTab" type="button" role="tab" aria-selected="false" aria-controls="technicalPanel" tabindex="-1" onclick="selectResearch('deep')">Technical analysis</button>
         </div>
-        <textarea
-          id="queryBox"
-          rows="3"
-          placeholder="AAPL, Apple, NVDA, Walmart&hellip;"
-          class="field w-full resize-none bg-panel border border-line rounded-lg text-[15px] text-ink leading-relaxed placeholder:text-muted p-4"
-        ></textarea>
-        <div class="flex items-center justify-end mt-4">
-          <button
-            id="generateBtn"
-            onclick="start('general', 'queryBox')"
-            class="shrink-0 btn btn-primary rounded-lg text-white font-sans font-bold text-sm px-6 py-2.5"
-          >
-            Generate Research
-          </button>
+        <div id="ratingPanel" class="research-panel" role="tabpanel" aria-labelledby="ratingTab">
+          <h2>Research a stock</h2>
+          <p class="research-description">Get a rating, supporting evidence, and a complete research report.</p>
+          <label for="queryBox" class="research-label">Ticker or company name</label>
+          <textarea id="queryBox" rows="2" placeholder="e.g. AAPL or Apple" class="field research-input" aria-describedby="ratingHint"></textarea>
+          <div class="research-actions">
+            <span id="ratingHint" class="research-hint">Enter to run &middot; Shift + Enter for a new line</span>
+            <button id="generateBtn" onclick="start('general', 'queryBox')" class="btn btn-primary research-submit">Generate Research <span aria-hidden="true">&rarr;</span></button>
+          </div>
         </div>
-      </div>
-
-      <div class="mt-4 card rounded-xl bg-white border border-line border-t-[3px] border-t-brand p-6 sm:p-7">
-        <div class="flex items-center gap-2 mb-4">
-          <span class="font-serif text-[15px] font-semibold text-ink/45">02</span>
-          <span class="font-serif text-[19px] font-semibold text-ink">Technical</span>
+        <div id="technicalPanel" class="research-panel" role="tabpanel" aria-labelledby="technicalTab" hidden>
+          <h2>Explore the technical setup</h2>
+          <p class="research-description">Price structure, momentum, relative strength, Fibonacci, and a risk plan.</p>
+          <label for="deepBox" class="research-label">Ticker or company name</label>
+          <textarea id="deepBox" rows="2" placeholder="e.g. TSLA or Tesla" class="field research-input" aria-describedby="technicalHint"></textarea>
+          <div class="research-actions">
+            <span id="technicalHint" class="research-hint">Enter to run &middot; Shift + Enter for a new line</span>
+            <button id="deepBtn" onclick="start('deep', 'deepBox')" class="btn btn-primary research-submit">Open Technical Report <span aria-hidden="true">&rarr;</span></button>
+          </div>
         </div>
-        <textarea
-          id="deepBox"
-          rows="2"
-          placeholder="TSLA, Tesla, AMD&hellip;"
-          class="field w-full resize-none bg-panel border border-line rounded-lg text-[15px] text-ink leading-relaxed placeholder:text-muted p-4"
-        ></textarea>
-        <!-- Stacks on narrow screens: side by side, the description was crushed
-             into a four-word-wide column beside the button. -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mt-4">
-          <span class="text-[12.5px] text-body">Price structure, momentum, relative strength, Fibonacci, and a risk plan.</span>
-          <button
-            id="deepBtn"
-            onclick="start('deep', 'deepBox')"
-            class="shrink-0 btn btn-primary rounded-lg text-white font-sans font-bold text-sm px-6 py-2.5"
-          >
-            Open Technical Report
-          </button>
-        </div>
-      </div>
+      </section>
+      <p class="ranking-shortcut">Comparing a list of stocks? <a href="/rank-stocks">Open the technical scorecard &rarr;</a></p>
 
       <div id="feedback" class="hidden mt-8 pt-6 border-t border-line2">
         <div class="font-mono text-[10px] tracking-[0.16em] text-muted uppercase mb-3">Feedback on that report</div>
@@ -187,7 +169,7 @@ tailwind.config = {
     </div>
   </div>
 
-  <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-8 py-4 border-t border-line2 font-mono text-[10.5px] text-ink/40">
+  <footer class="landing-footer flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-8 py-4 border-t border-line2 font-mono text-[10.5px] text-ink/40">
     <nav aria-label="About this app" class="flex flex-wrap items-center gap-x-5 gap-y-1">
       <span>Technical Analyst Agent</span>
       <a href="methodology.html" class="text-ink/60 hover:text-ink transition-colors">How we reason</a>
@@ -198,7 +180,7 @@ tailwind.config = {
       <span class="hidden md:inline">Internal use only, not for client distribution</span>
       <span id="footerMode"></span>
     </div>
-  </div>
+  </footer>
 
 </div>
 
@@ -206,6 +188,25 @@ tailwind.config = {
   var pollTimer = null, startedAt = 0, reportUrl = '', busy = false, lastJobId = '', rating = null;
 
   function el(id) { return document.getElementById(id); }
+
+  var activeResearch = 'general';
+  function selectResearch(mode) {
+    activeResearch = mode;
+    ['general', 'deep'].forEach(function (item) {
+      var selected = item === mode;
+      var tab = el(item === 'general' ? 'ratingTab' : 'technicalTab');
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      el(item === 'general' ? 'ratingPanel' : 'technicalPanel').hidden = !selected;
+    });
+  }
+  document.querySelector('.research-tabs').addEventListener('keydown', function (event) {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { return; }
+    event.preventDefault();
+    var mode = event.key === 'Home' ? 'general' : event.key === 'End' ? 'deep' : activeResearch === 'general' ? 'deep' : 'general';
+    selectResearch(mode);
+    el(mode === 'general' ? 'ratingTab' : 'technicalTab').focus();
+  });
 
   function resetStatus() {
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
@@ -558,15 +559,16 @@ tailwind.config = {
   // Enter submits; Shift+Enter inserts a newline, matching the desktop app.
   // Bound on the document, not the boxes: typing then clicking away moved focus
   // out of the textarea, and a box-level listener then never fired -- Enter
-  // simply did nothing. From anywhere on the page Enter runs Generate Research;
-  // inside one of the other boxes it runs that box instead.
+  // simply did nothing. From the page background Enter runs the selected research type;
+  // links, buttons, and feedback retain their own keyboard behaviour.
   var BOX_MODES = { queryBox: 'general', deepBox: 'deep' };
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) { return; }
     var id = e.target && e.target.id;
     // Let a real button keep its own Enter behaviour.
-    if (e.target && e.target.tagName === 'BUTTON') { return; }
-    var boxId = BOX_MODES[id] ? id : 'queryBox';
+    if (e.target && (['BUTTON', 'A', 'INPUT', 'SELECT'].includes(e.target.tagName) || e.target.isContentEditable)) { return; }
+    if (e.target && e.target.tagName === 'TEXTAREA' && !BOX_MODES[id]) { return; }
+    var boxId = BOX_MODES[id] ? id : activeResearch === 'deep' ? 'deepBox' : 'queryBox';
     e.preventDefault();
     start(BOX_MODES[boxId], boxId);
   });

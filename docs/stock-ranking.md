@@ -72,3 +72,14 @@ Shared `workspace-theme.css` applies the landing-page typography, blue actions,
 white cards and cool background across the workspace, help and access pages.
 The offline portfolio bundle inlines this stylesheet. Rank Stocks is linked
 from both the landing page and the portfolio header.
+
+### Readability
+
+Charts occupy separate full-width panels. Ticker labels use leader lines without
+moving the underlying points; the top 20 labels are shown, or the top 10 for
+larger comparisons. Selecting a group labels its members. Hover/focus details
+identify each stock. Both map axes use equal units to preserve relative distances.
+Heatmap cells show two-decimal correlations, with horizontal scrolling for large
+lists. The PDF gives the return scatter and correlation map their own landscape
+pages and lists qualifying groups separately. The home page uses keyboard-accessible
+Rating / Technical tabs in one intake card, with stacked actions on small screens.
