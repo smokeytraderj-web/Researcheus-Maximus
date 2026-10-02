@@ -137,4 +137,11 @@ def test_analytics_and_pdf_use_existing_history_and_hide_internal_data(monkeypat
         assert response.status_code==200 and response.headers['content-type']=='application/pdf'
         reader=PdfReader(io.BytesIO(response.content));assert len(reader.pages)>=5
         assert 'Technical Stock Scorecard' in reader.pages[0].extract_text()
+        selected=client.get('/api/ranking/'+job['id']+'/pdf?reference=BBB&horizon=prior100d')
+        assert selected.status_code==200
+        text=' '.join(page.extract_text() for page in PdfReader(io.BytesIO(selected.content)).pages)
+        assert 'Score vs. correlation to BBB' in text
+        assert 'Recent vs. preceding 100-day return' in text
+        assert client.get('/api/ranking/'+job['id']+'/pdf?reference=UNKNOWN').status_code==400
+        assert client.get('/api/ranking/'+job['id']+'/pdf?horizon=invalid').status_code==422
         assert calls==['SPY','AAA','BBB']

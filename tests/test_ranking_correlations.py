@@ -59,11 +59,26 @@ def test_performance_windows_are_preserved_when_market_effect_is_removed():
     for row in rows:
         prices=histories[row['ticker']]
         row['return_100d']=round(float((prices.iloc[-1]/prices.iloc[-101]-1)*100),2)
+        row['return_prior100d']=round(float((prices.iloc[-101]/prices.iloc[-201]-1)*100),2)
         row['return_200d']=round(float((prices.iloc[-1]/prices.iloc[-201]-1)*100),2)
     raw=analyze_correlations(rows,histories,benchmarks)
     adjusted=analyze_correlations(rows,histories,benchmarks,market_adjusted=True)
     lookup={r['ticker']:r for r in rows}
     for output in (raw,adjusted):
         for point in output['points']:
-            for key in ('return_100d','return_200d'):
+            for key in ('return_100d','return_200d','return_prior100d'):
                 assert point[key]==lookup[point['ticker']][key]
+
+
+def test_reference_threshold_does_not_round_up_a_subthreshold_pair():
+    rng=np.random.default_rng(94);a=rng.normal(size=252);a-=a.mean();a/=np.linalg.norm(a)
+    independent=rng.normal(size=252);independent-=independent.mean();independent-=a*(a@independent);independent/=np.linalg.norm(independent)
+    target=.7496;b=target*a+np.sqrt(1-target**2)*independent
+    dates=pd.bdate_range(end=pd.Timestamp.now(tz='UTC').normalize(),periods=253)
+    def prices(returns):return pd.Series(np.r_[100,100*np.cumprod(1+returns*.1)],index=dates)
+    histories={'AAA':prices(a),'BBB':prices(b)}
+    rows=[{'ticker':name,'status':'ready','score':8.5,'price_basis':'adjusted'} for name in histories]
+    output=analyze_correlations(rows,histories,{'adjusted':prices(independent)})
+    assert abs(output['matrix'][0][1]-target)<1e-12
+    assert output['matrix'][0][1]<.75
+    assert all(len(group['members'])==1 for group in output['clusters'])

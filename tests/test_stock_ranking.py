@@ -57,7 +57,8 @@ def test_return_windows_use_exact_trading_session_offsets(growth):
     for sessions in (100,200):
         expected=(frame.Close.iloc[-1]/frame.Close.iloc[-sessions-1]-1)*100
         assert row[f'return_{sessions}d']==round(expected,2)
+    assert row['return_prior100d']==round((frame.Close.iloc[-101]/frame.Close.iloc[-201]-1)*100,2)
     # The score's minimum history can supply both new windows without a full year.
     row=score_stock('SHORT',frame.iloc[-220:],history(.0005).iloc[-220:])
     assert row['return_1y'] is None
-    assert row['return_100d'] is not None and row['return_200d'] is not None
+    assert all(row[key] is not None for key in ('return_100d','return_200d','return_prior100d'))

@@ -5,6 +5,7 @@ import logging
 import secrets
 import threading
 import time
+from typing import Literal
 from fastapi import APIRouter, HTTPException, Request, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
@@ -115,14 +116,16 @@ def attach_ranking_routes(app, slots):
                 job['_analytics'][cache_key] = analyze_correlations(job['rows'], job['_histories'], job['_benchmarks'], limit, market_adjusted)
             return copy.deepcopy(job['_analytics'][cache_key])
     @router.get('/{key}/pdf')
-    def pdf(key: str, limit: int = Query(default=20, ge=2, le=50), market_adjusted: bool = False):
+    def pdf(key: str, limit: int = Query(default=20, ge=2, le=50), market_adjusted: bool = False, reference: str = Query(default='', max_length=16), horizon: Literal['200d','prior100d'] = '200d'):
         comparisons = analytics(key, limit, market_adjusted)
+        if reference and comparisons.get('available') and reference not in comparisons['tickers']:
+            raise HTTPException(400, 'Reference stock is outside this comparison. Choose a plotted stock.')
         with lock:
             job = snapshot(jobs[key])
         if not slots.acquire(blocking=False): raise HTTPException(429, 'Research is busy. Try the PDF download again shortly.')
         try:
             from reports.ranking_pdf import build_ranking_pdf
-            content = build_ranking_pdf(job, comparisons)
+            content = build_ranking_pdf(job, comparisons, reference=reference or None, horizon=horizon)
             return Response(content, media_type='application/pdf', headers={'Content-Disposition':'attachment; filename="GSWM_Technical_Scorecard.pdf"','Cache-Control':'no-store'})
         finally: slots.release()
     app.include_router(router)

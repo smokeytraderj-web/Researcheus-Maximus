@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import colorsys
 import math
+import numpy as np
 from datetime import datetime, timezone
 from html import escape
 from reportlab.pdfgen import canvas
@@ -18,7 +19,7 @@ PALETTE=['#1A4F8B','#487EA7','#286E66','#785A91','#A55767','#596773']
 WIDTH,HEIGHT=792,612
 
 
-def build_ranking_pdf(job,analytics):
+def build_ranking_pdf(job,analytics,reference=None,horizon='200d'):
     from reports.pdf_report import _register_fonts
     FONT, BOLD, DISPLAY = _register_fonts()
     buffer=io.BytesIO();c=canvas.Canvas(buffer,pagesize=(WIDTH,HEIGHT));c.setTitle('GSWM - Technical Stock Scorecard');c.setAuthor('Gottfried & Somberg Wealth Management')
@@ -98,7 +99,7 @@ def build_ranking_pdf(job,analytics):
         subtitle=f"Top {analytics['requested']} / {mode} / {analytics['sample_count']} returns / {analytics['start']} to {analytics['end']}"
         start('12-month return vs. technical score',subtitle)
         fig=Figure(figsize=(10,5));ax=fig.subplots();ax.spines[['top','right']].set_visible(False);ax.tick_params(colors=MUTED,labelsize=10);ax.grid(alpha=.15);ax.set_axisbelow(True)
-        ax.set_xlabel('Trailing 12-month return (%)',fontsize=11,color=MUTED);ax.set_ylabel('Technical score / 10',fontsize=11,color=MUTED);ax.set_ylim(.7,10.5);ax.axhspan(8,10,color='#EAF1FA',zorder=0)
+        ax.set_xlabel('Trailing 12-month return (%)',fontsize=11,color=MUTED);ax.set_ylabel('Technical score / 10',fontsize=11,color=MUTED);ax.set_ylim(.7,10.5);ax.set_yticks(range(1,11));ax.axhspan(8,10,color='#EAF1FA',zorder=0)
         coordinates=[]
         for p in points:
             if p['return_1y'] is not None:
@@ -106,17 +107,39 @@ def build_ranking_pdf(job,analytics):
                 coordinates.append((p,p['return_1y'],p['score']))
         ax.margins(x=.12);fig.tight_layout(pad=1.5);label_points(fig,ax,coordinates);chart_image(fig,44,124,704,366)
         para('Higher points have stronger technical scores; points further right gained more over the past year. The shaded band marks scores of 8-10. Color identifies correlation groups and point size reflects score. Similar scores or yearly gains alone do not establish correlation.',44,105,704,9)
-        start('100-day vs. 200-day return',subtitle)
+        prior=horizon=='prior100d';return_key='return_prior100d' if prior else 'return_200d';y_label='Preceding 100-trading-day return' if prior else '200-trading-day return'
+        start('Recent vs. preceding 100-day return' if prior else '100-day vs. 200-day return',subtitle)
         fig=Figure(figsize=(10,5));ax=fig.subplots();ax.spines[['top','right']].set_visible(False);ax.tick_params(colors=MUTED,labelsize=10);ax.grid(alpha=.15);ax.set_axisbelow(True)
-        ax.set_xlabel('100-trading-day return (%)',fontsize=11,color=MUTED);ax.set_ylabel('200-trading-day return (%)',fontsize=11,color=MUTED)
+        ax.set_xlabel('100-trading-day return (%)',fontsize=11,color=MUTED);ax.set_ylabel(y_label+' (%)',fontsize=11,color=MUTED)
         coordinates=[]
         for p in points:
-            if p.get('return_100d') is not None and p.get('return_200d') is not None:
-                ax.scatter(p['return_100d'],p['return_200d'],s=40+p['score']*8,c=color(p),edgecolors='white',linewidth=1)
-                coordinates.append((p,p['return_100d'],p['return_200d']))
+            if p.get('return_100d') is not None and p.get(return_key) is not None:
+                ax.scatter(p['return_100d'],p[return_key],s=40+p['score']*8,c=color(p),edgecolors='white',linewidth=1)
+                coordinates.append((p,p['return_100d'],p[return_key]))
         if not coordinates:ax.text(.5,.5,'100- and 200-day returns unavailable. Run a fresh ranking.',transform=ax.transAxes,ha='center',color=MUTED)
         ax.margins(.12);fig.tight_layout(pad=1.5);label_points(fig,ax,coordinates);chart_image(fig,44,124,704,366)
-        para('Nearby stocks share similar performance over these windows. Color groups use daily-return correlation, not point proximity. The 100-day window is part of the 200-day window, so overlap can strengthen the relationship between the axes without proving stocks move together day to day. Returns remain actual stock returns when SPY exposure is removed from the groups.',44,105,704,8)
+        explanation=('The recent and preceding 100-day windows do not overlap. Upper-right gained in both periods; lower-right gained recently after losing previously. ' if prior else 'The 100-day window is part of the 200-day window. Shared data can strengthen the relationship between these axes. ')
+        para(explanation+'Nearby stocks have similar cumulative performance. Colors use daily-return correlation, not point proximity. These patterns do not establish predictive signals. Returns stay actual when SPY exposure is removed from the correlation groups.',44,105,704,8)
+
+        ref=reference if reference in analytics['tickers'] else analytics['tickers'][0];ref_index=analytics['tickers'].index(ref)
+        start('Score vs. correlation to '+ref,subtitle)
+        fig=Figure(figsize=(10,5));ax=fig.subplots();ax.spines[['top','right']].set_visible(False);ax.grid(alpha=.15);ax.set_axisbelow(True);ax.tick_params(colors=MUTED,labelsize=10)
+        ax.set_xlabel('Daily-return correlation to '+ref,fontsize=11,color=MUTED);ax.set_ylabel('Technical score / 10',fontsize=11,color=MUTED);ax.set_xlim(-1.06,1.06);ax.set_ylim(.7,10.5);ax.set_xticks(np.arange(-1,1.01,.25));ax.set_yticks(range(1,11))
+        from matplotlib.patches import Rectangle
+        ax.add_patch(Rectangle((.75,8),.25,2,facecolor='#EAF1FA',zorder=0));ax.axvline(.75,color=BLUE,linestyle='--',linewidth=.8)
+        coordinates=[];high=[]
+        for i,p in enumerate(points):
+            if p['ticker']==ref:continue
+            value=analytics['matrix'][ref_index][i];ax.scatter(value,p['score'],s=40+p['score']*8,c=color(p),edgecolors='white',linewidth=1);coordinates.append((p,value,p['score']))
+            if value>=.75 and p['score']>=8:high.append(p['ticker'])
+        fig.tight_layout(pad=1.5);label_points(fig,ax,coordinates);chart_image(fig,44,124,704,366)
+        finding=f"{len(high)} stocks meet score >=8 and correlation >=0.75 to {ref}: {', '.join(high) if high else 'none'}. "
+        para(finding+'The reference stock is excluded. A strong link to the reference does not imply every highlighted peer is strongly correlated with every other peer. Group colors use the separate all-pairs rule. Correlation is historical and can change.',44,105,704,8)
+        start('Reading the graphs',mode+' / Performance, current setup and daily co-movement')
+        guides=[('01 / Return versus score','Higher points have stronger current technical setups; further right means larger past gains. The model already uses trend and momentum, so a relationship with past returns is partly mechanical. Predictive value requires historical scores formed without future information and tested against subsequent outcomes.'),('02 / Two return windows','The 100/200-day windows overlap. The preceding-100-day option instead compares two consecutive non-overlapping periods, exposing continuation and reversal patterns. Similar cumulative gains do not establish that stocks move together daily.'),('03 / Score versus correlation','Correlation is calculated from matched daily percentage returns. Upper-right means a strong setup and high correlation to the chosen stock. High reference correlation does not establish an all-pairs group. Removing market effect correlates residuals from separate stock-on-SPY regressions; actual cumulative returns stay unchanged.')]
+        y=477
+        for title,guide in guides:
+            text(44,y,title,12,BLUE,BOLD);y-=22;y-=para(guide,44,y,704,10)+32
         grouped=[g for g in groups if len(g['members'])>1]
         if grouped:
             start('Correlated groups',f'{mode} / Every member pair must have correlation of at least 0.75')
@@ -149,11 +172,16 @@ def build_ranking_pdf(job,analytics):
     paragraphs=[
         'Scoring: trend 30%, momentum 20%, relative strength versus SPY 20%, entry/risk 20%, and directional volume 10%. Components range from 0 to 100; final score = 1 + 9 x weighted component total / 100. Scores are setup assessments, not return probabilities.',
         'Trend measures price relative to the 50/200-day moving averages and their slopes. Momentum combines RSI and MACD histogram direction. Relative strength uses 21/63-session excess returns versus SPY. Entry/risk considers extension above the 20-day average, support-based stop distance and ATR. Volume uses the last 20 sessions of directional volume.',
-        'Correlations use up to 252 overlapping daily percentage returns, with a minimum of 126. No missing returns are filled with zero. Remove market effect fits each stock daily return on an intercept and SPY return, then correlates the residuals. Each correlation group requires every pair to meet 0.75. The 100-day and 200-day return windows overlap; their scatter shows similar performance rather than proving daily co-movement. Both scatter plots use actual stock returns even when SPY exposure is removed from the correlation groups.',
+        'Correlations use up to 252 overlapping daily percentage returns, with a minimum of 126. No missing returns are filled with zero. Remove market effect fits each stock daily return on an intercept and SPY return, then correlates the residuals. Each correlation group requires every pair to meet 0.75. The 100-day and 200-day return windows overlap; their scatter shows similar performance rather than proving daily co-movement. The two performance plots use actual stock returns even when SPY exposure is removed from the correlation groups. The reference correlation plot uses the selected correlation mode.',
         'The 12-month chart uses 252 trading sessions and requires 253 prices. Yahoo adjusted history is preferred; verified Nasdaq fallback is unadjusted. Providers and price basis can vary. Stock/SPY scoring and each correlation comparison use a consistent price basis. Corporate actions can affect unadjusted indicators. Latest daily bars may be incomplete.',
         'Data quality: at least 220 valid recent daily sessions are required for scoring. Missing, stale, zero-volume or incompatible data receives no score. Stocks with a different price basis or insufficient return variation can be excluded from correlation analysis. Valuation, earnings-event risk and portfolio suitability are outside the model.',
     ]
     for p in paragraphs:y-=para(p,44,y,704,9)+17
     providers=sorted(set(r.get('data_provider','Yahoo Finance') for r in ready));text(44,y,'Sources used: '+', '.join(providers),9,BLUE,BOLD);y-=24
     para('Yahoo Finance: https://finance.yahoo.com/ | Nasdaq historical prices: https://www.nasdaq.com/market-activity | Per-stock source links, data providers and dates are included in the CSV export. Research is for internal review and does not place orders.',44,y,704,9)
+    start('Chart research references','Methods and interpretation / Primary research and official documentation')
+    references=[('NIST / Scatter Plot','Relationships, nonlinear patterns, outliers, and association versus causation. https://www.itl.nist.gov/div898/handbook/eda/section3/scatterp.htm'),('MathWorks / Plotting Financial Data','Stock-return series and scatter plots for examining relationships. https://www.mathworks.com/videos/plotting-financial-data-1603366137074.html'),('Plerou et al. / A Random Matrix Approach to Cross-Correlations in Financial Data','Research separates market-wide influence from correlated stock groups and noise. https://arxiv.org/abs/cond-mat/0108023'),('CFA Institute / Equity and Bond Correlations: Higher Than Assumed?','Return frequency and historical window affect estimated correlations. https://rpc.cfainstitute.org/blogs/enterprising-investor/2023/equity-and-bond-correlations-higher-than-assumed'),('CFA Institute / Backtesting and Simulation','Walk-forward validation, look-ahead bias and structural breaks. https://www.cfainstitute.org/insights/professional-learning/refresher-readings/2026/backtesting-and-simulation')]
+    y=480
+    for title,description in references:
+        text(44,y,title,10,BLUE,BOLD);y-=17;y-=para(description,44,y,704,8)+22
     c.save();return buffer.getvalue()
