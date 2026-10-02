@@ -110,3 +110,31 @@ def test_raw_benchmark_fallback_requires_matching_stock_basis(monkeypatch):
         assert job['rows'][0]['price_basis']=='unadjusted'
         assert job['rows'][0]['data_provider']=='Nasdaq'
         assert calls==[('SPY',None),('AAPL','unadjusted')]
+
+
+def test_analytics_and_pdf_use_existing_history_and_hide_internal_data(monkeypatch):
+    import numpy as np
+    import pandas as pd
+    from pypdf import PdfReader
+    calls=[];rng=np.random.default_rng(12);dates=pd.bdate_range(end=pd.Timestamp.now(tz='UTC').normalize(),periods=300)
+    common=rng.normal(.001,.012,len(dates));frames={}
+    for symbol in ['SPY','AAA','BBB']:
+        close=100*np.cumprod(1+common+rng.normal(0,.004,len(dates)))
+        frames[symbol]=pd.DataFrame({'Close':close,'High':close*1.01,'Low':close*.99,'Volume':1000000},index=dates)
+    def fetch(symbol,session,basis=None):calls.append(symbol);return frames[symbol]
+    monkeypatch.setattr('backend.ranking.fetch_history',fetch)
+    app=FastAPI();attach_ranking_routes(app,threading.Semaphore(1))
+    with TestClient(app) as client:
+        job=client.post('/api/ranking',json={'text':'AAA BBB'}).json()
+        for _ in range(100):
+            job=client.get('/api/ranking/'+job['id']).json()
+            if job['status']!='running':break
+            time.sleep(.01)
+        assert not any(k.startswith('_') for k in job)
+        assert client.get('/api/ranking/'+job['id']+'/analytics').json()['available']
+        assert client.get('/api/ranking/'+job['id']+'/analytics?market_adjusted=true').json()['market_adjusted']
+        response=client.get('/api/ranking/'+job['id']+'/pdf')
+        assert response.status_code==200 and response.headers['content-type']=='application/pdf'
+        reader=PdfReader(io.BytesIO(response.content));assert len(reader.pages)>=5
+        assert 'Technical Stock Scorecard' in reader.pages[0].extract_text()
+        assert calls==['SPY','AAA','BBB']

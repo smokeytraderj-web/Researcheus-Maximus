@@ -39,3 +39,12 @@ def test_flat_prices_are_finite_and_volume_selloffs_are_not_rewarded():
     up=score_stock('UP',history(.001),history())
     down=score_stock('DOWN',history(-.001),history())
     assert up['components']['volume']>down['components']['volume']
+
+
+def test_qualitative_summary_is_specific_to_the_measured_ticker():
+    row=score_stock('BEAR',history(-.002),history(.0005))
+    summary=row['qualitative_summary']
+    assert summary.startswith('BEAR shows a weak trend')
+    assert 'lagged SPY' in summary
+    assert '63 trading sessions' in summary
+    assert len(summary)<450

@@ -264,6 +264,7 @@ def attach_portfolio_routes(app, reports_root: Path, web_dir: Path, provider_fac
                 for chart in position.get("charts", []):
                     chart["url"] = f"position-{index}/{chart['file']}"
             html = (web_dir / "portfolio.html").read_text(encoding="utf-8")
+            html = html.replace('<link rel="stylesheet" href="/workspace-theme.css?v=1">', '<style>' + (web_dir / 'workspace-theme.css').read_text(encoding='utf-8') + '</style>')
             html = html.replace('href="/vendor/fonts/fonts.css"', 'href="fonts/fonts.css"')
             # Matched by pattern rather than by exact string. These two tags
             # carry a ?v= cache-busting query, and an exact match silently did

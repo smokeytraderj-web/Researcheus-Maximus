@@ -71,4 +71,23 @@ def score_stock(ticker, frame, benchmark):
     components = dict(zip(WEIGHTS, map(float, [trend, momentum, strength, entry, volume])))
     score = round(1 + 9*sum(components[k]*WEIGHTS[k] for k in WEIGHTS)/100, 1)
     reason = ('Healthy uptrend' if trend >= 80 else 'Mixed trend' if trend >= 45 else 'Weak trend') + ('; outperforming SPY' if excess63 > 0 else '; lagging SPY') + ('; extended entry.' if extension > 5 else '; supported entry.' if entry >= 75 else '; entry risk needs review.')
-    return {'ticker':ticker, 'status':'ready', 'score':score, 'reason':reason, 'as_of':d.index[-1].date().isoformat(), 'price':round(price,2), 'rsi':round(rsi,1), 'macd_histogram':round(float(hist.iloc[-1]),4), 'ma20':round(float(ma20.iloc[-1]),2), 'ma50':round(float(ma50.iloc[-1]),2), 'ma200':round(float(ma200.iloc[-1]),2), 'atr_pct':round(atr_pct,2), 'extension_pct':round(extension,2), 'support':round(support,2), 'stop_reference':round(stop,2), 'stop_distance_pct':round(distance,2), 'volume_ratio':round(vol_ratio,2) if vol_ratio is not None else None, 'excess_21d':round(excess21,2), 'excess_63d':round(excess63,2), 'components':{k:round(v,1) for k,v in components.items()}, 'source':frame.attrs.get('url', f'https://finance.yahoo.com/quote/{ticker}/history/'), 'data_provider':frame.attrs.get('source', 'Yahoo Finance'), 'price_basis':frame.attrs.get('basis', 'adjusted'), 'benchmark_provider':benchmark.attrs.get('source', 'Yahoo Finance')}
+    trend_phrase = 'a healthy uptrend' if trend >= 80 else 'a mixed trend' if trend >= 45 else 'a weak trend'
+    if rsi > 70:
+        momentum_phrase = f'momentum looks stretched with RSI at {rsi:.0f}'
+    elif rsi < 30:
+        momentum_phrase = f'RSI at {rsi:.0f} signals oversold conditions without confirming a reversal'
+    elif hist.iloc[-1] > hist.iloc[-6]:
+        momentum_phrase = 'momentum is improving' if hist.iloc[-1] > 0 else 'momentum is recovering but MACD remains negative'
+    else:
+        momentum_phrase = 'positive momentum is fading' if hist.iloc[-1] > 0 else 'momentum remains weak'
+    strength_phrase = f'outperformed SPY by {excess63:.1f} percentage points' if excess63 >= 0 else f'lagged SPY by {abs(excess63):.1f} percentage points'
+    if extension > 5:
+        entry_phrase = f'the entry is extended at {extension:.1f}% above the 20-day average'
+    elif distance > 8:
+        entry_phrase = f'the support-based stop reference is {distance:.1f}% below price, leaving a wider risk range'
+    elif price <= ma50.iloc[-1]:
+        entry_phrase = 'price remains below the 50-day average, so trend confirmation is still missing'
+    else:
+        entry_phrase = f'price is near its short-term trend with a {distance:.1f}% distance to the support-based stop reference'
+    qualitative = f"{ticker} shows {trend_phrase}, while {momentum_phrase}. It has {strength_phrase} over 63 trading sessions, and {entry_phrase}."
+    return {'ticker':ticker, 'status':'ready', 'score':score, 'return_1y':round(float((c.iloc[-1]/c.iloc[-253]-1)*100),2) if len(c)>=253 else None, 'reason':reason, 'qualitative_summary':qualitative, 'as_of':d.index[-1].date().isoformat(), 'price':round(price,2), 'rsi':round(rsi,1), 'macd_histogram':round(float(hist.iloc[-1]),4), 'ma20':round(float(ma20.iloc[-1]),2), 'ma50':round(float(ma50.iloc[-1]),2), 'ma200':round(float(ma200.iloc[-1]),2), 'atr_pct':round(atr_pct,2), 'extension_pct':round(extension,2), 'support':round(support,2), 'stop_reference':round(stop,2), 'stop_distance_pct':round(distance,2), 'volume_ratio':round(vol_ratio,2) if vol_ratio is not None else None, 'excess_21d':round(excess21,2), 'excess_63d':round(excess63,2), 'components':{k:round(v,1) for k,v in components.items()}, 'source':frame.attrs.get('url', f'https://finance.yahoo.com/quote/{ticker}/history/'), 'data_provider':frame.attrs.get('source', 'Yahoo Finance'), 'price_basis':frame.attrs.get('basis', 'adjusted'), 'benchmark_provider':benchmark.attrs.get('source', 'Yahoo Finance')}
