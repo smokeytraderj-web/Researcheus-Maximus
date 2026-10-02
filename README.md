@@ -1,5 +1,7 @@
 # Technical Analyst Agent
 
+**Free web hosting:** see [Render setup and domain migration](docs/hosting.md).
+
 **Portfolio research:** choose **Evaluate portfolio** on the home page, or open `/portfolio` on the same website. The portfolio dashboard shares this app's access code, research providers and report generator. See [Portfolio research](docs/portfolio.md) for inputs and report downloads.
 
 A Windows desktop application for client-ready, evidence-grounded investment research.

@@ -129,7 +129,7 @@ def unlock(body: UnlockIn, request: Request) -> JSONResponse:
         max_age=gate.TOKEN_TTL,
         httponly=True,
         samesite="lax",
-        # Railway terminates TLS in front of the app and forwards over plain
+        # Hosting proxies terminate TLS in front of the app and forward over plain
         # HTTP, so the request's own scheme reads "http" there. The forwarded
         # header is what says how the browser actually connected.
         secure=(

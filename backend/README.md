@@ -98,23 +98,25 @@ record copy, and the Track Record log is still written by the desktop app only.
 
 ## Deploying
 
+For free hosted deployment and domain migration, follow
+[Hosting migration](../docs/hosting.md). The root `render.yaml` defines a
+Render Free Docker service with the existing access gate and research engine.
+
 ```bash
 docker build -t researcheus .
-docker run -p 8000:8000 -v researcheus-reports:/app/reports \
+docker run -p 8000:8000 \
   -e RESEARCHEUS_API_KEY=... -e RESEARCHEUS_TVREMIX_KEY=... researcheus
 ```
 
-The image installs `requirements-web.txt` (the desktop requirements without
-PySide6 and pywin32 — neither is imported outside `ui/`) plus the backend's
-own dependencies. Verified: the whole stack runs with no GUI toolkit and no
-keyring installed.
+The image installs server dependencies without the desktop GUI toolkit.
+Hosts that inject `$PORT` are handled. Set credentials as environment
+variables; a deployed server has no user keychain.
 
-**Mount a volume at `/app/reports`.** The image opts into report retention so
-hosted links survive a redeploy; without a volume, each redeploy still wipes
-them.
-
-Hosts that inject `$PORT` (Railway, Render, Fly) are handled. Set credentials
-as environment variables — a deployed server has no user keychain.
+Reports are temporary and removed within an hour and on restart. Do not mount
+anything at `/app/reports`: that would hide the Python report package. Any
+optional persistence must use a separate path outside `/app`, such as `/data`.
+Render Free has no persistent disk; see the migration guide for feedback and
+house-view limitations.
 
 ## Running fully offline
 
@@ -153,8 +155,7 @@ the hour. Still, don't put client-identifying material into a prompt.
 Reader feedback is always written to `<reports dir>/_feedback/feedback.jsonl`
 and is readable at `GET /api/feedback`. That file is exempt from the report
 retention purge, but the reports directory defaults to the system temp
-directory — so on a host that redeploys by replacing the container (Railway
-does), it does not survive a deploy. Set `RESEARCHEUS_FEEDBACK_DIR` to a mounted
+directory — so on a host that redeploys by replacing the container, it does not survive a deploy. Set `RESEARCHEUS_FEEDBACK_DIR` to a mounted
 volume, mirror to a Google Doc, or both.
 
 The mirror uses an Apps Script web app rather than the Google Docs API on

@@ -31,26 +31,13 @@ COPY security/ ./security/
 COPY services/ ./services/
 COPY web/ ./web/
 
-# Reports are never kept: each is deleted an hour after it is made and on every
-# restart, and no setting changes that. The directory still sits on the mounted
-# volume because the feedback log lives beside it and must survive a redeploy.
-#
-# There is deliberately no VOLUME instruction: Railway rejects the whole
-# Dockerfile if it finds one ("docker VOLUME ... is not supported, use Railway
-# Volumes"). Persistence is attached by the host instead, mounted over this
-# path. Without such a mount the directory is ordinary container storage and
-# reports last only as long as the container, which is the same disposable
-# behaviour the app has by default.
-#
-# The path lives outside /app, and must keep doing so. A host volume mounts an
-# EMPTY filesystem over its mount point, hiding whatever the image put there.
-# Pointed at /app/reports it therefore erased the reports/ Python package, and
-# the server died on startup with "No module named 'reports.call_log'". Any
-# directory under /app that shares a name with a package here is the same trap.
+# Reports expire within an hour and are deleted on restart. Optional external
+# persistence belongs outside /app: mounting over /app/reports would hide the
+# Python reports package. Free hosting uses ephemeral storage.
 ENV RESEARCHEUS_REPORTS_DIR=/data/reports
 RUN mkdir -p /data/reports
 
-# Hosts that inject $PORT (Railway, Render, Fly) override this.
+# Hosts that inject $PORT (for example, Render) override this.
 ENV PORT=8000
 EXPOSE 8000
 

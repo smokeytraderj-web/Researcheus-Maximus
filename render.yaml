@@ -1,0 +1,28 @@
+# Free hosting for the existing Python/Docker application.
+services:
+  - type: web
+    name: researcheus-maximus
+    runtime: docker
+    plan: free
+    repo: https://github.com/smokeytraderj-web/Researcheus-Maximus
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: RESEARCHEUS_ACCESS_CODE
+        sync: false
+      - key: RESEARCHEUS_SESSION_SECRET
+        generateValue: true
+      - key: RESEARCHEUS_TVREMIX_KEY
+        sync: false
+      - key: RESEARCHEUS_MAX_CONCURRENT_RUNS
+        value: "1"
+      - key: RESEARCHEUS_DEMO
+        value: "0"
+      - key: RESEARCHEUS_REPORTS_DIR
+        value: /tmp/researcheus-reports
+      - key: OPENBLAS_NUM_THREADS
+        value: "1"
+      - key: OMP_NUM_THREADS
+        value: "1"
